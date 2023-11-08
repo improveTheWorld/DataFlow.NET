@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\iCode.Framework.FilePath\iCode.Framework.FilePath.csproj" />
-    <ProjectReference Include="..\iCode.Framework.WatchedValue\iCode.Framework.WatchedValue.csproj" />
+    <ProjectReference Include="..\iCode.Framework.WatchedValue\iCode.Framework.WatchedValueWrapper.csproj" />
   </ItemGroup>
 
 </Project>

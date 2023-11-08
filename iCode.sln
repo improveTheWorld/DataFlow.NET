@@ -45,7 +45,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.UnixStyleArgsFillerTe
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.NewObjectsParsingTest", "iCode.NewObjectsParsingTest\iCode.NewObjectsParsingTest.csproj", "{5DD1427C-FE6A-4739-A4F3-78A9BA22DF52}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.WatchedValue", "iCode.Framework.WatchedValue\iCode.Framework.WatchedValue.csproj", "{67D8D548-B20C-42C4-862F-B290CE04FDBE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.WatchedValueWrapper", "iCode.Framework.WatchedValue\iCode.Framework.WatchedValueWrapper.csproj", "{67D8D548-B20C-42C4-862F-B290CE04FDBE}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.ConditionalAction", "iCode.Framework.ConditionalAction\iCode.Framework.ConditionalAction.csproj", "{A0D988BF-E4D6-4329-9FF9-BE8CFAB809B5}"
 EndProject
@@ -55,7 +55,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Logger", "iCode.Logge
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Logger.UsageExamples", "iCode.Logger.UsageExamples\iCode.Logger.UsageExamples.csproj", "{19A9DE01-2BC2-40C8-80C4-7EE16AD16C5D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iCode.Framework.FilePath", "iCode.Framework.FilePath\iCode.Framework.FilePath.csproj", "{C8C3C0A1-3870-4DDE-BE5E-A55F2B1748B3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.FilePath", "iCode.Framework.FilePath\iCode.Framework.FilePath.csproj", "{C8C3C0A1-3870-4DDE-BE5E-A55F2B1748B3}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "iCode.Logger", "iCode.Logger", "{F52396D5-00FB-46F9-AFBD-1CF59CD2AE4E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.Syntaxi", "iCode.Syntaxi\iCode.Framework.Syntaxi.csproj", "{3456EF1A-EF40-48AC-AF61-EB4313CF8B28}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -159,6 +163,10 @@ Global
 		{C8C3C0A1-3870-4DDE-BE5E-A55F2B1748B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C8C3C0A1-3870-4DDE-BE5E-A55F2B1748B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C8C3C0A1-3870-4DDE-BE5E-A55F2B1748B3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3456EF1A-EF40-48AC-AF61-EB4313CF8B28}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3456EF1A-EF40-48AC-AF61-EB4313CF8B28}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3456EF1A-EF40-48AC-AF61-EB4313CF8B28}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3456EF1A-EF40-48AC-AF61-EB4313CF8B28}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -185,7 +193,10 @@ Global
 		{67D8D548-B20C-42C4-862F-B290CE04FDBE} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
 		{A0D988BF-E4D6-4329-9FF9-BE8CFAB809B5} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
 		{B0BA6A0B-EFFB-4BEB-80DA-E70897EA6FD2} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
+		{72538AFD-601F-4FD1-8C7E-3F6CB15FC2BF} = {F52396D5-00FB-46F9-AFBD-1CF59CD2AE4E}
+		{19A9DE01-2BC2-40C8-80C4-7EE16AD16C5D} = {F52396D5-00FB-46F9-AFBD-1CF59CD2AE4E}
 		{C8C3C0A1-3870-4DDE-BE5E-A55F2B1748B3} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
+		{3456EF1A-EF40-48AC-AF61-EB4313CF8B28} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {61DDF856-8DAB-48DA-B9CA-ADCD419D66E8}

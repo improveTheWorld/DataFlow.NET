@@ -20,7 +20,7 @@ The main parts of the code are as follows:
 8. public static implicit operator WatchedValueWrapper<T>(T value): This implicit conversion operator allows converting a value of type T to an instance of WatchedValueWrapper<T>. */
 
 
-namespace iCode.Framework.WatchedValue
+namespace iCode.Framework
 {
 
     public interface IWatchedValueWrapper

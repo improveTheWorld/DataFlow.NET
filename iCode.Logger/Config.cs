@@ -1,4 +1,4 @@
-﻿using iCode.Framework.WatchedValue;
+﻿using iCode.Framework;
 
 namespace iCode.Log
 {

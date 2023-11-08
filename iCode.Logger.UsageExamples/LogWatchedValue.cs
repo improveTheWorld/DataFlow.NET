@@ -1,5 +1,5 @@
 ﻿
-using iCode.Framework.WatchedValue;
+using iCode.Framework;
 using iCode.Log;
 
 namespace iLoggerUsageExamples
