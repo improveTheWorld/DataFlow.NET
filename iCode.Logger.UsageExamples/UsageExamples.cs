@@ -168,6 +168,25 @@ namespace iLoggerUsageExamples
 
         }
 
+        static void DisplayStatusLogExamples()
+        {
+            //TODO : imagine having a imput that displays some variables values : tables/ strings / object .. with a semi graphical display :
+            //                                           ___ ___ ___ ___    
+            //exemple a tables can be displayed as this | 5 | 3 | 1 | 3 |
+            //                                          |___|___|___|___| 
+            // a class like this : _____________
+            //                    |name :"Bilel"|
+            //                    |-------------|
+            //                    |Age  : 43    |
+            //                    |-------------|
+            //                    |size: 1.80   |
+            //                    |_____________|
+            //
+            // and that when a value is updated, the dispay is updated ( using the x,y cursor moving caracteristic )
+            // This will be a step further to the displying differential execution in a GUI environnement in the future ( with a possibility of zoom in , zoom out , forward playing , back playing)
+            // reflexion direction : we need to extend the object with a LogStatus function, and then to monitor variables updates 
+        }
+
         static void DisplayNamespacesTargettingExamples()
         {
 

@@ -9,10 +9,10 @@ namespace iCode.Log
         public Dictionary<object, string> InstancesNames = new();
 
         // Filter function to validate logs
-        public AcceptanceCriterias<string?> MessageAcceptanceCriterias = new();
+        public CriteriasEvaluator<string?> MessageAcceptanceCriterias = new(true);
 
         // Filter function to validate requesters
-        public AcceptanceCriterias<object> RequesterAcceptanceCriterias = new();
+        public CriteriasEvaluator<object> RequesterAcceptanceCriterias = new(true);
 
         public NameSpaceListWatcher WatchedNameSpaces = new();
 
@@ -33,8 +33,8 @@ namespace iCode.Log
         // Method to reset all filters and WatchedList
         public void ResetFilters()
         {
-            MessageAcceptanceCriterias= new();
-            RequesterAcceptanceCriterias = new();
+            MessageAcceptanceCriterias= new(true);
+            RequesterAcceptanceCriterias = new(true);
             WatchedInstances = new();
             WatchedNameSpaces = new();
         }

@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Logger.UsageExamples"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.FilePath", "iCode.Framework.FilePath\iCode.Framework.FilePath.csproj", "{DC5601B1-1DB7-4844-B837-F3A9AF6C73BC}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "icode.Framework.CriteriasEvaluator", "icode.Framework.CriteriasEvaluator\icode.Framework.CriteriasEvaluator.csproj", "{4B29FA1B-ABB1-4794-B8C7-B5EBEE5EBA40}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{DC5601B1-1DB7-4844-B837-F3A9AF6C73BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DC5601B1-1DB7-4844-B837-F3A9AF6C73BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DC5601B1-1DB7-4844-B837-F3A9AF6C73BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4B29FA1B-ABB1-4794-B8C7-B5EBEE5EBA40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4B29FA1B-ABB1-4794-B8C7-B5EBEE5EBA40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4B29FA1B-ABB1-4794-B8C7-B5EBEE5EBA40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4B29FA1B-ABB1-4794-B8C7-B5EBEE5EBA40}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

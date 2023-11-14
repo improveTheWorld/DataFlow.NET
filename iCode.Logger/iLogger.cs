@@ -154,7 +154,7 @@ namespace iCode.Log
         {
             if (bufferEnabled)
             {
-                Buffer.Writer.WriteAsync((message, logLevel));
+                await Buffer.Writer.WriteAsync((message, logLevel));
             }
             else
             {

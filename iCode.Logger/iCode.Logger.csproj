@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\icode.Framework.CriteriasEvaluator\icode.Framework.CriteriasEvaluator.csproj" />
     <ProjectReference Include="..\iCode.Framework.FilePath\iCode.Framework.FilePath.csproj" />
     <ProjectReference Include="..\iCode.Framework.WatchedValue\iCode.Framework.WatchedValueWrapper.csproj" />
   </ItemGroup>
