@@ -4,9 +4,13 @@ namespace iCode.Extentions.StreamReaderExtentions
 {
     public static class StreamReaderExtentions
     {
-        public static IEnumerable<string?> AsLinesEnumerable(this StreamReader file)
+        public static IEnumerable<string?> AsLines(this StreamReader file)
         {
-            return new FileEnumerable(file);
+            while(!file.EndOfStream)
+            {
+                yield return  file.ReadLine();
+            }
+            file.Close();
         }
     }
 }

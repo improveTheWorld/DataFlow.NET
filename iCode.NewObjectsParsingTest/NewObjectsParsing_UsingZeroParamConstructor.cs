@@ -113,7 +113,7 @@ namespace iCode.Tests
         void Parse_IFeedable()
         {
 
-            Mix_Field_Property parsed = "2;yes;True".newObject< Mix_Field_Property>(";");
+            Mix_Field_Property parsed = "2;yes;True".AsObject< Mix_Field_Property>(";");
             Mix_Field_Property expected = new Mix_Field_Property { FieldBool = true, intField = 2, StringProperty = "yes" };
             DeepAssert.Equal(expected, parsed);
 
@@ -126,7 +126,7 @@ namespace iCode.Tests
         {
 
             Mix_Field_Property expected = new Mix_Field_Property { FieldBool = true, intField = 2, StringProperty = "yes" };            
-            var parsed = " yes;2 ;True  ".newObject<Mix_Field_Property>(";", new string[] { "StringProperty", "intField", "FieldBool" });
+            var parsed = " yes;2 ;True  ".AsObject<Mix_Field_Property>(";", new string[] { "StringProperty", "intField", "FieldBool" });
             DeepAssert.Equal(expected, parsed);
 
         }
@@ -136,7 +136,7 @@ namespace iCode.Tests
         {
            
             Mix_Field_Oredered expected = new Mix_Field_Oredered { FieldBool = true, intField = 2, StringProperty = "yes" };
-            var parsed = " 2 ;yes; True  ".newObject<Mix_Field_Oredered>(";");
+            var parsed = " 2 ;yes; True  ".AsObject<Mix_Field_Oredered>(";");
 
             DeepAssert.Equal(expected, parsed);
 

@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using System;
+using System.Reflection;
+using iCode.Extentions.IEnumerableExtentions;
 
 
 namespace iCode.Framework.AutomizedFeeding
@@ -6,17 +8,9 @@ namespace iCode.Framework.AutomizedFeeding
 
     public static class Feeder
     {
-        static Dictionary<string, int> ConvertToFeedDictionary(string[] feedingOrder)
+        static Dictionary<string, int> AsFeedDictionary(string[] feedingOrder)
         {
-           
-            Dictionary<string, int> retValue = new Dictionary<string, int>();
-            int index = 0;
-            foreach (string fieldName in feedingOrder)
-            {
-                retValue.Add(fieldName.Trim(), index);
-                index++;
-            }
-            return retValue;       
+            return new Dictionary<string, int>(feedingOrder.Select((fieldName, index) => new KeyValuePair<string, int>(fieldName, index)));
         }
 
         static void FeedAttribute(MemberInfo attribute, object objectToFeed, object food)
@@ -31,7 +25,7 @@ namespace iCode.Framework.AutomizedFeeding
 
         public static T Feed<T>(string[] feedingOrder, T objectToFeed, params object[] parameters)
         {
-            return FeedInGivenOrder<T>(objectToFeed, ConvertToFeedDictionary(feedingOrder), parameters);
+            return FeedInGivenOrder<T>(objectToFeed, AsFeedDictionary(feedingOrder), parameters);
         }
 
         public static T Feed<T>(T objectToFeed, params object[] parameters)

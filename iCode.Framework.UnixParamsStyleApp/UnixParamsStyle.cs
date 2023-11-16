@@ -4,9 +4,9 @@ namespace iCode.Framework.UnixParamsStyle
 {
     public static class UnixParamsStyle
     {
-        public static CONFIG? GetConfig<CONFIG>(string[] args, string ArgsDescriptionFile, out ServiceProvider? serviceProvider) 
+        public static CONFIG? GetConfig<CONFIG>(string[] args, string CSV_ArgsFile, out ServiceProvider? serviceProvider) 
         {
-            if (!UnixStyleArgsFiller.CheckMendatoriesAndFillDefaultsFromCsv(args, out args, ArgsDescriptionFile, true))
+            if (!UnixStyleArgsFiller.CheckMendatoriesAndFillDefaultsFromCsv(args, out args, CSV_ArgsFile, 1))
             {
                 serviceProvider = null;
                 return default;

@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\iCode.Extentions.IEnumerableExtentions\iCode.Extentions.IEnumerableExtentions.csproj" />
+  </ItemGroup>
+
 </Project>

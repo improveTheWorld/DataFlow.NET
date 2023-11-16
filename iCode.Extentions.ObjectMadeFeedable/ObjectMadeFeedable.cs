@@ -27,7 +27,7 @@ namespace iCode.Extentions.ObjectMadeFeedable
 
             try
             {
-                return objectType.GetConstructor(parameters.Transform(x => x.GetType()).ToArray()).Invoke(parameters);
+                return objectType.GetConstructor(parameters.Select(x => x.GetType()).ToArray()).Invoke(parameters);
             }
             catch(Exception ex)
             {

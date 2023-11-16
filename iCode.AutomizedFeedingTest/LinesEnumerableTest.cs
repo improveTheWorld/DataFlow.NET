@@ -3,6 +3,7 @@ using iCode.Extentions.IEnumerableExtentions;
 using Xunit;
 using System.IO;
 using System;
+using System.Linq;
 
 namespace iCode.Tests
 {
@@ -48,7 +49,8 @@ namespace iCode.Tests
 
             allLines1 = "";
             int count = 0;
-            Lines.ApplyForeach(new Action<string>[]{ (x => allLines1 += x),(x=>count++)});
+            Lines.ForEach(x => { allLines1 += x; count++;  });
+            
             Assert.Equal(line1 + line2 + line3 + line4, allLines1);
             Assert.Equal(4,count);
         }
@@ -101,9 +103,7 @@ namespace iCode.Tests
             int count = 0;
             int count2 = 0;
 
-            Lines.ApplyForeach(new Action<string>[] { x => allLines1 += x, x => count++ });
-            Lines.ApplyForeach(new Action<string>[] { x => allLines2 += x, x => count2++ });
-   
+            Lines.ForEach(x => { allLines1 += x; count++; allLines2 += x; count2++; });   
                                   
             Assert.Equal(4, count2);
             Assert.Equal(4, count);

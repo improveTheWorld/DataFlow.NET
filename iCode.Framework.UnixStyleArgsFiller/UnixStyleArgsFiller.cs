@@ -2,6 +2,9 @@
 using iCode.Extentions.StreamReaderExtentions;
 using iCode.Extentions.IEnumerableExtentions;
 using System.Reflection;
+using System;
+using System.Linq;
+
 namespace iCode.Framework
 {
        
@@ -23,9 +26,9 @@ namespace iCode.Framework
 
         public readonly IEnumerable<ArgDescription> CommandLineParameterConfigs;
         readonly string MessageHeader;
-        public static bool CheckMendatoriesAndFillDefaultsFromCsv(string[] args, out string[] filledArgs,  string ArgDescriptionFile, bool isDescriptionFileWithTitles, string appDescription = "")
+        public static bool CheckMendatoriesAndFillDefaultsFromCsv(string[] args, out string[] filledArgs,  string ArgDescriptionFile, int nbrLinesToSkip , string appDescription = "")
         {
-           return new UnixStyleArgsFiller(ArgDescriptionFile, isDescriptionFileWithTitles, appDescription)._checkAndFill(args, out filledArgs, Console.Out);
+           return new UnixStyleArgsFiller(ArgDescriptionFile, nbrLinesToSkip, appDescription)._checkAndFill(args, out filledArgs, Console.Out);
         }
         bool _checkAndFill(string[] CSVFormatArgs, out string[] UnixStyleArgs, TextWriter outPut)
         {
@@ -52,13 +55,13 @@ namespace iCode.Framework
             }
         }
 
-        public UnixStyleArgsFiller(string ArgsDescriptionFile, bool csvWithTitle = true, string appDescription ="") 
-            : this(new StreamReader(ArgsDescriptionFile),csvWithTitle, appDescription) { }
+        public UnixStyleArgsFiller(string ArgsDescriptionFile, int nbrLinesToSkip, string appDescription ="") 
+            : this(new StreamReader(ArgsDescriptionFile), nbrLinesToSkip, appDescription) { }
 
 
-        public UnixStyleArgsFiller(StreamReader ArgsDescriptionFile, bool csvWithTitles = true, string appDescription ="")
-        : this(ArgsDescriptionFile.AsLinesEnumerable().Range(csvWithTitles ? (index => index!=0) : (index => true)).newObjectsAndEnumerate<ArgDescription>(";"), appDescription) { }
-            
+        public UnixStyleArgsFiller(StreamReader ArgsFile, int nbrLinesToSkip, string appDescription ="")
+        : this(ArgsFile.AsLines().Skip(nbrLinesToSkip).Select(CVS_line => CVS_line.AsObject<ArgDescription>(";")), appDescription){ }
+
 
         public UnixStyleArgsFiller(IEnumerable<ArgDescription> ArgsDescription, string appDescription="")
         {

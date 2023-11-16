@@ -2,7 +2,12 @@
 {
     public static class StringExtentions
     {
-        public static object ParseValue(this string value)
+        /// <summary>
+        /// Try to Convert a string to a typed value ( in order bool,  int, Int64, double, dataTime ) 
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns> Return the first succefull convertion result. If none , return the input string as it</returns>
+        public static object Convert(this string value)
         {
             bool boolValue;
             Int32 intValue;

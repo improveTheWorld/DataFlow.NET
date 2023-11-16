@@ -1,48 +1,24 @@
-﻿using iCode.Log;
+﻿
 namespace iCode.Extentions.IEnumerableExtentions
 {
     public static class IEnumerableExtentions
     {
-        public static IEnumerable<Y> Transform<T, Y>(this IEnumerable<T> list, Func<T, bool> condition, Func<T, Y> transform)
-        {
-
-            list.Trace($"-------------------- Begin Transform" );
-            foreach (T element in list)
-            {
-                if (condition(element))
-                {
-                    var ret = transform(element);
-                    list.Trace($" element transformed to --  {ret} --");
-                    yield return ret;
-                }
-            }
-
-            list.Trace($"Transform End-----------------");
-        }
-
         public static IEnumerable<T> Range<T>(this IEnumerable<T> list, Func<int /*index*/, bool> SelectElementIndex)
         {
             int index = 0;
-            list.Trace($"-------------------- Begin Range");
 
             foreach (T element in list)
             {
                 if (SelectElementIndex(index++))
                 {
-                    list.Trace($"Range {index} accepted --  {element}--");
                     yield return element;
                 }
-                else
-                {
-                    list.Trace($"Range {index} Removed --  {element}--");
-                }
+
             }
 
-            list.Trace($"Range End-----------------");
         }
 
        
-
         public static IEnumerable<T> CombineOrdered<T>(this IEnumerable<T> ordered1, IEnumerable<T> ordered2, Func<T, T, bool> isFirstParamInferiorOrEqualToSecond)
         {
 
@@ -94,99 +70,44 @@ namespace iCode.Extentions.IEnumerableExtentions
             }
 
         }
-
-
-
-        public static void ApplyForeach<T>(this IEnumerable<T> list, IEnumerable<( Func<T, bool> condition, Action<T> action)> ConditionalActions)
+             
+      
+        public static void ForEach<T>(this IEnumerable<T> sequence, Action<T> action)
         {
-            foreach (T element in list)
-            {
-                foreach(var conditionAction in ConditionalActions)
-                {
-                    if(conditionAction.condition(element))
-                    {
-                        conditionAction.action(element);
-                    }
-                }                        
-            }
+            foreach (var item in sequence)
+                action(item);
         }
 
-
-        public static void ApplyForeach<T>(this IEnumerable<T> list, Func<T, bool> condition, Action<T> action)
-        {
-            ApplyForeach<T>(list, new (Func<T, bool> , Action<T> )[] { (condition, action) });
-        }
-
-        public static void ApplyForeach<T>(this IEnumerable<T> list, Action<T> action)
-        {
-            ApplyForeach<T>(list, _ => true, action);
-        }
-
-        public static void ApplyForeach<T>(this IEnumerable<T> list, IEnumerable<Action<T>> actions)
-        {
-            foreach(T element in list)
-            {
-                foreach (Action<T> action in actions)
-                {
-                    action(element);
-                }
-            }           
-
-        }
-
-
-
-        public static IEnumerable<Y> Transform<X, Y>(this IEnumerable<X> list, Func<X, Y> transform)
-        {
-            return Transform<X, Y>(list, _ => true, transform);
-        }
-
-        public static int IndexOf<T>(this IEnumerable<T> list,T instance)
+        public static void ForEach<T>(this IEnumerable<T> sequence, Action<T,int> action)
         {
             int index = 0;
-            foreach(var element in list )
-            {
-                if (element.Equals(instance))
-                {
-                    return index;
-                }
-                index++;
-            }
-            return -1;
+            foreach (var item in sequence)
+                action(item, index++);
         }
 
-        public static void forEachExceptLast<T>(this IEnumerable<T> list, Action<T> apply, out T? lastElement)
+        public static T? Cumulate<T>(this IEnumerable<T> sequence, Func<T, T, T> cumulate)
         {
-            var enumerator = list.GetEnumerator();
+            T cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
 
-            if(!enumerator.MoveNext())
-            {
-                lastElement = default;
-                return; 
-            }
-            else
-            {
-                lastElement = enumerator.Current;
-                while(enumerator.MoveNext() && lastElement != null)
-                {
-                    apply(lastElement);
-                    lastElement = enumerator.Current;
-                }
-            }
+            sequence.Skip(1).ForEach(x => cumul = cumulate(cumul, x));
+           
+            return cumul;
         }
-         
-        public static string Serialize<T>(this IEnumerable<T> list, string separator= ";" , Func<T,string>SerializeElement = null)
-        {
-            if(SerializeElement== null)
-            {
-                SerializeElement = (x=>x.ToString());
-            }
-            string retValue = "";
-            
-            list.forEachExceptLast<T>(x => retValue += SerializeElement(x)+separator, out T lastElement);
 
-            return retValue+ SerializeElement(lastElement);
+        static bool IsNullOrEmpty<T>(this IEnumerable<T> sequence)
+        {
+            if (sequence == null)
+            {
+                return true;
+            }
+
+            var collection = sequence as ICollection<T>;
+            if (collection != null)
+            {
+                return collection.Count == 0;
+            }
+
+            return !sequence.Any();
         }
     }
-
 }
