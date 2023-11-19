@@ -34,15 +34,7 @@ namespace iCode.Tests
             string allLines1 = "";
             string allLines2 = "";
             FileEnumerable Lines = new FileEnumerable(reader);
-            foreach (string line in Lines)
-            {
-                allLines1 += line;
-            }
-
-            foreach (string line in Lines)
-            {
-                allLines2 += line;
-            }
+            Lines.ForEach(line => { allLines1 += line; allLines2 += line; });
             
             Assert.Equal(line1+line2+line3+line4, allLines2);
             Assert.Equal(allLines1, allLines2);
@@ -68,15 +60,7 @@ namespace iCode.Tests
             string allLines1 = "";
             string allLines2 = "";
             FileEnumerable Lines = new FileEnumerable(reader);
-            foreach (string line in Lines)
-            {
-                allLines1 += line;
-            }
-
-            foreach (string line in Lines)
-            {
-                allLines2 += line;
-            }
+            Lines.ForEach(line => { allLines1 += line; allLines2 += line; });          
 
             Assert.Equal("", allLines2);
             Assert.Equal("", allLines1);

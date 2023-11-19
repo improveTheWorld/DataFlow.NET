@@ -1,4 +1,6 @@
-﻿using System.Threading.Channels;
+﻿using System.Reflection.Metadata.Ecma335;
+using System.Threading.Channels;
+using iCode.Extentions.IEnumerableExtentions;
 using iCode.Framework;
 
 namespace iCode.Log
@@ -83,11 +85,7 @@ namespace iCode.Log
                 (string message, LogLevel loglevel) = await Buffer.Reader.ReadAsync();
 
                 TraceExecution($"New message in buffer will be treated in thread {Thread.CurrentThread.ManagedThreadId}");
-
-                foreach (ILoggerTarget log in loggerTargets)
-                {
-                    log.Log(message, loglevel);
-                }
+                loggerTargets.ForEach(x => x.Log(message, loglevel));
             }
         }
 
@@ -159,10 +157,7 @@ namespace iCode.Log
             else
             {
                 TraceExecution($"Direct logging in thread {Thread.CurrentThread.ManagedThreadId}");
-                foreach (ILoggerTarget log in loggerTargets)
-                {
-                    log.Log(message, logLevel);
-                }
+                loggerTargets.ForEach(x => x.Log(message, logLevel));
             }
         }
 
@@ -171,16 +166,10 @@ namespace iCode.Log
         // Method to clear loggerTarget list after disposing the old ones
         public static void ResetLoggers(ILoggerTarget? logger = null)
         {
-        
-            foreach (ILoggerTarget log in loggerTargets)
-            {
-                if (log is IDisposable)
-                {
-                    ((IDisposable)log).Dispose();
-                }
-            }
+            loggerTargets.Where(x => x is IDisposable).ForEach(x => ((IDisposable)x).Dispose());
 
             loggerTargets.Clear();
+
             if(logger != null)
             {
                 loggerTargets.Add(logger);
@@ -188,21 +177,16 @@ namespace iCode.Log
         }
 
         // Method to add a logger to the existing list
-        public static void AddLogger(ILoggerTarget logger)
+        public static ILoggerTarget AddLogger(ILoggerTarget logger)
         {
             loggerTargets.Add(logger);
+            return logger;
         }
 
         // Dispose method to cleanup
         void IDisposable.Dispose()
         {
-            foreach (ILoggerTarget log in loggerTargets)
-            {
-                if (log is IDisposable)
-                {
-                    ((IDisposable)log).Dispose();
-                }
-            }
+            loggerTargets.Where(x => x is IDisposable).ForEach(x => ((IDisposable)x).Dispose());
         }
 
         // Method to remove a logger
@@ -230,44 +214,22 @@ namespace iCode.Log
         }
 
         // Method to get a file logger
-        public static ILoggerTarget? CreateFileLogger(String fullPath)
+        public static ILoggerTarget CreateFileLogger(String fullPath)
         {
-            StreamWriter? writer = FilePath.CreatePathAndFile(fullPath);
-
-            if (writer != null)
-            {
-                writer.AutoFlush = true;
-                var logger = new WriteLineLogger<StreamWriter>(writer);
-                return logger;
-            }
-            else
-            {
-                return null;
-            }
+            StreamWriter writer = FilePath.CreatePathAndFile(fullPath);            
+            writer.AutoFlush = true;
+            return  new WriteLineLogger<StreamWriter>(writer);            
         }
 
         // Method to add a file logger
         public static ILoggerTarget? AddFileLogger(String fullPath)
         {
-            var newLogger = CreateFileLogger(fullPath);
-
-            if (newLogger != null)
-                AddLogger(newLogger);
-
-            return newLogger;
+            return AddLogger(CreateFileLogger(fullPath));
         }
 
-        public static ILoggerTarget? AddColoredConsoleWriter()
+        public static ILoggerTarget getColoredConsoleWriter()
         {
-            foreach(var logger in loggerTargets)
-            {
-                if (logger is ColoredConsoleWriter)
-                    return logger;
-            }
-            var newlogger = new ColoredConsoleWriter();
-            AddLogger(newlogger);
-            return newlogger;
-
+            return  loggerTargets.Where(x=>x is ColoredConsoleWriter).FirstOrDefault()?? AddLogger(new ColoredConsoleWriter());
         }
     }
 }

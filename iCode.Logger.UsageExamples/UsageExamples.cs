@@ -143,7 +143,7 @@ namespace iLoggerUsageExamples
 
             iLogger.WriteLine(log); // here is the loggin operation to kafka
 
-            iLogger.AddColoredConsoleWriter();
+            iLogger.getColoredConsoleWriter();
             iLogger.AddFileLogger(settings["fileLogger_Path"]);
             Console.WriteLine("Press any key to continue...", LogLevel.Warn);
             Console.ReadKey();

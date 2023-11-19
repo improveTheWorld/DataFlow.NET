@@ -8,81 +8,83 @@ namespace iCode.Framework.AutomizedFeeding
 
     public static class Feeder
     {
-        static Dictionary<string, int> AsFeedDictionary(string[] feedingOrder)
+        static Dictionary<string, int> AsFeedDictionary(string[] fillingOrder)
         {
-            return new Dictionary<string, int>(feedingOrder.Select((fieldName, index) => new KeyValuePair<string, int>(fieldName, index)));
+            return new Dictionary<string, int>(fillingOrder.Select((fieldName, index) => new KeyValuePair<string, int>(fieldName, index)));
         }
 
-        static void FeedAttribute(MemberInfo attribute, object objectToFeed, object food)
+        static void FillAttribute(MemberInfo attribute, object objectToFill, object valuesStore)
         {
             Type infoType = (attribute is FieldInfo) ? ((FieldInfo)attribute).FieldType : ((PropertyInfo)attribute).PropertyType;
 
-            object value = Convert.ChangeType(food, infoType);
+            object value = Convert.ChangeType(valuesStore, infoType);
 
-            ((dynamic)Convert.ChangeType(attribute, attribute.GetType())).SetValue(objectToFeed, value);
+            ((dynamic)Convert.ChangeType(attribute, attribute.GetType())).SetValue(objectToFill, value);
         }
 
 
-        public static T Feed<T>(string[] feedingOrder, T objectToFeed, params object[] parameters)
+        public static T Feed<T>(string[] fillingOrder, T objectToFill, params object[] parameters)
         {
-            return FeedInGivenOrder<T>(objectToFeed, AsFeedDictionary(feedingOrder), parameters);
+            return FillInGivenOrder<T>(objectToFill, AsFeedDictionary(fillingOrder), parameters);
         }
 
-        public static T Feed<T>(T objectToFeed, params object[] parameters)
+        public static T Feed<T>(T objectToFill, params object[] parameters)
         {
-            return FeedWithInternalDefinedOrder<T>(objectToFeed, parameters);
+            return FillWithInternalDefinedOrder<T>(objectToFill, parameters);
         }
 
-        static T FeedWithInternalDefinedOrder<T>( T objectToFeed,  params object[] parameters)
+        static T FillWithInternalDefinedOrder<T>( T objectToFill,  params object[] parameters)
         {
-            if (objectToFeed is IFeedingInternalOrder)
+            if (objectToFill is IFeedingInternalOrder)
             {
-                FeedFeedableObject((IFeedingInternalOrder)objectToFeed,parameters);
-                return objectToFeed;
+                FillFeedableObject((IFeedingInternalOrder)objectToFill,parameters);
+                return objectToFill;
             }
             else //suppose FeedOredere ( definition of attribute with [order] tag
             {
-                return FeedOrderedObject(objectToFeed, parameters);
+                return FillOrderedObject(objectToFill, parameters);
             }
 
         }
        
-        static T FeedInGivenOrder<T>(T objectToFeed, Dictionary<string, int> feedingDictionary, params object[] food)
+        static T FillInGivenOrder<T>(T objectToFill, Dictionary<string, int> CorrespendanceTable, params object[] ValueStore)
         {
-            if(objectToFeed == null)
+            if(objectToFill == null)
             {
-                throw new ArgumentNullException($"objectToFeed should be instantiated before feeding");
+                throw new ArgumentNullException($"objectToFill should be instantiated before feeding");
             }
 
-            var objectType = objectToFeed.GetType();
+            var objectType = objectToFill.GetType();
             var attributes = ((MemberInfo[])objectType.GetProperties()).Concat(objectType.GetFields());
+            int valueIndex = 0;
+            attributes.SelectNonDefault(attribute => CorrespendanceTable.TryGetValue(attribute.Name, out valueIndex)? new {attribute , valueIndex } : null)
+                      .ForEach(x => FillAttribute(x.attribute, objectToFill, ValueStore[x.valueIndex]));
 
-            foreach (var attribute in attributes)
-            {
-                string name = attribute.Name;
-                if (feedingDictionary.ContainsKey(name))
-                {
-                    FeedAttribute(attribute, objectToFeed, food[feedingDictionary[name]]);
-                }
-            }
-            return objectToFeed;
+            return objectToFill;
         }
 
-        static IFeedingInternalOrder FeedFeedableObject(IFeedingInternalOrder objectToFeed, params object[] food) 
+        static IFeedingInternalOrder FillFeedableObject(IFeedingInternalOrder objectToFill, params object[] valuesStore) 
         {
-            return FeedInGivenOrder(objectToFeed, objectToFeed.GetFeedingDictionary(), food);
+            return FillInGivenOrder(objectToFill, objectToFill.GetFeedingDictionary(), valuesStore);
         }
                        
             
 
-        static T FeedOrderedObject<T>(T objectToFeed, params object[] food)
+        static T FillOrderedObject<T>(T objectToFill, params object[] valuesStore)
         {
-            if (objectToFeed == null)
+            if (objectToFill == null)
             {
-                throw new ArgumentNullException($"objectToFeed should be instantiated before feeding");
+                throw new ArgumentNullException($"objectToFill should be instantiated before feeding");
             }
 
-            var objectType = objectToFeed.GetType();
+            if (valuesStore.IsNullOrEmpty())
+            {
+                throw new ArgumentNullException(nameof(valuesStore));
+            }
+            
+
+
+            var objectType = objectToFill.GetType();
             var attributes = ((MemberInfo[])objectType.GetProperties()).Concat(objectType.GetFields());
 
             var orderedAttributes = from attribute in attributes
@@ -91,25 +93,11 @@ namespace iCode.Framework.AutomizedFeeding
                                             .GetCustomAttributes(typeof(OrderAttribute), false)
                                             .Single()).Order
                                     select attribute;
-            int index = 0;
 
-            foreach (var attribute in orderedAttributes)
-            {
-                if(index< food.Length)
-                {
-                    FeedAttribute(attribute, objectToFeed, food[index++]);
-                }
-                else
-                {
-                    break;
-                }
-            }
+            valuesStore.Zip(orderedAttributes).ForEach((att)=>  FillAttribute(att.Second, objectToFill, att.First));
 
-            if(index == 0)
-            {
-                throw new ArgumentException($" {typeof(T)} is not a ordered Type.");
-            }
-            return objectToFeed;
+           
+            return objectToFill;
         }
 
     }

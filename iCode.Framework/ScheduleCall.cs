@@ -177,7 +177,7 @@ namespace iCode.Framework
                 }
 
                 _ScheduledCalls = new Queue<(double, Action)>(_ScheduledCalls.AsEnumerable().CombineOrdered(planning, (x, y) => x.Item1 <= y.Item1));
-                string serialized = _ScheduledCalls.Select(x => x.Item1.ToString()).Cumulate((a, b) => a + ", " + b) ?? string.Empty;
+                string serialized = _ScheduledCalls.Select(x => x.Item1.ToString()).Cumul((a, b) => a + ", " + b) ?? string.Empty;
                 this.Trace("New Schedule : " + serialized );
 
 

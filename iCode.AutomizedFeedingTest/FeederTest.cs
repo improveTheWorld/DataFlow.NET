@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Xunit;
 using Xunit.Asserts.Compare;
+using System.Linq;
 
 namespace iCode.Tests
 {
@@ -11,17 +12,9 @@ namespace iCode.Tests
 
     class Convert
     {
-        public static Dictionary<string, int> ConvertToFeedDictionary(string[] feedingOrder)
+        public static Dictionary<string, int> AsFeedDictionary(string[] feedingOrder)
         {
-
-            Dictionary<string, int> retValue = new Dictionary<string, int>();
-            int index = 0;
-            foreach (string fieldName in feedingOrder)
-            {
-                retValue.Add(fieldName.Trim(), index);
-                index++;
-            }
-            return retValue;
+            return  new Dictionary<string, int>(feedingOrder.Select((item,idx)=>new KeyValuePair<string, int>(item.Trim(),idx)));           
         }
     }
 
@@ -37,7 +30,7 @@ namespace iCode.Tests
 
         public Dictionary<string,int> GetFeedingDictionary()
         {
-            return Convert.ConvertToFeedDictionary(_feedingOrder);
+            return Convert.AsFeedDictionary(_feedingOrder);
         }
     }
 
@@ -49,7 +42,7 @@ namespace iCode.Tests
         readonly static string[] _feedingOrder = { "Field", "Field1" };
         public Dictionary<string, int> GetFeedingDictionary()
         {
-            return Convert.ConvertToFeedDictionary(_feedingOrder);
+            return Convert.AsFeedDictionary(_feedingOrder);
         }
     }
 
@@ -63,7 +56,7 @@ namespace iCode.Tests
         readonly static string[] _feedingOrder = { "intField", "StringProperty", "FieldBool" };
         public Dictionary<string, int> GetFeedingDictionary()
         {
-            return Convert.ConvertToFeedDictionary(_feedingOrder);
+            return Convert.AsFeedDictionary(_feedingOrder);
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using iCode.Log;
+﻿using iCode.Extentions.IEnumerableExtentions;
 using System.Threading.Channels;
 
 
@@ -32,30 +32,17 @@ namespace iCode.Framework
 
         public async Task PublishDataAsync(T newData)
         {
-            this.Trace($"DataPublisher new data : {newData}");
-            foreach (var subscribed in Writers)
+            Writers.AsEnumerable().Where(subscribed => subscribed.Value != null && subscribed.Value(newData)).ForEach(async subscribed =>
             {
-                if (subscribed.Value == null || subscribed.Value(newData))
-                {
-                    this.Trace($"DataPublisher start publishing to a new channel");
-                    await subscribed.Key.WaitToWriteAsync();
-                    await subscribed.Key.WriteAsync(newData);
-                    this.Trace($"DataPublisher end publishing for the channel");
-                }
-
-            }
-
+                await subscribed.Key.WaitToWriteAsync();
+                await subscribed.Key.WriteAsync(newData);
+            });
         }
 
         public void Dispose()
         {
-            foreach (var subscribed in Writers)
-            {
-                subscribed.Key.Complete();
-            }
-
+            Writers.ForEach(x => x.Key.Complete());
             Writers.Clear();
-
         }
     }
 }

@@ -29,33 +29,14 @@
 
         }
 
-     
-
-
-
-
         public static bool EndsWithAny(this string value, IEnumerable<string> acceptedEnds)
         {
-
-            foreach (string acceptedEnd in acceptedEnds)
-            {
-                if (value.EndsWith(acceptedEnd))
-                    return true;
-            }
-            return false;
-
+            return acceptedEnds?.Select(possibleEnd => value.EndsWith(possibleEnd))?.FirstOrDefault(x => x) ?? false;
         }
 
         public static bool StartsWithAny(this string value, IEnumerable<string> acceptedStarts)
         {
-
-            foreach (string acceptedStart in acceptedStarts)
-            {
-                if (value.StartsWith(acceptedStart))
-                    return true;
-            }
-            return false;
-
+            return acceptedStarts?.Select(possibleStart => value.StartsWith(possibleStart))?.FirstOrDefault(x => x) ?? false;
         }
 
         public static bool StartsWithAny(this string value, params string[] acceptedStarts)

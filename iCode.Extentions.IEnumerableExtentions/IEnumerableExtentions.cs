@@ -1,24 +1,11 @@
 ﻿
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace iCode.Extentions.IEnumerableExtentions
 {
     public static class IEnumerableExtentions
-    {
-        public static IEnumerable<T> Range<T>(this IEnumerable<T> list, Func<int /*index*/, bool> SelectElementIndex)
-        {
-            int index = 0;
-
-            foreach (T element in list)
-            {
-                if (SelectElementIndex(index++))
-                {
-                    yield return element;
-                }
-
-            }
-
-        }
-
-       
+    {     
         public static IEnumerable<T> CombineOrdered<T>(this IEnumerable<T> ordered1, IEnumerable<T> ordered2, Func<T, T, bool> isFirstParamInferiorOrEqualToSecond)
         {
 
@@ -70,12 +57,61 @@ namespace iCode.Extentions.IEnumerableExtentions
             }
 
         }
-             
-      
+
+        public static IEnumerable<T> Take<T>(this IEnumerable<T> sequence, int start, int count)
+        {
+            return sequence.Take(new Range(start, start+count-1));
+        }
+
+        public static void ForEachSwitch<T>(this IEnumerable<T> sequence,Func<T,bool>condition1, Action<T> action1, Func<T, bool> condition2, Action<T> action2)
+        {
+            sequence.ForEach(x =>
+            {
+                if (condition1(x))
+                    action1(x);
+                else if (condition2(x))
+                    action2(x);
+            });
+        }
+        public static void ForEachSwitch<T>(this IEnumerable<T> sequence, Func<T, bool> condition1, Action<T> action1, Func<T, bool> condition2, Action<T> action2, Func<T, bool> condition3, Action<T> action3)
+        {
+            sequence.ForEach(x =>
+            {
+                if (condition1(x))
+                    action1(x);
+                else if (condition2(x))
+                    action2(x);
+                else if (condition3(x))
+                    action3(x);
+            });
+        }
+
         public static void ForEach<T>(this IEnumerable<T> sequence, Action<T> action)
         {
             foreach (var item in sequence)
                 action(item);
+        }
+
+        public static IEnumerable<TResult> SelectNonDefault<TSource, TResult>(this IEnumerable<TSource> source, Func<TSource, TResult?> selector)
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            if (selector == null)
+            {
+                throw new ArgumentNullException(nameof(selector));
+            }
+
+            foreach (var item in source)
+            {
+                TResult? tmp = selector(item);
+                if (!EqualityComparer<TResult?>.Default.Equals(tmp, default(TResult)))
+                {
+                    yield return tmp;
+                }
+            }
         }
 
         public static void ForEach<T>(this IEnumerable<T> sequence, Action<T,int> action)
@@ -85,7 +121,7 @@ namespace iCode.Extentions.IEnumerableExtentions
                 action(item, index++);
         }
 
-        public static T? Cumulate<T>(this IEnumerable<T> sequence, Func<T, T, T> cumulate)
+        public static T? Cumul<T>(this IEnumerable<T> sequence, Func<T, T, T> cumulate)
         {
             T cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
 
@@ -94,7 +130,31 @@ namespace iCode.Extentions.IEnumerableExtentions
             return cumul;
         }
 
-        static bool IsNullOrEmpty<T>(this IEnumerable<T> sequence)
+        public static T? Sum<T>(this IEnumerable<T> sequence)
+        {
+            if (sequence == null || !sequence.Any())
+                return default(T?);
+
+            dynamic sum = default(T);
+            foreach (var item in sequence)
+            {
+                sum += (dynamic)item;
+            }
+
+            return sum;
+        }
+
+
+        public static T? Combine<T>(this IEnumerable<T> sequence, Func<T, T, T> cumulate)
+        {
+            T cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
+
+            sequence.Skip(1).ForEach(x => cumul = cumulate(cumul, x));
+
+            return cumul;
+        }
+
+        public static bool IsNullOrEmpty<T>(this IEnumerable<T> sequence)
         {
             if (sequence == null)
             {

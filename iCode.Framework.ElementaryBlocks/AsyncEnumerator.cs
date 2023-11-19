@@ -32,11 +32,7 @@ namespace iCode.Framework.ElementaryBlocks
         }
         void ApplyRemoveRequests()
         {
-            foreach (var reader in ReadersToRemove)
-            {
-                Readers.Remove(reader);
-            }
-
+            ReadersToRemove.ForEach(readers => Readers.Remove(readers));
             ReadersToRemove.Clear();
         }
 
@@ -44,13 +40,8 @@ namespace iCode.Framework.ElementaryBlocks
         {
             ReadTaskList.Clear();
             ReadersCount = 0;
-            foreach (var reader in Readers)
-            {
-                ReadTaskList.Add(reader.WaitToReadAsync().AsTask());
-                ReadersCount++;
-            }
+            ReadTaskList.AddRange(Readers.Select(reader => { ReadersCount++; return reader.WaitToReadAsync().AsTask(); }));
             ReadTaskList.Add(TokenTask.AwaiterTask);
-
         }
         public async ValueTask<bool> MoveNextAsync()
         {

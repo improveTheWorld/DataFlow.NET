@@ -5,27 +5,17 @@ using Xunit.Asserts.Compare;
 using Moq;
 using iCode.Extentions.NewObjectsParsing;
 using iCode.Framework.AutomizedFeeding;
+using System.Linq;
 
 namespace iCode.Tests
 {
     public class NewObjectsParsing_UsingZeroParamConstructor
     {
-
-
         class Convert
         {
             public static Dictionary<string, int> ConvertToFeedDictionary(string[] feedingOrder)
-            {
-
-                Dictionary<string, int> retValue = new Dictionary<string, int>();
-                int index = 0;
-                foreach (string fieldName in feedingOrder)
-                {
-                    retValue.Add(fieldName.Trim(), index);
-                    index++;
-                }
-                return retValue;
-            }
+                => new(feedingOrder.Select((x, idx) => new KeyValuePair<string, int>(x.Trim(), idx)));
+           
         }
         class All_Properties : IFeedingInternalOrder
         {

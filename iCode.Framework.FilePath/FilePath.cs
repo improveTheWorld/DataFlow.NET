@@ -62,7 +62,7 @@ namespace iCode.Framework
             return _createPathAndFile(directoryPath,Path.Combine(directoryPath, name), suffixToRenameIfExistant);
         }
 
-        static StreamWriter _createPathAndFile(string directoryPath, string fullPath, string? suffixToRenameIfExistant = null)
+        static StreamWriter _createPathAndFile(string directoryPath, string fullPath, string? suffixToRenameIfExistant = "old")
         {
             Status status = _check(directoryPath,fullPath);
 
@@ -70,13 +70,12 @@ namespace iCode.Framework
             {
                 Directory.CreateDirectory(directoryPath);
             }
-            else if (status == Status.FileExist && suffixToRenameIfExistant != null)
+            else if (status == Status.FileExist )
             {
                 File.Move(fullPath, Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(fullPath) + suffixToRenameIfExistant + Path.GetExtension(fullPath)));
             }
 
             StreamWriter retValue = new StreamWriter(fullPath);
-            retValue.Flush();
             return retValue;
         }
 

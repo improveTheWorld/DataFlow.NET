@@ -24,7 +24,7 @@ namespace iCode.Framework
         //       
 
 
-        public readonly IEnumerable<ArgDescription> CommandLineParameterConfigs;
+        public readonly IEnumerable<ArgDescription> CmdParamConfigs;
         readonly string MessageHeader;
         public static bool CheckMendatoriesAndFillDefaultsFromCsv(string[] args, out string[] filledArgs,  string ArgDescriptionFile, int nbrLinesToSkip , string appDescription = "")
         {
@@ -65,25 +65,26 @@ namespace iCode.Framework
 
         public UnixStyleArgsFiller(IEnumerable<ArgDescription> ArgsDescription, string appDescription="")
         {
-            CommandLineParameterConfigs = ArgsDescription;
+            CmdParamConfigs = ArgsDescription;
             var app = Assembly.GetExecutingAssembly().GetName();
             MessageHeader = $"\n{app.Name} \r\nCopyright(C)  {app.Version}\r\n\n";
         }
 
-        int GetIndexInArgs(ArgDescription parameter, string[] args)
+
+        bool  searchAndUpdate(ArgDescription parameter, string[] args)
         {
-
-            for (int index = 0; index < args.Length; index++)
+            
+            int index = args.Select((arg, idx) => new { Arg = arg, Index = idx })
+                       .FirstOrDefault(x => x.Arg == $"-{parameter.ShortName}" || x.Arg == $"--{parameter.LongName}")?.Index ?? -1;
+            if (index != -1)
             {
-                string arg = args[index];
-                if (arg == $"-{parameter.ShortName}" || arg == $"--{parameter.LongName}")
-                {
-                    return index;
-                }
-
+                args[index] = $"--{parameter.Parameter}";
+                return true;
             }
-            return -1;
+
+            return false;
         }
+       
 
 
         // 1. Parse command arg
@@ -91,53 +92,42 @@ namespace iCode.Framework
         // 3. else Generate error message/ help message if args == --help/-h
         public List<string> UpdateParametersAndCheckMissedOptions(string[] args, out string[] newArgs)
         {
-            List<string> newArgsList = new List<string>(args);
+            List<string> newArgsList  = new (args);
             List<string> missedList = new List<string>();
-            foreach (var parameter in CommandLineParameterConfigs)
+            
+            foreach (var parameter in CmdParamConfigs)
             {
-                int index = GetIndexInArgs(parameter, args);
-
-                if (index != -1) //if used in params or  not required 
+                if (!searchAndUpdate(parameter, args)) //if used in params or  not required 
                 {
-                    newArgsList[index] =$"--{parameter.Parameter}";
-                }
-                else if(!parameter.IsRequired)
-                {
-                    newArgsList.Add($"--{parameter.Parameter}");
-                    newArgsList.Add(parameter.DefaultValue);
-                }
-                else // if Required but not n used params
-                {
-                    missedList.Add(parameter.Parameter);
+                    if (!parameter.IsRequired)
+                    {
+                        newArgsList.Add($"--{parameter.Parameter}");
+                        newArgsList.Add(parameter.DefaultValue);
+                    }
+                    else // if Required but not n used params
+                    {
+                        missedList.Add(parameter.Parameter);
+                    };
                 }
             }
             newArgs = newArgsList.ToArray();
+
             return missedList;
         }
 
         // 1. Generate help message ( for --help case ) 
         public string GenerateHelpMessage()
         {
-            string output = "";
-            foreach (var parameterConf in CommandLineParameterConfigs)
-            {
-                string line = $"\n\n  -{parameterConf.ShortName}, --{parameterConf.LongName}\t(Default: {parameterConf.DefaultValue}) {parameterConf.HelpText}";
-                output += line;
-            }
-            output += $"\n\n  --help\tDisplay this help screen";
-            return output;
+            string nL = Environment.NewLine;
+            string lastLine = $"{nL}  --help\tDisplay this help screen";
+            return  CmdParamConfigs.Select(x=> $"{nL}  -{x.ShortName}, --{x.LongName}\t(Default: {x.DefaultValue}) {x.HelpText}").Sum() + lastLine;
         }
 
         // 1. Generate Error message when options are missed 
         public string GenerateErrorsMessage(List<string> missedOptionList)
         {
-            string output = "ERROR(S):\r";
-            foreach (var missedOption in missedOptionList)
-            {
-                string line = $"\n\n  required option '{missedOption}' is missing";
-                output += line;
-            }
-            return output;
+            string nL = Environment.NewLine;
+            return "ERROR(S):" +  missedOptionList.Select(x => $"{nL}  required option '{x}' is missing").Sum();
         }
     }
 }

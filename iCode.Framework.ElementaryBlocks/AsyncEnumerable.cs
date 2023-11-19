@@ -1,7 +1,7 @@
 ﻿using iCode.Log;
 using System.Threading.Channels;
 using iCode.Framework;
-
+using iCode.Extentions.IEnumerableExtentions;
 
 namespace iCode.Framework.ElementaryBlocks
 {
@@ -18,18 +18,12 @@ namespace iCode.Framework.ElementaryBlocks
 
         public AsyncEnumerable(Func<T, bool>? condition = null, ChannelOptions? options = null, params  IDataSource<T>[] dataSource)
         {
-            foreach(var source in dataSource)
-            {
-                ListenTo(source, condition, options);
-            } 
+            dataSource.ForEach(source => ListenTo(source, condition, options));
         }
 
         public AsyncEnumerable(AsyncEnumerable<T> Source, Func<T, bool>? condition = null, ChannelOptions? options = null)
         {
-            foreach (var subscription in Source.Subscriptions)
-            {
-                ListenTo(subscription.Key, condition, options);
-            }
+            Source.Subscriptions.ForEach(subscription => ListenTo(subscription.Key, condition, options)); 
         }
 
         Channel<T> CreateChannel(ChannelOptions? options = null)

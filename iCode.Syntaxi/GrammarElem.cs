@@ -1,4 +1,7 @@
-﻿namespace iCode.Framework.Syntaxi
+﻿using iCode.Extentions.IEnumerableExtentions;
+using System.Data;
+
+namespace iCode.Framework.Syntaxi
 {
 
     public class FieldGrammarElem : ITokenEater
@@ -31,61 +34,35 @@
         public TokenDigestion AcceptToken(string token)
         {
             TokenDigestion returnValue = TokenDigestion.None;
-
-            foreach (var rule in _rules)
-            {
-                if (rule.IsActive())
-                {
-                    returnValue |= rule.AcceptToken(token);
-                }
-            }
-
+            _rules.Where(x => x.IsActive()).ForEach(x => returnValue |= x.AcceptToken(token));
             return returnValue;
         }
 
         public void Activate()
         {
-            foreach (var rule in _rules)
-            {
-                rule.Activate();
-            }
+            _rules.ForEach(x => x.Activate());
         }
         private GrammarElem() 
         {
             // Used internally for gradual building of the object.
         }
         static public class Builder
-        {     
+        {
+
+            static ITokenEater getOrCreate(Dictionary<string, ITokenEater> gramm, string key) =>  gramm.ContainsKey(key) ? gramm[key] : gramm[key] = new TerminalGrammElem(key);
 
             static GrammarElem Build(params Rule[] rules)
             {
-                Dictionary<string, ITokenEater> gramm = new Dictionary<string, ITokenEater>();
-
                 // Create or get the GrammarElem for each left part of the rule.
-                foreach (var rule in rules)
-                {
-                    if (!gramm.ContainsKey(rule.LeftPart))
-                    {
-                        gramm[rule.LeftPart] = new GrammarElem();
-                    }                   
-                }
+                Dictionary<string, ITokenEater> gramm = new(rules.Select(x => x.LeftPart)
+                                                                 .Distinct()
+                                                                 .Select(x => new KeyValuePair<string, ITokenEater>(x, new GrammarElem())));
 
-                // For each rule, process the right part elements
-                foreach (var rule in rules)
-                {
-                    var currentRule = new List<ITokenEater>();
-                    foreach (var token in rule.RightPart)
-                    {
-                        // For terminal elements, create a TerminalGrammElem, otherwise get from the dictionary
-                        var gramElem = gramm.ContainsKey(token) ? gramm[token] : gramm[token] = new TerminalGrammElem(token);
-                        currentRule.Add(gramElem);
-                    }
-
-                    ((GrammarElem)gramm[rule.LeftPart]).AddRule( new GrammarRule(currentRule));
-                }
+            // For each rule, process the right part elements
+            rules.ForEach(rule => ((GrammarElem)gramm[rule.LeftPart]).AddRule(new(rule.RightPart.Select(token => getOrCreate(gramm, token)))));
                 
-                // Assuming we return the first element as the starting point of the grammar
-                return (GrammarElem) gramm.Values.First();
+            // Assuming we return the first element as the starting point of the grammar
+            return (GrammarElem) gramm.Values.First();
             }
         }
     }

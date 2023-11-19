@@ -69,17 +69,14 @@ namespace iCode.Tests
             string[] argsOk = { "-D", "c:/test/text.txt", "-m" };
             string[] argsMandatoryMissed = { "-D", "c:/test/text.txt", "-c", "10" };
             Console.WriteLine("****************GetMissedRequiredOption : list should be empty********************");
-            foreach (var missed in parser.UpdateParametersAndCheckMissedOptions(argsOk,out argsOk))
-            {
-                Console.WriteLine(missed);
-            }
+
+            parser.UpdateParametersAndCheckMissedOptions(argsOk,out argsOk).ForEach(x=> Console.WriteLine(x));
+            
             Console.WriteLine($"Updated command parameter :{string.Join(" ", argsOk)}");
 
             Console.WriteLine("**************** GetMissedRequiredOption : Missed one argument : mandatory ********************");
-            foreach (var missed in parser.UpdateParametersAndCheckMissedOptions(argsMandatoryMissed,out argsMandatoryMissed))
-            {
-                Console.WriteLine(missed);
-            }
+            parser.UpdateParametersAndCheckMissedOptions(argsMandatoryMissed,out argsMandatoryMissed).ForEach(x => Console.WriteLine(x));
+            
             Console.WriteLine($"Updated command parameter :{string.Join(" ", argsMandatoryMissed)}");
         }
 

@@ -1,32 +1,25 @@
-﻿namespace iCode.Framework
+﻿using iCode.Extentions.IEnumerableExtentions;
+namespace iCode.Framework
 {
     public abstract class Criterias<T>
     {
-        protected List<Func<T, bool>>? criterias = null;
+        protected List<Func<T, bool>> criterias = new();
         public void AcceptAll()
         {
-            criterias = null;
+            criterias.Clear();
         }
         public void SetCriteria(Func<T, bool> criteria)
         {
-            if (criterias == null)
-            {
-                criterias = new();
-            }
-            else
+            if (criterias.Count> 0)
             {
                 criterias.Clear();
             }
+            
             criterias.Add(criteria);
 
         }
         public void AddCriteria(Func<T, bool> criteria)
         {
-            if (criterias == null)
-            {
-                criterias = new();
-            }
-
             criterias.Add(criteria);
         }
 
