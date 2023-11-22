@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Xunit;
 using Xunit.Asserts.Compare;
 using Moq;
-using iCode.Extentions.NewObjectsParsing;
+using iCode.Extensions.NewObjectsParsing;
 using iCode.Framework.AutomizedFeeding;
 using System.Linq;
 

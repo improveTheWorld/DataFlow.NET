@@ -1,6 +1,8 @@
-﻿namespace iCode.Extentions.StringExtentions
+﻿using System.Globalization;
+
+namespace iCode.Extensions.StringExtentions
 {
-    public static class StringExtentions
+    public static class StringExtensions
     {
         /// <summary>
         /// Try to Convert a string to a typed value ( in order bool,  int, Int64, double, dataTime ) 
@@ -48,7 +50,15 @@
         {
             return EndsWithAny(value, acceptedEnds.AsEnumerable());
         }
+        public static bool ContainsAny(this string value, IEnumerable<string> any)
+        {
+            return any?.Select(possible => value.Contains(possible))?.FirstOrDefault(x => x) ?? false;
+        }
 
+        public static string  ReplaceAt(this string value,int index, int length, string toInsert)
+        {
+            return value.Substring(0, index + 1) + toInsert + value.Substring(index + length);
+        }
     }
 }
 

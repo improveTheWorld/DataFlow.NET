@@ -1,6 +1,6 @@
-﻿using iCode.Extentions.NewObjectsParsing;
-using iCode.Extentions.StreamReaderExtentions;
-using iCode.Extentions.IEnumerableExtentions;
+﻿using iCode.Extensions.NewObjectsParsing;
+using iCode.Extensions.StreamReaderExtensions;
+using iCode.Extensions.IEnumerableExtensions;
 using System.Reflection;
 using System;
 using System.Linq;

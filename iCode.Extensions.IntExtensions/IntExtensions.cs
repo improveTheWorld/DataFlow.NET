@@ -1,6 +1,6 @@
-﻿namespace iCode.Extentions.IntExtentions
+﻿namespace iCode.Extensions.IntExtensions
 {
-    public static class IntExtentions
+    public static class IntExtensions
     {
 
         public static bool IsMultiple(this int value, int x)

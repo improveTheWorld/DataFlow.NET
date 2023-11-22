@@ -1,5 +1,6 @@
-﻿using iCode.Extentions.IEnumerableExtentions;
+﻿using iCode.Extensions.IEnumerableExtensions;
 using System.Data;
+using System.Text.RegularExpressions;
 
 namespace iCode.Framework.Syntaxi
 {
@@ -64,6 +65,34 @@ namespace iCode.Framework.Syntaxi
             // Assuming we return the first element as the starting point of the grammar
             return (GrammarElem) gramm.Values.First();
             }
+        }
+    }
+
+
+    class Program
+    {
+        static void Main()
+        {
+            string input = "debuttt:{donné1}+suiviDD:{donné2}";
+            string pattern = @"debuttt:\{(.+?)\}\+suiviDD:\{(.+?)\}";
+             
+            string output = Regex.Replace(input, pattern, m =>
+            {
+                // Lire les valeurs
+                string donné1 = m.Groups[1].Value;
+                string donné2 = m.Groups[2].Value;
+
+                Console.WriteLine("Donné 1: " + donné1);
+                Console.WriteLine("Donné 2: " + donné2);
+
+                // Définir les nouvelles valeurs
+                string nouvelleValeur1 = "nouvelleDonnée1";
+                string nouvelleValeur2 = "nouvelleDonnée2";
+                // Retourner la chaîne de remplacement
+                return $"debuttt:{{{nouvelleValeur1}}}+suiviDD:{{{nouvelleValeur2}}}";
+            });
+
+            Console.WriteLine("Chaîne modifiée: " + output);
         }
     }
 }

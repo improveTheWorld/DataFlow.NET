@@ -1,11 +1,10 @@
 ﻿using iCode.Log;
-using iCode.Extentions.IEnumerableExtentions;
+using iCode.Extensions.IEnumerableExtensions;
 
 
 namespace iCode.Framework
 {
-
-    public sealed class ScheduleCall
+        public sealed class ScheduleCall
     {
         static readonly string DateTimeFormat = "yyyy-MM-dd HH:mm:ss.fff";
 
@@ -169,13 +168,9 @@ namespace iCode.Framework
                 {
                     StartingTime = DateTime.Now;
                 }
-                int[] ordered = toSchedule.OrderBy(x => x).ToArray(); ;
-                //Convert input parameters to IEnumerable<(double, Action)> to be able to use CombineOrdered
-                for (int i = 0; i < ordered.Length; ++i)
-                {
-                    planning[i] = ((ordered[i] + timeToAdd == 0) ? 1 : ordered[i] + timeToAdd, callToDo);
-                }
 
+                toSchedule.OrderBy(x => x).ForEach((x,idx)=> planning[idx] = ((x + timeToAdd == 0) ? 1 : x + timeToAdd, callToDo)) ;
+                
                 _ScheduledCalls = new Queue<(double, Action)>(_ScheduledCalls.AsEnumerable().CombineOrdered(planning, (x, y) => x.Item1 <= y.Item1));
                 string serialized = _ScheduledCalls.Select(x => x.Item1.ToString()).Cumul((a, b) => a + ", " + b) ?? string.Empty;
                 this.Trace("New Schedule : " + serialized );

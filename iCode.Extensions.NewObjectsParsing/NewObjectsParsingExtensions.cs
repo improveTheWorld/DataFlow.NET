@@ -1,12 +1,10 @@
-﻿using iCode.Extentions.ObjectMadeFeedable;
-using iCode.Extentions.IEnumerableExtentions;
-using iCode.Extentions.StringExtentions;
-using iCode.Extentions.StreamReaderExtentions;
+﻿using iCode.Extensions.ObjectMadeFeedable;
+using iCode.Extensions.StringExtentions;
 
 
-namespace iCode.Extentions.NewObjectsParsing
+namespace iCode.Extensions.NewObjectsParsing
 {
-    public static class NewObjectsParsingExtentions
+    public static class NewObjectsParsingExtensions
     {
         public static T? AsObject<T>(this string CSV_Line, string CSV_Seperator, string[]? parsingOrder = null)
         {

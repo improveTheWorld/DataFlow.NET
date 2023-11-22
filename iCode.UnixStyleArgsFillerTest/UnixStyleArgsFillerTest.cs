@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using iCode.Framework;
-using iCode.Extentions.ObjecExtentions.InvokePrivateMethod;
+using iCode.Extensions.ObjecExtensions.InvokePrivateMethod;
 
 namespace iCode.Tests
 {

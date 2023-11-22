@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Reflection;
-using iCode.Extentions.IEnumerableExtentions;
+using iCode.Extensions.IEnumerableExtensions;
 
 
 namespace iCode.Framework.AutomizedFeeding

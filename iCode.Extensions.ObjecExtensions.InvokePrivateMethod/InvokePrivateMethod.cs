@@ -1,4 +1,4 @@
-﻿namespace iCode.Extentions.ObjecExtentions.InvokePrivateMethod
+﻿namespace iCode.Extensions.ObjecExtensions.InvokePrivateMethod
 {
     public static class InvokePrivateMethod
     {

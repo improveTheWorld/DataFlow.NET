@@ -1,7 +1,6 @@
-﻿using iCode.Extentions.IEnumerableExtentions;
-using iCode.Framework.AutomizedFeeding;
+﻿using iCode.Framework.AutomizedFeeding;
 
-namespace iCode.Extentions.ObjectMadeFeedable
+namespace iCode.Extensions.ObjectMadeFeedable
 {
     public static class ObjectMadeFeedable
     {

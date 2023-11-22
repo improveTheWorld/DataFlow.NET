@@ -1,6 +1,6 @@
 ﻿using System.Reflection.Metadata.Ecma335;
 using System.Threading.Channels;
-using iCode.Extentions.IEnumerableExtentions;
+using iCode.Extensions.IEnumerableExtensions;
 using iCode.Framework;
 
 namespace iCode.Log

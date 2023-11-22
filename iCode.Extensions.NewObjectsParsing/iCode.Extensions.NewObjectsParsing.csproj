@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
@@ -7,11 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\iCode.Extensions.NewObjectsParsing\iCode.Extensions.NewObjectsParsing.csproj" />
-    <ProjectReference Include="..\iCode.Extensions.StreamReaderExtensions\iCode.Extentions.StreamReaderExtensions.csproj" />
+    <ProjectReference Include="..\iCode.Extensions.ObjectMadeFeedable\iCode.Extensions.ObjectMadeFeedable.csproj" />
+    <ProjectReference Include="..\iCode.Extensions.StringExtensions\iCode.Extentions.StringExtensions.csproj" />
     <ProjectReference Include="..\iCode.Framework.AutomizedFeeding\iCode.Framework.AutomizedFeeding.csproj" />
   </ItemGroup>
-
- 
 
 </Project>

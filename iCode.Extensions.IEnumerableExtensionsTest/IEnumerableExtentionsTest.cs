@@ -1,6 +1,6 @@
 using Xunit;
 using System.Linq;
-using iCode.Extentions.IEnumerableExtentions;
+using iCode.Extensions.IEnumerableExtensions;
 
 namespace iCode.Tests
 {

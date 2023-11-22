@@ -1,4 +1,4 @@
-﻿using iCode.Extentions.IEnumerableExtentions;
+﻿using iCode.Extensions.IEnumerableExtensions;
 using System.Threading.Channels;
 
 

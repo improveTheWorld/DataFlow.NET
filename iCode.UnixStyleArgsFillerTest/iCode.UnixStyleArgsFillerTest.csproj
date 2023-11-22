@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\iCode.Extentions.ObjecExtentions.InvokePrivateMethod\iCode.Extentions.ObjecExtentions.InvokePrivateMethod.csproj" />
+    <ProjectReference Include="..\iCode.Extensions.ObjecExtensions.InvokePrivateMethod\iCode.Extensions.ObjecExtensions.InvokePrivateMethod.csproj" />
     <ProjectReference Include="..\iCode.Framework.UnixStyleArgsFiller\iCode.Framework.UnixStyleArgsFiller.csproj" />
   </ItemGroup>
 

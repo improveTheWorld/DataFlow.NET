@@ -2,7 +2,7 @@
 using iCode.Framework;
 using iCode.Log;
 
-namespace iCode.Framework.ElementaryBlocks
+namespace iCode.Framework.AsyncEnumerable
 {
     public class AsyncEnumerator<T> : IAsyncEnumerator<T>
     {
@@ -32,7 +32,6 @@ namespace iCode.Framework.ElementaryBlocks
         }
         void ApplyRemoveRequests()
         {
-            ReadersToRemove.ForEach(readers => Readers.Remove(readers));
             ReadersToRemove.Clear();
         }
 

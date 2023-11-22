@@ -19,9 +19,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\iCode.Extensions.ObjectMadeFeedable\iCode.Extensions.ObjectMadeFeedable.csproj" />
     <ProjectReference Include="..\iCode.Framework.AutomizedFeeding\iCode.Framework.AutomizedFeeding.csproj" />
-    <ProjectReference Include="..\iCode.Extentions.ObjectMadeFeedable\iCode.Extentions.ObjectMadeFeedable.csproj" />
-    <ProjectReference Include="..\iCode.Framework\iCode.Framework.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,10 +1,12 @@
 ﻿
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography.X509Certificates;
 
-namespace iCode.Extentions.IEnumerableExtentions
+namespace iCode.Extensions.IEnumerableExtensions
 {
-    public static class IEnumerableExtentions
+    public static class IEnumerableExtensions
     {     
         public static IEnumerable<T> CombineOrdered<T>(this IEnumerable<T> ordered1, IEnumerable<T> ordered2, Func<T, T, bool> isFirstParamInferiorOrEqualToSecond)
         {
@@ -63,27 +65,80 @@ namespace iCode.Extentions.IEnumerableExtentions
             return sequence.Take(new Range(start, start+count-1));
         }
 
-        public static void ForEachSwitch<T>(this IEnumerable<T> sequence,Func<T,bool>condition1, Action<T> action1, Func<T, bool> condition2, Action<T> action2)
+        public static IEnumerable<(int,T)> Classify<T>(this IEnumerable<T> sequence, params Func<T, bool> []conditions)
         {
-            sequence.ForEach(x =>
-            {
-                if (condition1(x))
-                    action1(x);
-                else if (condition2(x))
-                    action2(x);
-            });
+           foreach(var item in  sequence)
+           {
+                for (int idx = 0; idx < conditions.Length; idx++)
+                {
+                    if (conditions[idx](item))
+                    {
+                        yield return (idx, item);
+                        break;
+                    }
+                }
+           }
         }
-        public static void ForEachSwitch<T>(this IEnumerable<T> sequence, Func<T, bool> condition1, Action<T> action1, Func<T, bool> condition2, Action<T> action2, Func<T, bool> condition3, Action<T> action3)
+
+        public static void ForEachByClassification<T>(this IEnumerable<(int,T)> sequence, params Action<T>[] actions)
         {
-            sequence.ForEach(x =>
+            sequence.ForEach(x => { if (x.Item1 < actions.Length) actions[x.Item1](x.Item2); });
+        }
+
+        public static IEnumerable<TResult> SelectByClassification<T, TResult>(this IEnumerable<(int, T)> sequence, params Func<T, TResult>[] selectors)
+        {
+            foreach (var x in sequence)
             {
-                if (condition1(x))
-                    action1(x);
-                else if (condition2(x))
-                    action2(x);
-                else if (condition3(x))
-                    action3(x);
-            });
+                if(x.Item1 < selectors.Length) yield return selectors[x.Item1](x.Item2);
+            }
+        }
+        public static IEnumerable<object> SelectByClassification<T>(this IEnumerable<(int, T)> sequence, params Func<T,object>[] selectors)
+        {
+            foreach (var x in sequence)
+            {
+                if (x.Item1 < selectors.Length) yield return selectors[x.Item1](x.Item2);
+            }
+        }
+
+        public static void ForEachByClassification<T>(this IEnumerable<(int, T)> sequence, params Action<int, T >[] actions)
+        {
+            sequence.ForEach((x, idx) => { if (x.Item1 < actions.Length) actions[x.Item1](x.Item1, x.Item2); });
+        }
+
+        public static IEnumerable<TResult> SelectByClassification<T, TResult>(this IEnumerable<(int, T)> sequence, params Func<int,T, TResult>[] selectors)
+        {
+            foreach (var x in sequence)
+            {
+                if (x.Item1 < selectors.Length) yield return selectors[x.Item1](x.Item1, x.Item2);
+            }
+        }
+
+        public static Dictionary<int, List<T>> ToLists<T>(this IEnumerable<(int, T)> sequence)
+        {
+            var lists = new Dictionary<int, List<T>>();
+
+            foreach (var (index, item) in sequence)
+            {
+                if (!lists.ContainsKey(index))
+                {
+                    lists[index] = new List<T>();
+                }
+
+                lists[index].Add(item);
+            }
+
+            // Convert the dictionary values to an array of lists and return
+            return lists;
+        }
+
+
+        public static IEnumerable<object> SelectByClassification<T>(this IEnumerable<(int, T)> sequence, params Func<int, T,  object>[] selectors)
+        {
+            foreach (var x in sequence)
+            {
+                if (x.Item1 < selectors.Length)  yield return selectors[x.Item1](x.Item1, x.Item2);
+ 
+            }
         }
 
         public static void ForEach<T>(this IEnumerable<T> sequence, Action<T> action)
