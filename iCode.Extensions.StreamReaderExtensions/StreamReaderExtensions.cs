@@ -1,6 +1,5 @@
-﻿using iCode.Extensions.IEnumerableExtensions;
-
-namespace iCode.Extensions.StreamReaderExtensions
+﻿
+namespace iCode.Extensions
 {
     public static class StreamReaderExtensions
     {
@@ -15,7 +14,7 @@ namespace iCode.Extensions.StreamReaderExtensions
     }
 }
 
-namespace iCode.Extensions.StreamReaderExtensions
+namespace iCode.Extensions
 { 
     public static class StreamWriterExtensions
     {

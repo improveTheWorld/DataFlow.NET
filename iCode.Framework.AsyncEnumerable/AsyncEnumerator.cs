@@ -2,7 +2,7 @@
 using iCode.Framework;
 using iCode.Log;
 
-namespace iCode.Framework.AsyncEnumerable
+namespace iCode.Framework
 {
     public class AsyncEnumerator<T> : IAsyncEnumerator<T>
     {

@@ -1,8 +1,7 @@
-﻿using iCode.Extensions.ObjectMadeFeedable;
-using iCode.Extensions.StringExtentions;
+﻿using iCode.Extensions;
 
 
-namespace iCode.Extensions.NewObjectsParsing
+namespace iCode.Extensions
 {
     public static class NewObjectsParsingExtensions
     {

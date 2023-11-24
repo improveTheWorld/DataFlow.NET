@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\iCode.Framework.Guard\iCode.Framework.Guard.csproj" />
+  </ItemGroup>
+
 </Project>

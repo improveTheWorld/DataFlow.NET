@@ -1,4 +1,4 @@
-﻿namespace iCode.Extensions.IntExtensions
+﻿namespace iCode.Extensions
 {
     public static class IntExtensions
     {

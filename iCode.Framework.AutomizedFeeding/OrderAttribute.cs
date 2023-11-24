@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 
 
-namespace iCode.Framework.AutomizedFeeding
+namespace iCode.Framework
 {
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
     public sealed class OrderAttribute : Attribute

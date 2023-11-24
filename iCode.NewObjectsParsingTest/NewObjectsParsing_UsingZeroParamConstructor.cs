@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using Xunit;
 using Xunit.Asserts.Compare;
 using Moq;
-using iCode.Extensions.NewObjectsParsing;
-using iCode.Framework.AutomizedFeeding;
+using iCode.Extensions;
+using iCode.Framework;
 using System.Linq;
 
 namespace iCode.Tests

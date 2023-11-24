@@ -1,9 +1,9 @@
 ﻿using iCode.Log;
 using System.Threading.Channels;
 using iCode.Framework;
-using iCode.Extensions.IEnumerableExtensions;
+using iCode.Extensions;
 
-namespace iCode.Framework.AsyncEnumerable
+namespace iCode.Framework
 {
     public class AsyncEnumerable<T> : IAsyncEnumerable<T>, IDisposable
     {

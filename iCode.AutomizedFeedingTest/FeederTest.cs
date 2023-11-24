@@ -1,5 +1,5 @@
-﻿using iCode.Framework.AutomizedFeeding;
-using iCode.Extensions.ObjectMadeFeedable;
+﻿using iCode.Framework;
+using iCode.Extensions;
 using System;
 using System.Collections.Generic;
 using Xunit;

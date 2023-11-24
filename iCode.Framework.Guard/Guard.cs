@@ -1,4 +1,4 @@
-﻿namespace iCode.Framework.Guard
+﻿namespace iCode.Framework
 {
     using System;
     using System.Diagnostics;
@@ -8,7 +8,7 @@
     /// <summary>
     /// Provides guard clauses.
     /// </summary>
-    internal static class Guard
+    public static class Guard
     {
         /// <summary>
         /// Guards against a null argument.
@@ -27,6 +27,41 @@
                 throw new ArgumentNullException(parameterName, string.Format(CultureInfo.InvariantCulture, "{0} is null.", parameterName));
             }
         }
+
+        /// <summary>
+        /// Guards against out of range argument.
+        /// </summary>
+        /// <typeparam name="TArgument">The type of the argument.</typeparam>
+        /// <param name="parameterName">Name of the parameter.</param>
+        /// <param name="argument">The argument.</param>
+        /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="argument" /> is <c>out of range</c>.</exception>
+        /// <remarks><typeparamref name="TArgument"/> is restricted to int type.</remarks>
+        [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "Distributed as a source code package.")]
+        [DebuggerStepThrough]
+        public static void AgainstOutOfRange(string parameterName,  int argument, int start, int end)  
+        {
+            if (  argument < start || end <argument)
+            {
+                throw new ArgumentOutOfRangeException(parameterName, string.Format(CultureInfo.InvariantCulture, $"{0} is out of range [{start}..{end}].", parameterName));
+            }
+        }
+
+        /// <summary>
+        /// Guards against  arguments relation not respected .
+        /// </summary>
+        /// <typeparam name="TArgument">The type of the argument.</typeparam>
+        /// <param name="parameterName">Name of the parameter.</param>
+        /// <param name="argument">The argument.</param>
+        /// <exception cref="System.ArgumentNullException"><paramref name="argument" /> is <c>null</c>.</exception>
+        /// <remarks><typeparamref name="TArgument"/> is restricted to reference types to avoid boxing of value type objects.</remarks>
+        [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "Distributed as a source code package.")]
+        [DebuggerStepThrough]
+        public static void AgainstContractNotRespected<TArgument>(string parameter1, string parameter2)
+        {
+            throw new ArgumentException($"{parameter1} and {parameter2}", string.Format(CultureInfo.InvariantCulture, "{0} Contract Not Respected.", $"{parameter1} and {parameter1}"));
+
+        }
+
 
         /// <summary>
         /// Guards against a null argument if <typeparamref name="TArgument" /> can be <c>null</c>.

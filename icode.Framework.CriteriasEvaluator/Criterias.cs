@@ -1,4 +1,4 @@
-﻿using iCode.Extensions.IEnumerableExtensions;
+﻿using iCode.Extensions;
 namespace iCode.Framework
 {
     public abstract class Criterias<T>

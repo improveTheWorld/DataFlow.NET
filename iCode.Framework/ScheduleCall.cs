@@ -1,5 +1,5 @@
 ﻿using iCode.Log;
-using iCode.Extensions.IEnumerableExtensions;
+using iCode.Extensions;
 
 
 namespace iCode.Framework

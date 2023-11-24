@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Reflection;
-using iCode.Extensions.IEnumerableExtensions;
+using iCode.Extensions;
 
 
 namespace iCode.Framework.AutomizedFeeding
@@ -57,7 +57,8 @@ namespace iCode.Framework.AutomizedFeeding
             var objectType = objectToFill.GetType();
             var attributes = ((MemberInfo[])objectType.GetProperties()).Concat(objectType.GetFields());
             int valueIndex = 0;
-            attributes.SelectNonDefault(attribute => CorrespendanceTable.TryGetValue(attribute.Name, out valueIndex)? new {attribute , valueIndex } : null)
+            attributes.Select(attribute => CorrespendanceTable.TryGetValue(attribute.Name, out valueIndex) ? new { attribute, valueIndex } : null)
+                      .Where(x=>x!= null)
                       .ForEach(x => FillAttribute(x.attribute, objectToFill, ValueStore[x.valueIndex]));
 
             return objectToFill;

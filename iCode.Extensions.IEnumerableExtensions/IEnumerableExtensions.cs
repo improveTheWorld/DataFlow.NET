@@ -1,10 +1,12 @@
 ﻿
 using System;
 using System.ComponentModel;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 
-namespace iCode.Extensions.IEnumerableExtensions
+namespace iCode.Extensions
 {
     public static class IEnumerableExtensions
     {     
@@ -65,120 +67,95 @@ namespace iCode.Extensions.IEnumerableExtensions
             return sequence.Take(new Range(start, start+count-1));
         }
 
-        public static IEnumerable<(int,T)> Classify<T>(this IEnumerable<T> sequence, params Func<T, bool> []conditions)
+
+        public static IEnumerable<(int category, T item)> Classify<T>(this IEnumerable<T> items, params Func<T, bool> []filters)
         {
-           foreach(var item in  sequence)
+           foreach(var item in  items)
            {
-                for (int idx = 0; idx < conditions.Length; idx++)
+                for (int category = 0; category < filters.Length; category++)
                 {
-                    if (conditions[idx](item))
+                    if (filters[category](item))
                     {
-                        yield return (idx, item);
-                        break;
+                        yield return (category, item );
                     }
                 }
            }
         }
+       
 
-        public static void ForEachByClassification<T>(this IEnumerable<(int,T)> sequence, params Action<T>[] actions)
+        public static IEnumerable<(int category, T item)>  ForEachByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Action<T>[] actions)
         {
-            sequence.ForEach(x => { if (x.Item1 < actions.Length) actions[x.Item1](x.Item2); });
+            return sequence.Where(x => x.category < actions.Length).
+                    ForEach(x => actions[x.category](x.item));
         }
 
-        public static IEnumerable<TResult> SelectByClassification<T, TResult>(this IEnumerable<(int, T)> sequence, params Func<T, TResult>[] selectors)
+        public static IEnumerable<(int category, T item)> ForEachByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Action< T, int>[] actions)
         {
-            foreach (var x in sequence)
+            return sequence.Where(x=> x.category < actions.Length).
+                    ForEach((x, index) => actions[x.category](x.item, index));
+        }
+
+        public static IEnumerable<TResult?> SelectByClassification<T, TResult>(this IEnumerable<(int category, T item)> sequence, params Func<T, TResult>[] selectors)
+        {
+            return sequence.Where(x => x.category < selectors.Length)
+                            .Select(x => selectors[x.category](x.item));
+
+        }
+
+        public static IEnumerable<object?> SelectByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Func<T, int,  object>[] selectors)
+        {
+            return sequence.Where(x=> x.category < selectors.Length)
+                           .Select((x, idx)=> selectors[x.category]( x.item, idx));
+        }
+
+
+        public static IEnumerable<object?> SelectByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Func<T, object>[] selectors)
+        {
+            return sequence.Where(x => x.category < selectors.Length)
+                            .Select(x => selectors[x.category](x.item));
+        }
+                   
+        public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, int,  bool> stopCondition)
+        {
+
+            int index = 0;
+
+            foreach (var item in items)
             {
-                if(x.Item1 < selectors.Length) yield return selectors[x.Item1](x.Item2);
-            }
-        }
-        public static IEnumerable<object> SelectByClassification<T>(this IEnumerable<(int, T)> sequence, params Func<T,object>[] selectors)
-        {
-            foreach (var x in sequence)
-            {
-                if (x.Item1 < selectors.Length) yield return selectors[x.Item1](x.Item2);
-            }
-        }
+                yield return item;
 
-        public static void ForEachByClassification<T>(this IEnumerable<(int, T)> sequence, params Action<int, T >[] actions)
-        {
-            sequence.ForEach((x, idx) => { if (x.Item1 < actions.Length) actions[x.Item1](x.Item1, x.Item2); });
-        }
-
-        public static IEnumerable<TResult> SelectByClassification<T, TResult>(this IEnumerable<(int, T)> sequence, params Func<int,T, TResult>[] selectors)
-        {
-            foreach (var x in sequence)
-            {
-                if (x.Item1 < selectors.Length) yield return selectors[x.Item1](x.Item1, x.Item2);
-            }
-        }
-
-        public static Dictionary<int, List<T>> ToLists<T>(this IEnumerable<(int, T)> sequence)
-        {
-            var lists = new Dictionary<int, List<T>>();
-
-            foreach (var (index, item) in sequence)
-            {
-                if (!lists.ContainsKey(index))
+                if (stopCondition != null && stopCondition(item, index++))
                 {
-                    lists[index] = new List<T>();
-                }
-
-                lists[index].Add(item);
-            }
-
-            // Convert the dictionary values to an array of lists and return
-            return lists;
-        }
-
-
-        public static IEnumerable<object> SelectByClassification<T>(this IEnumerable<(int, T)> sequence, params Func<int, T,  object>[] selectors)
-        {
-            foreach (var x in sequence)
-            {
-                if (x.Item1 < selectors.Length)  yield return selectors[x.Item1](x.Item1, x.Item2);
- 
-            }
-        }
-
-        public static void ForEach<T>(this IEnumerable<T> sequence, Action<T> action)
-        {
-            foreach (var item in sequence)
-                action(item);
-        }
-
-        public static IEnumerable<TResult> SelectNonDefault<TSource, TResult>(this IEnumerable<TSource> source, Func<TSource, TResult?> selector)
-        {
-            if (source == null)
-            {
-                throw new ArgumentNullException(nameof(source));
-            }
-
-            if (selector == null)
-            {
-                throw new ArgumentNullException(nameof(selector));
-            }
-
-            foreach (var item in source)
-            {
-                TResult? tmp = selector(item);
-                if (!EqualityComparer<TResult?>.Default.Equals(tmp, default(TResult)))
-                {
-                    yield return tmp;
+                    break;
                 }
             }
         }
 
-        public static void ForEach<T>(this IEnumerable<T> sequence, Action<T,int> action)
+
+        public static IEnumerable<T> ForEach<T>(this IEnumerable<T> sequence, Action<T, int> action)
         {
             int index = 0;
             foreach (var item in sequence)
+            {
                 action(item, index++);
+                yield return item;
+
+            }
+
+        }
+        public static IEnumerable<T> ForEach<T>(this IEnumerable<T> sequence, Action<T> action)
+        {
+            foreach (var item in sequence)
+            {
+                action(item);
+                yield return item; 
+            }
+
         }
 
-        public static T? Cumul<T>(this IEnumerable<T> sequence, Func<T, T, T> cumulate)
+        public static T? Cumul<T>(this IEnumerable<T> sequence, Func<T?, T, T> cumulate)
         {
-            T cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
+            T? cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
 
             sequence.Skip(1).ForEach(x => cumul = cumulate(cumul, x));
            
@@ -198,16 +175,7 @@ namespace iCode.Extensions.IEnumerableExtensions
 
             return sum;
         }
-
-
-        public static T? Combine<T>(this IEnumerable<T> sequence, Func<T, T, T> cumulate)
-        {
-            T cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
-
-            sequence.Skip(1).ForEach(x => cumul = cumulate(cumul, x));
-
-            return cumul;
-        }
+ 
 
         public static bool IsNullOrEmpty<T>(this IEnumerable<T> sequence)
         {

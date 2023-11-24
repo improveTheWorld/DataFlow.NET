@@ -1,6 +1,6 @@
 ﻿using iCode.Framework.AutomizedFeeding;
 
-namespace iCode.Extensions.ObjectMadeFeedable
+namespace iCode.Extensions
 {
     public static class ObjectMadeFeedable
     {

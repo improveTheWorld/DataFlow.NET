@@ -1,4 +1,4 @@
-﻿using iCode.Extensions.IEnumerableExtensions;
+﻿using iCode.Extensions;
 using System.Data;
 using System.Text.RegularExpressions;
 

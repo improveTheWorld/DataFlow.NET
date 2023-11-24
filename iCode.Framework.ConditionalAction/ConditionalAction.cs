@@ -1,5 +1,5 @@
 ﻿
-namespace iCode.Framework.ConditionalAction
+namespace iCode.Framework
 {
     public class ConditionalAction
     {

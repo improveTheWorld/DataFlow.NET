@@ -1,4 +1,4 @@
-﻿namespace iCode.Framework.AutomizedFeeding
+﻿namespace iCode.Framework
 {
     public interface IFeedingInternalOrder
     {

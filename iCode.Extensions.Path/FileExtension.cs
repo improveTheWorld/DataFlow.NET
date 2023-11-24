@@ -1,5 +1,5 @@
 ﻿
-namespace iCode.Extensions.FileExtension
+namespace iCode.Extensions
 {
     public static class iFile
     {
