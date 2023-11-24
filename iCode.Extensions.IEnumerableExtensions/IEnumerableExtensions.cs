@@ -143,6 +143,15 @@ namespace iCode.Extensions
             }
 
         }
+
+        public static void  Go<T>(this IEnumerable<T> sequence)
+        {
+            foreach (var item in sequence)
+            {
+                ;
+            }
+
+        }
         public static IEnumerable<T> ForEach<T>(this IEnumerable<T> sequence, Action<T> action)
         {
             foreach (var item in sequence)

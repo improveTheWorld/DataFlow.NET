@@ -73,20 +73,25 @@ namespace iCode.IEnumerableExtensions.UsageExamples
         
         static void Main(string[] args)
         {
-            string line1 = " myFreind : hisName";
-            string line2 = "value: value1";
+            int count =0;
+            string[] input = new string[40000];
+            Directory.EnumerateFiles(@"C:\Users\Bilel_Alstom\Desktop\codeSource\iCode", "*.cs", SearchOption.AllDirectories).SelectMany(x => new StreamReader(x).AsLines()).ForEach(line => { input[count] = line;    Console.WriteLine(count++); }).Go();
+            
+            //string line1 = " myFreind : hisName";
+            //string line2 = "value: value1";
 
-            var str = Rgx.BLABLA + ":" + Rgx.ALPHNUMS.Get("mine").InSpaces();
+            //var str = Rgx.BLABLA + ":" + Rgx.ALPHNUMS.Get("mine").InSpaces();
 
-            Console.WriteLine(str);
-            var rgx = new Regex(str);
-            var result =rgx.Match(line1+line2);
-            var tmp = result.Groups["mine"].Value;
+            //Console.WriteLine(str);
+            //var rgx = new Regex(str);
+            //var result =rgx.Match(line1+line2);
+            //var tmp = result.Groups["mine"].Value;
 
-            using (var reader = Fake.StreamReader(new List<string> {line1,line2 }))
-            {
-                reader.AsLines().Select(line => rgx.Match(line).Captures[0].Value).ForEach(x=>Console.WriteLine(x));
-            }
+
+            //using (var reader = Fake.StreamReader(new List<string> {line1,line2 }))
+            //{
+            //    reader.AsLines().Select(line => rgx.Match(line).Captures[0].Value).ForEach(x=>Console.WriteLine(x));
+            //}
         }
     }
 }
