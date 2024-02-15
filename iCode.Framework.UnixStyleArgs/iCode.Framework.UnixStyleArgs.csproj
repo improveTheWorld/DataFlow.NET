@@ -15,7 +15,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\iCode.Framework.UnixStyleArgsFiller\iCode.Framework.UnixStyleArgsFiller.csproj" />
+    <ProjectReference Include="..\iCode.Extensions.IEnumerableExtensions\iCode.Extensions.IEnumerableExtensions.csproj" />
+    <ProjectReference Include="..\iCode.Extensions.NewObjectsParsing\iCode.Extensions.NewObjectsParsing.csproj" />
+    <ProjectReference Include="..\iCode.Extensions.StringExtensions\iCode.Extentions.StringExtensions.csproj" />
   </ItemGroup>
 
 </Project>

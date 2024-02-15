@@ -1,30 +1,24 @@
-﻿
-using System;
-using System.ComponentModel;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography.X509Certificates;
-
+﻿using System.Text.RegularExpressions;
+using System.Text;
 namespace iCode.Extensions
 {
     public static class IEnumerableExtensions
-    {     
+    {
         public static IEnumerable<T> CombineOrdered<T>(this IEnumerable<T> ordered1, IEnumerable<T> ordered2, Func<T, T, bool> isFirstParamInferiorOrEqualToSecond)
         {
 
             IEnumerator<T>? enum1 = null;
             IEnumerator<T>? enum2 = null;
 
-            if(ordered1 != null)    enum1 = ordered1.GetEnumerator();
-            if(ordered2 != null)    enum2 = ordered2.GetEnumerator();
+            if (ordered1 != null) enum1 = ordered1.GetEnumerator();
+            if (ordered2 != null) enum2 = ordered2.GetEnumerator();
 
 
             bool notEmpty1 = false;
             bool notEmpty2 = false;
 
-            if (enum1 != null)   notEmpty1 = enum1.MoveNext();
-            if (enum2 != null)   notEmpty2 = enum2.MoveNext();
+            if (enum1 != null) notEmpty1 = enum1.MoveNext();
+            if (enum2 != null) notEmpty2 = enum2.MoveNext();
 
             while (notEmpty1 && notEmpty2)
             {
@@ -64,34 +58,33 @@ namespace iCode.Extensions
 
         public static IEnumerable<T> Take<T>(this IEnumerable<T> sequence, int start, int count)
         {
-            return sequence.Take(new Range(start, start+count-1));
+            return sequence.Take(new Range(start, start + count - 1));
         }
 
 
-        public static IEnumerable<(int category, T item)> Classify<T>(this IEnumerable<T> items, params Func<T, bool> []filters)
+        public static IEnumerable<(int category, T item)> Classify<T>(this IEnumerable<T> items, params Func<T, bool>[] filters)
         {
-           foreach(var item in  items)
-           {
+            foreach (var item in items)
+            {
                 for (int category = 0; category < filters.Length; category++)
                 {
                     if (filters[category](item))
                     {
-                        yield return (category, item );
+                        yield return (category, item);
                     }
                 }
-           }
+            }
         }
-       
 
-        public static IEnumerable<(int category, T item)>  ForEachByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Action<T>[] actions)
+        public static void ForEachByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Action<T>[] actions)
         {
-            return sequence.Where(x => x.category < actions.Length).
+            sequence.Where(x => x.category < actions.Length).
                     ForEach(x => actions[x.category](x.item));
         }
 
-        public static IEnumerable<(int category, T item)> ForEachByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Action< T, int>[] actions)
+        public static void ForEachByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Action<T, int>[] actions)
         {
-            return sequence.Where(x=> x.category < actions.Length).
+            sequence.Where(x => x.category < actions.Length).
                     ForEach((x, index) => actions[x.category](x.item, index));
         }
 
@@ -102,10 +95,10 @@ namespace iCode.Extensions
 
         }
 
-        public static IEnumerable<object?> SelectByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Func<T, int,  object>[] selectors)
+        public static IEnumerable<object?> SelectByClassification<T>(this IEnumerable<(int category, T item)> sequence, params Func<T, int, object>[] selectors)
         {
-            return sequence.Where(x=> x.category < selectors.Length)
-                           .Select((x, idx)=> selectors[x.category]( x.item, idx));
+            return sequence.Where(x => x.category < selectors.Length)
+                           .Select((x, idx) => selectors[x.category](x.item, idx));
         }
 
 
@@ -114,8 +107,8 @@ namespace iCode.Extensions
             return sequence.Where(x => x.category < selectors.Length)
                             .Select(x => selectors[x.category](x.item));
         }
-                   
-        public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, int,  bool> stopCondition)
+
+        public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, int, bool> stopCondition)
         {
 
             int index = 0;
@@ -131,35 +124,39 @@ namespace iCode.Extensions
             }
         }
 
+        public static IEnumerable<T> Until<T>(this IEnumerable<T> items, int lastItemIdx)
+        {
 
-        public static IEnumerable<T> ForEach<T>(this IEnumerable<T> sequence, Action<T, int> action)
+            int index = 0;
+
+            foreach (var item in items)
+            {
+                yield return item;
+
+                if (lastItemIdx == index++) break;
+            }
+        }
+
+        public static void ForEach<T>(this IEnumerable<T> sequence, Action<T, int> action)
         {
             int index = 0;
             foreach (var item in sequence)
-            {
                 action(item, index++);
-                yield return item;
-
-            }
-
         }
 
-        public static void  Go<T>(this IEnumerable<T> sequence)
+        public static void ForEach<T>(this IEnumerable<T> sequence, Action<T> action)
         {
             foreach (var item in sequence)
-            {
-                ;
-            }
-
-        }
-        public static IEnumerable<T> ForEach<T>(this IEnumerable<T> sequence, Action<T> action)
-        {
-            foreach (var item in sequence)
-            {
                 action(item);
-                yield return item; 
-            }
+        }
 
+        public static IEnumerable<TResult> SelectFew<TSource, TResult>(this IEnumerable<TSource> sequence, Func<TSource, TResult?> action)
+        {
+            foreach (var item in sequence)
+            {
+                var result = action(item);
+                if (result != null) yield return result;
+            }
         }
 
         public static T? Cumul<T>(this IEnumerable<T> sequence, Func<T?, T, T> cumulate)
@@ -167,7 +164,16 @@ namespace iCode.Extensions
             T? cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
 
             sequence.Skip(1).ForEach(x => cumul = cumulate(cumul, x));
-           
+
+            return cumul;
+        }
+
+        public static TResult? Cumul<T, TResult>(this IEnumerable<T> sequence, TResult? initial, Func<TResult?, T, TResult> cumulate)
+        {
+            TResult? cumul = initial;
+
+            sequence.ForEach(x => cumul = cumulate(cumul, x));
+
             return cumul;
         }
 
@@ -184,7 +190,6 @@ namespace iCode.Extensions
 
             return sum;
         }
- 
 
         public static bool IsNullOrEmpty<T>(this IEnumerable<T> sequence)
         {
@@ -201,5 +206,37 @@ namespace iCode.Extensions
 
             return !sequence.Any();
         }
+
     }
+
+    static public class  DictionnaryExtensions
+    {
+        public static bool AddOrUpdate<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key, TValue value)
+        {
+            if (dict.ContainsKey(key))
+            {
+                dict[key] = value;
+                return false;
+            }
+            else
+            {
+                dict.Add(key, value);
+                return true;
+            }
+        }
+
+        public static TValue? GetOrNull<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key) where TKey : notnull
+        {
+            if (dict.ContainsKey(key))
+            {
+                return dict[key];
+            }
+            else
+            {
+                return default;
+            }
+        }
+    }
+
+   
 }
