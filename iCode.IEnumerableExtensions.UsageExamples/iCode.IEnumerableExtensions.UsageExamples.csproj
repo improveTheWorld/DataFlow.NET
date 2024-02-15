@@ -8,8 +8,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="RegexExtensions.cs" />
+    <Compile Remove="Rgx.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\iCode.Extensions.FileSystemExtensions\iCode.Extensions.FileSystemExtensions.csproj" />
     <ProjectReference Include="..\iCode.Extensions.StreamReaderExtensions\iCode.Extentions.StreamReaderExtensions.csproj" />
     <ProjectReference Include="..\iCode.Extensions.StringExtensions\iCode.Extentions.StringExtensions.csproj" />
+    <ProjectReference Include="..\iCode.Framework.Rgx\iCode.Framework.Rgx.csproj" />
     <ProjectReference Include="..\iCode.Logger\iCode.Logger.csproj" />
     <ProjectReference Include="..\iCode.Test.Tools\iCode.Test.Tools.csproj" />
   </ItemGroup>

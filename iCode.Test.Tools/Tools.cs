@@ -1,9 +1,9 @@
 ﻿using iCode.Extensions;
 namespace iCode.TestTools.Fake
 {
-    public static  class Fake
+    public static  class InMemory
     {
-        public static StreamReader StreamReader(List<string> lines)
+        public static StreamReader AsStreamReader(this List<string> lines)
         {
             MemoryStream stream = new MemoryStream();
 
@@ -15,10 +15,9 @@ namespace iCode.TestTools.Fake
 
             stream.Position = 0; // Reset the position to the beginning of the stream
 
-            return new StreamReader(stream);
-
-                
+            return new StreamReader(stream);                
             
         }
+       
     }
 }

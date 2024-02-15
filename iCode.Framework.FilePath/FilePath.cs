@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using iCode.Extensions;
+using System.Globalization;
 
 namespace iCode.Framework
 {
@@ -6,123 +7,124 @@ namespace iCode.Framework
     {
         public enum Status
         {
-            
-            MissedPath = 0,
-            PathExist = 1,
-            FileExist = 2
-        } 
-
-        public string? DirectoryPath { get; set; }
-
-        public string Name { get; set; }
-
-        string? _FullPath = null;
-        public string FullPath => (_FullPath != null) ? _FullPath : (_FullPath = Path.Combine(DirectoryPath, Name));
-        
-
-        public FilePath(string path, string name)
-        {
-            DirectoryPath = path;
-            Name = name;
+            MissedPath,
+            MissedFile,
+            File,
+            Folder
         }
-
-        public FilePath(string fullPath)
+        Status _status = Status.MissedFile;
+        public Status status
         {
-            string? directory = Path.GetDirectoryName(fullPath);
-
-            if (directory == null)
+            get
             {
-                throw new ArgumentException(nameof(fullPath));
-            }
-            else
-            {
-                DirectoryPath = directory;
-            }
-                
-            Name = Path.GetFileName(fullPath);
-        }
+                if (_status == Status.MissedFile)
+                {
+                    if (File.Exists(FullName))
+                    {
+                        _status = Status.File;
+                    }
+                    else if (Directory.Exists(FullName))
+                    {
+                        _status = Status.Folder;
+                    }
+                    else if (!Directory.Exists(Up()))
+                    {
+                        _status = Status.MissedPath;
+                    }
+                }
 
-       
-        public Status Check()
-        {
-            return Check(DirectoryPath,Name);       
-        }
-        
-        public StreamWriter CreatePathAndFile(string? suffixToRenameIfExistant = null)
-        {
-            return _createPathAndFile(DirectoryPath, FullPath);
-        }
-        public static StreamWriter CreatePathAndFile(string fullPath, string? suffixToRenameIfExistant = null)
-        {
-            return _createPathAndFile(Path.GetDirectoryName(fullPath), fullPath, suffixToRenameIfExistant);
-        }
-
-        public static StreamWriter CreatePathAndFile(string directoryPath, string name, string? suffixToRenameIfExistant = null)
-        {
-            return _createPathAndFile(directoryPath,Path.Combine(directoryPath, name), suffixToRenameIfExistant);
-        }
-
-        static StreamWriter _createPathAndFile(string directoryPath, string fullPath, string? suffixToRenameIfExistant = "old")
-        {
-            Status status = _check(directoryPath,fullPath);
-
-            if (status == Status.MissedPath)
-            {
-                Directory.CreateDirectory(directoryPath);
-            }
-            else if (status == Status.FileExist )
-            {
-                File.Move(fullPath, Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(fullPath) + suffixToRenameIfExistant + Path.GetExtension(fullPath)));
-            }
-
-            StreamWriter retValue = new StreamWriter(fullPath);
-            return retValue;
-        }
-
-
-        StreamWriter? Ecrase()
-        {
-            if (File.Exists(FullPath))
-            {
-                return new StreamWriter(FullPath);
-            }
-            else
-            {
-                return null;
+                return _status;
             }
         }
 
-        public static Status Check(string fullPath)
+        string[]? _Names;
+
+        string[] Names
         {
-            return _check(Path.GetDirectoryName(fullPath), fullPath);
+            get => _Names != null ? _Names : _Names = explode(FullName);
         }
 
-        public static Status Check(string DirectoryPath, string name)
+        static string[] explode(string fullName) =>
+            fullName.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+
+        public string Name
         {
-            return _check(DirectoryPath, Path.Combine(DirectoryPath, name));
+            get => Names.Last();
         }
 
-
-        static Status _check(string directoryPath, string fullPath)
+        public string Up(int level = 1, bool computeFullPath = true)
         {
-            if (File.Exists(fullPath))
+            int lastOne = Names.LastIdx() - level;
+            return computeFullPath ? Path.Combine(Names.Until(lastOne).ToArray()) : Names[lastOne];
+        }
+
+        public static string Up(string fullPath, int level = 1, bool computeFullPath = true)
+        {
+            var tmp = fullPath.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+
+            int lastOne = tmp.LastIdx() - level;
+            return computeFullPath ? Path.Combine(tmp.Until(lastOne).ToArray()) : tmp[lastOne];
+        }
+
+        public readonly string FullName;
+        public FilePath(string fullName)
+        {
+            FullName = fullName;
+        }
+        static public string GetName(string fullPath)
+        {
+            return Path.GetFileName(fullPath);
+        }
+        static public Status Check(string path)
+        {
+            if (File.Exists(path))
             {
-                return Status.FileExist;
+                return Status.File;
             }
-            else if (Directory.Exists(directoryPath))
+            else if (Directory.Exists(path))
             {
-                return Status.PathExist;
+                return Status.Folder;
             }
-            else
+            else if (!Directory.Exists(Path.GetDirectoryName(path)))
             {
                 return Status.MissedPath;
             }
+            else
+            {
+                return Status.MissedFile;
+            }
         }
 
-        override public string? ToString()
+        static public bool IsFormatOk(string path)
         {
-            return FullPath;
-        }
+            if (String.IsNullOrWhiteSpace(path)
+                || path.IndexOfAny(Path.GetInvalidPathChars()) >= 0
+                || Path.GetFileName(path).IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                return false;
+            }
 
+            return true;
+        }
+      
+        public static bool Rename(string path, string suffix, bool overwrite = false)
+        {
+            int index;
+            return Rename(path, fileName => (index = fileName.LastIndexOf('.')) == -1 ? fileName + suffix : fileName.Insert(index, suffix), overwrite);
+        }
+        public static bool Rename(string path, Func<string, string> rename, bool overwrite = false)
+        {
+            bool exist = true;
+            do
+            {
+
+                path = rename(path);
+
+            } while (overwrite || !(exist = File.Exists(path)));
+
+            File.Move(path.ToString(), path, overwrite);
+
+            return overwrite || !exist; // return true if a file was created . equivalent to : return File.Exist(path)
+        }
     }
 }

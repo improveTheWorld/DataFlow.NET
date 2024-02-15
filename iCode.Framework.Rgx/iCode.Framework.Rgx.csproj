@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
@@ -7,9 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\iCode.Extensions.ArrayExtensions\iCode.Extensions.ArrayExtensions.csproj" />
     <ProjectReference Include="..\iCode.Extensions.IEnumerableExtensions\iCode.Extensions.IEnumerableExtensions.csproj" />
     <ProjectReference Include="..\iCode.Extensions.StringExtensions\iCode.Extentions.StringExtensions.csproj" />
+    <ProjectReference Include="..\iCode.Framework.EnumerablePlus\iCode.Framework.EnumerablePlus.csproj" />
+    <ProjectReference Include="..\iCode.Framework.Guard\iCode.Framework.Guard.csproj" />
   </ItemGroup>
 
 </Project>

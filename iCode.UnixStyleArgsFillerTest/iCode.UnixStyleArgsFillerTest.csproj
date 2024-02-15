@@ -24,7 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\iCode.Extensions.InvokePrivateMethod\iCode.Extensions.InvokePrivateMethod.csproj" />
-    <ProjectReference Include="..\iCode.Framework.UnixStyleArgsFiller\iCode.Framework.UnixStyleArgsFiller.csproj" />
+    <ProjectReference Include="..\iCode.Framework.UnixStyleArgs\iCode.Framework.UnixStyleArgs.csproj" />
   </ItemGroup>
 
 </Project>

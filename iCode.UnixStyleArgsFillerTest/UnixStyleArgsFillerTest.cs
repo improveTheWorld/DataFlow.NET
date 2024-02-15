@@ -8,98 +8,63 @@ namespace iCode.Tests
     public class UnixStyleArgsFillerTest
     {
             
-        UnixStyleArgsFiller UnixStyleArgsFiller_Setup_Test()
+        IEnumerable<ArgRequirement> ArgREquirements_Setup()
         {
-            ArgDescription fileDest = new ArgDescription
-            {
-                Parameter = "FileWriterDestination",
-                ShortName = "D",
-                LongName = "Dest",
-                IsRequired = false,
-                DefaultValue = "12",
-                HelpText = ""
-            };
-
-            ArgDescription maxRandom = new ArgDescription
-            {
-                Parameter = "MaxRandomInt",
-                ShortName = "M",
-                LongName = "max",
-                IsRequired = false,
-                DefaultValue = "12",
-                HelpText = "The maximum integer to generate"
-            };
-            ArgDescription maxcount = new ArgDescription
-            {
-                Parameter = "RandomIntCount",
-                ShortName = "c",
-                LongName = "count",
-                IsRequired = false,
-                DefaultValue = "12",
-                HelpText = " the number to multily random integers by"
-            };
-
-            ArgDescription mandatory = new ArgDescription
-            {
-                Parameter = "mandatory",
-                ShortName = "m",
-                LongName = "mand",
-                IsRequired = true,
-                DefaultValue = "",
-                HelpText = " the number to multiply random integers by"
-            };
-
-            var conf = new List<ArgDescription> { fileDest, maxRandom, maxcount, mandatory };
-            UnixStyleArgsFiller parser = new UnixStyleArgsFiller(conf);
-            return parser;
-
+            yield return new ArgRequirement("FileWriterDestination", "D", "Dest", "12", "Path to the target folder");
+            yield return new ArgRequirement("MaxRandomInt", "M", "max",  "12", "The maximum integer to generate");
+            yield return new ArgRequirement("RandomIntCount", "c", "count", "12", " the number to multily random integers by");
+            yield return new ArgRequirement("mandatory", "m", "mand", "", " the number to multiply random integers by", true);
         }
 
         void GenerateHelpMessage_Test()
         {
-            UnixStyleArgsFiller parser = UnixStyleArgsFiller_Setup_Test();
+            var parser = ArgREquirements_Setup();
             Console.WriteLine("**************** GenerateHelpMessage ******************");
-            Console.WriteLine(parser.GenerateHelpMessage());
+            // to do How to test a private method?
+            //Console.WriteLine(parser.GenerateHelpMessage());
 
         }
 
         void GetMissedRequiredOption_Test()
         {
-            UnixStyleArgsFiller parser = UnixStyleArgsFiller_Setup_Test();
+            var parser = ArgREquirements_Setup();
             string[] argsOk = { "-D", "c:/test/text.txt", "-m" };
             string[] argsMandatoryMissed = { "-D", "c:/test/text.txt", "-c", "10" };
             Console.WriteLine("****************GetMissedRequiredOption : list should be empty********************");
-
-            parser.UpdateParametersAndCheckMissedOptions(argsOk,out argsOk).ForEach(x=> Console.WriteLine(x));
+            List<string>? unixStyleArgs;
+            parser.CheckAgains(argsOk,out unixStyleArgs)?.ForEach(x=> Console.WriteLine(x));
             
             Console.WriteLine($"Updated command parameter :{string.Join(" ", argsOk)}");
 
             Console.WriteLine("**************** GetMissedRequiredOption : Missed one argument : mandatory ********************");
-            parser.UpdateParametersAndCheckMissedOptions(argsMandatoryMissed,out argsMandatoryMissed).ForEach(x => Console.WriteLine(x));
+
+            unixStyleArgs?.Clear();
+            parser.CheckAgains(argsMandatoryMissed, out unixStyleArgs)?.ForEach(x => Console.WriteLine(x));
             
             Console.WriteLine($"Updated command parameter :{string.Join(" ", argsMandatoryMissed)}");
         }
 
         void GenerateErrorsMessage_Test()
         {
-            UnixStyleArgsFiller parser = UnixStyleArgsFiller_Setup_Test();
+            var parser = ArgREquirements_Setup();
             string[] argsMandatoryMissed = { "-D", "c:/test/text.txt", "-c 10" };
-            string errorMessage = parser.GenerateErrorsMessage(parser.UpdateParametersAndCheckMissedOptions(argsMandatoryMissed,out argsMandatoryMissed));
-            Console.WriteLine("**************** GenerateErrorsMessage: mandatory is required******************");
-            Console.WriteLine(errorMessage);
+
+            //TOdo: check the private methods!
+            //List<string> unixStyleArgs;
+            //string errorMessage = parser.GenerateErrorsMessage(parser.CheckAgains(argsMandatoryMissed, unixStyleArgs));
+            //Console.WriteLine("**************** GenerateErrorsMessage: mandatory is required******************");
+            //Console.WriteLine(errorMessage);
         }
 
         void Parse_test()
         {
-            UnixStyleArgsFiller parser = UnixStyleArgsFiller_Setup_Test();
+            var parser = ArgREquirements_Setup();
             string[] argsOk = { "-D", "c:/test/text.txt", "-m" };
             string[] argsMandatoryMissed = { "-D", "c:/test/text.txt", "-c", "10" };
             Console.WriteLine("****************Parse : Ok**************** ");           ;
-            
-            Console.WriteLine(parser.iInvoke("_checkAndFill", argsOk, argsOk, Console.Out));
+            Console.WriteLine(parser.iInvoke("CheckAgains", argsOk));
             Console.WriteLine("****************Parse : Error**************** ");
-
-            Console.WriteLine(parser.iInvoke("_checkAndFill",argsMandatoryMissed, argsMandatoryMissed, Console.Out));
+            Console.WriteLine(parser.iInvoke("CheckAgains", argsMandatoryMissed));
         }
     }
 }

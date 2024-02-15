@@ -5,10 +5,8 @@ namespace iCode.Extensions
 {
     public static class NewObjectsParsingExtensions
     {
-        public static T? AsObject<T>(this string CSV_Line, string CSV_Seperator, string[]? parsingOrder = null)
+        public static T? AsObject<T>(this object[] paramters,  string[]? parsingOrder = null)
         {
-
-            object[] paramters = CSV_Line.Split(CSV_Seperator, StringSplitOptions.TrimEntries).Select(x => x.Convert()).ToArray();
             object retValue;
 
             if(parsingOrder!=null)

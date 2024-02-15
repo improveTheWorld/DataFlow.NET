@@ -108,7 +108,7 @@ namespace iCode.Log
             }
         }
 
-       public static void  WriteLine(string message, LogLevel logLevel = LogLevel.Trace)
+       public static void Out(string message, LogLevel logLevel = LogLevel.Trace)
         {
             // ensure thread safety
             lock (loggerTargets)
@@ -216,7 +216,7 @@ namespace iCode.Log
         // Method to get a file logger
         public static ILoggerTarget CreateFileLogger(String fullPath)
         {
-            StreamWriter writer = FilePath.CreatePathAndFile(fullPath);            
+            StreamWriter writer = (new FilePath(fullPath)).CreateFileWithoutFailure();            
             writer.AutoFlush = true;
             return  new WriteLineLogger<StreamWriter>(writer);            
         }

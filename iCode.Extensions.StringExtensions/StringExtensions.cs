@@ -32,10 +32,11 @@ namespace iCode.Extensions
             else return value;
 
         }
-        public static bool IsNullOrEmpty(this string input) => (input?.Length??0) == 0 ;
 
+        public static int LastIdx(this string text) => text.Length - 1;
+        
        
-        public static bool StartsEnds(this string text, string start, string end)
+        public static bool IsBetween(this string text, string start, string end)
         {
             return text.StartsWith(start) && text.EndsWith(end);
         }
@@ -45,10 +46,13 @@ namespace iCode.Extensions
             return acceptedStarts?.Select(possibleStart => value.StartsWith(possibleStart))?.FirstOrDefault(x => x) ?? false;
         }
 
-        public static bool Contains(this string value, IEnumerable<string> any)
+
+        public static bool IsNullOrEmpty(this string text) => string.IsNullOrEmpty(text);
+        public static bool IsNullOrWhiteSpace( this string text) => !string.IsNullOrWhiteSpace(text);
+        public static bool ContainsAny(this string line, IEnumerable<string> tokens)
         {
-            Guard.AgainstNullArgument( nameof(value), value);
-            return !(any?.FirstOrDefault(x => value.Contains(x)) ?? string.Empty).IsNullOrEmpty();
+            Guard.AgainstNullArgument( nameof(line), line);
+            return !(tokens?.FirstOrDefault(x => line.Contains(x)) ?? string.Empty).IsNullOrEmpty();
         }
 
         public static string  ReplaceAt(this string value,int index, int length, string toInsert)

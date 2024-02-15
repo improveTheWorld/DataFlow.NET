@@ -3,13 +3,19 @@ namespace iCode.Extensions
 {
     public static class StreamReaderExtensions
     {
-        public static IEnumerable<string> AsLines(this StreamReader file)
+        public static IEnumerable<string> AsLines(this StreamReader file, bool autoClose = true)
         {
             while (!file.EndOfStream)
             {
                 yield return file.ReadLine();
             }
-            file.Close();
+
+            if(autoClose) file.Close();
+ 
+        }
+        public static IEnumerable<string> AsLines(this string filePath)
+        {
+           return new StreamReader(filePath).AsLines();
         }
     }
 }

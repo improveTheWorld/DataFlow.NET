@@ -111,14 +111,14 @@ namespace iLoggerUsageExamples
             
             Config loggerConfiguration = iLogger.Filters;
             loggerConfiguration.ResetFilters();
-            iLogger.WriteLine("** LogIntoKafkEvent usage example,please create your azure hub event with kafka enabled ", LogLevel.Warn);
-            iLogger.WriteLine("           Start kafka server and then Enter event hub namespace...", LogLevel.Warn);
+            iLogger.Out("** LogIntoKafkEvent usage example,please create your azure hub event with kafka enabled ", LogLevel.Warn);
+            iLogger.Out("           Start kafka server and then Enter event hub namespace...", LogLevel.Warn);
             string? eventHubNamespace = Console.ReadLine();
-            iLogger.WriteLine("           enter kafka topic / event hub name ...", LogLevel.Warn);
+            iLogger.Out("           enter kafka topic / event hub name ...", LogLevel.Warn);
             string? topic = Console.ReadLine();
-            iLogger.WriteLine("           enter connexion string ...", LogLevel.Warn);
+            iLogger.Out("           enter connexion string ...", LogLevel.Warn);
             string? connexionstring = Console.ReadLine();
-            iLogger.WriteLine("           enter log to put into kafka ...", LogLevel.Warn);
+            iLogger.Out("           enter log to put into kafka ...", LogLevel.Warn);
             string? log = Console.ReadLine();
 
 
@@ -141,7 +141,7 @@ namespace iLoggerUsageExamples
             iLogger.ResetLoggers();
             iLogger.AddKafkaEventHubLogger(eventHubNamespace, connexionstring, topic);
 
-            iLogger.WriteLine(log); // here is the loggin operation to kafka
+            iLogger.Out(log); // here is the loggin operation to kafka
 
             iLogger.getColoredConsoleWriter();
             iLogger.AddFileLogger(settings["fileLogger_Path"]);
@@ -156,13 +156,13 @@ namespace iLoggerUsageExamples
             loggerConfiguration.ResetFilters();
 
 
-            iLogger.WriteLine("** Track all variable changes.", LogLevel.Warn);
+            iLogger.Out("** Track all variable changes.", LogLevel.Warn);
 
             Loggable<string> stringValue = "this one";
             stringValue = "First";
             stringValue += "Second";
 
-            iLogger.WriteLine("Press any key to continue...");
+            iLogger.Out("Press any key to continue...");
             Console.ReadKey();
             Console.Clear();
 
@@ -200,7 +200,7 @@ namespace iLoggerUsageExamples
             TargetedNumericLoggableObject targetedNumericLoggableObject = new();
             TargetedStringLoggableObject targetedStringLoggableObject = new();
 
-            iLogger.WriteLine("** Target a specific namespace for logging.", LogLevel.Warn);
+            iLogger.Out("** Target a specific namespace for logging.", LogLevel.Warn);
 
 
             loggerConfiguration.WatchedNameSpaces.Watch(new NameSpaceComparer("iLoggerUsageExamples.nameSapceTargetedObjects"));      
@@ -214,9 +214,9 @@ namespace iLoggerUsageExamples
             targetedStringLoggableObject.UpdateAndLogValue("new value");
 
 
-            iLogger.WriteLine("=> Multiple object were updated. Only those belonging to  iLoggerUsageExamples.nameSapceTargetedObjects namespace generates a log!", LogLevel.Warn);
+            iLogger.Out("=> Multiple object were updated. Only those belonging to  iLoggerUsageExamples.nameSapceTargetedObjects namespace generates a log!", LogLevel.Warn);
   
-            iLogger.WriteLine("Press any key to continue...");
+            iLogger.Out("Press any key to continue...");
 
             Console.ReadKey();
             Console.Clear();
@@ -230,39 +230,39 @@ namespace iLoggerUsageExamples
             StringLoggableObject firstStringObject = new();
             StringLoggableObject secondStringObject = new();
 
-            iLogger.WriteLine(secondStringObject.GetType().ToString());
-            iLogger.WriteLine(firstNumericObject.GetType().ToString());
+            iLogger.Out(secondStringObject.GetType().ToString());
+            iLogger.Out(firstNumericObject.GetType().ToString());
 
             // ************************ FIRST Example : Instance targeting ******************************
-            iLogger.WriteLine("** First use case: Target a specific instance for logging.", LogLevel.Warn);
+            iLogger.Out("** First use case: Target a specific instance for logging.", LogLevel.Warn);
 
             firstNumericObject.WatchByLogger("FirstObject");
             firstNumericObject.UpdateAndLogValue(5);
             secondNumericObject.nameForLog("SecondObject");
             secondNumericObject.UpdateAndLogValue(6);
 
-            iLogger.WriteLine("=> Only the watched instance, firstObject, generates a log!", LogLevel.Warn);
-            iLogger.WriteLine("=> Observe the ability to give instances different names for logging.", LogLevel.Warn);
-            iLogger.WriteLine("Press any key to continue...");
+            iLogger.Out("=> Only the watched instance, firstObject, generates a log!", LogLevel.Warn);
+            iLogger.Out("=> Observe the ability to give instances different names for logging.", LogLevel.Warn);
+            iLogger.Out("Press any key to continue...");
 
             Console.ReadKey();
             Console.Clear();
 
             // ************************ SECOND Example : All instances targeting ******************************
-            iLogger.WriteLine("** Second use case: Target all possible instances without prior declaration.", LogLevel.Warn);
+            iLogger.Out("** Second use case: Target all possible instances without prior declaration.", LogLevel.Warn);
 
             loggerConfiguration.WatchedInstances.WatchAll();
             firstNumericObject.UpdateAndLogValue(5);
             secondNumericObject.UpdateAndLogValue(6);
 
-            iLogger.WriteLine("=> Both firstObject and secondObject generate logs!", LogLevel.Warn);
-            iLogger.WriteLine("Press any key to continue...", LogLevel.Warn);
+            iLogger.Out("=> Both firstObject and secondObject generate logs!", LogLevel.Warn);
+            iLogger.Out("Press any key to continue...", LogLevel.Warn);
 
             Console.ReadKey();
             Console.Clear();
 
             // ************************ Third Example : target based on instance characteristics  ******************************
-            iLogger.WriteLine("** Third use case: Log only when numericValue is odd using RequesterValidation.", LogLevel.Warn);
+            iLogger.Out("** Third use case: Log only when numericValue is odd using RequesterValidation.", LogLevel.Warn);
 
             loggerConfiguration.RequesterAcceptanceCriterias.SetCriteria((x) =>
             {
@@ -276,14 +276,14 @@ namespace iLoggerUsageExamples
             firstNumericObject.UpdateAndLogValue(5);
             secondNumericObject.UpdateAndLogValue(6);
 
-            iLogger.WriteLine("=> Both firstObject and secondObject were updated, but only firstObject generated a log as it has an odd value!", LogLevel.Warn);
-            iLogger.WriteLine("Press any key to continue...", LogLevel.Warn);
+            iLogger.Out("=> Both firstObject and secondObject were updated, but only firstObject generated a log as it has an odd value!", LogLevel.Warn);
+            iLogger.Out("Press any key to continue...", LogLevel.Warn);
 
             Console.ReadKey();
             Console.Clear();
 
             // ************************ Fourth Example : target based on instance type ******************************
-            iLogger.WriteLine("** Fourth use case: Log based on instance type.", LogLevel.Warn);
+            iLogger.Out("** Fourth use case: Log based on instance type.", LogLevel.Warn);
 
             loggerConfiguration.RequesterAcceptanceCriterias.SetCriteria((x) =>
             {
@@ -295,13 +295,13 @@ namespace iLoggerUsageExamples
             secondNumericObject.UpdateAndLogValue(6);
 
 
-            iLogger.WriteLine("=> Both Numeric and String objects were updated but logs were generated just by Numeric ones!", LogLevel.Warn);
-            iLogger.WriteLine("Press any key to continue...", LogLevel.Warn);
+            iLogger.Out("=> Both Numeric and String objects were updated but logs were generated just by Numeric ones!", LogLevel.Warn);
+            iLogger.Out("Press any key to continue...", LogLevel.Warn);
 
             Console.ReadKey();
             Console.Clear();
             // ************************ Fiveth Example : Multiple acceptance criterias  ******************************
-            iLogger.WriteLine("** Fiveth use case: Add new acceptance criterias : Log String objects that are In Capital letters", LogLevel.Warn);
+            iLogger.Out("** Fiveth use case: Add new acceptance criterias : Log String objects that are In Capital letters", LogLevel.Warn);
 
             loggerConfiguration.RequesterAcceptanceCriterias.AddCriteria((x) =>
             {
@@ -318,8 +318,8 @@ namespace iLoggerUsageExamples
             firstStringObject.UpdateAndLogValue("new String Value");
             secondStringObject.UpdateAndLogValue("HELLO WORLD!");
 
-            iLogger.WriteLine("=> Both firstObject and secondObject values were updated, but logs were generated based on type!", LogLevel.Warn);
-            iLogger.WriteLine("Press any key to continue...", LogLevel.Warn);
+            iLogger.Out("=> Both firstObject and secondObject values were updated, but logs were generated based on type!", LogLevel.Warn);
+            iLogger.Out("Press any key to continue...", LogLevel.Warn);
 
             Console.ReadKey();
             Console.Clear();

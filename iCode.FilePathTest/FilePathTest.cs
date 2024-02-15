@@ -1,5 +1,6 @@
 ﻿using Xunit;
 using iCode.Framework;
+using iCode.Extensions;
 using System.IO;
 
 
@@ -27,22 +28,22 @@ namespace iCode.Tests
 
             string phraseOld = "this is a test File, will be old";
             string phraseNew = "this is not the old one";
-            StreamWriter testFile  = FilePath.CreatePathAndFile(testFileFullPath);
+            StreamWriter testFile = new FilePath(testFileFullPath).CreateFileWithoutFailure();
 
             testFile.WriteLine(phraseOld);
             testFile.Flush();
             testFile.Close();
             testFile.Dispose();           
 
-            var newTestFile = FilePath.CreatePathAndFile(testFileFullPath, ".old");
+            var newTestFile = new FilePath(testFileFullPath).CreateFileWithoutFailure(".iCodeTest");
 
             newTestFile.WriteLine(phraseNew);
             newTestFile.Flush();
             newTestFile.Close();
             newTestFile.Dispose();
 
-            Assert.Equal(FilePath.Status.FileExist,FilePath.Check(testFileFullPath));
-            Assert.Equal(FilePath.Status.FileExist, FilePath.Check(oldTestFileFullPath));
+            Assert.Equal(FilePath.Status.File,FilePath.Check(testFileFullPath));
+            Assert.Equal(FilePath.Status.File, FilePath.Check(oldTestFileFullPath));
 
             StreamReader newTestF = new StreamReader(testFileFullPath);
             StreamReader oldTestF = new StreamReader(oldTestFileFullPath);

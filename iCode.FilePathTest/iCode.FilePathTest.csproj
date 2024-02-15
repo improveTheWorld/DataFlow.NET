@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\iCode.Extensions.FileSystemExtensions\iCode.Extensions.FileSystemExtensions.csproj" />
     <ProjectReference Include="..\iCode.Framework.FilePath\iCode.Framework.FilePath.csproj" />
   </ItemGroup>
 
