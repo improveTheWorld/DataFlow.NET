@@ -103,7 +103,7 @@ namespace iCode.Tests
         void Parse_IFeedable()
         {
 
-            Mix_Field_Property parsed = "2;yes;True".Split(';',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).AsObject< Mix_Field_Property>();
+            Mix_Field_Property parsed = NEW.Get< Mix_Field_Property>("2;yes;True".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
             Mix_Field_Property expected = new Mix_Field_Property { FieldBool = true, intField = 2, StringProperty = "yes" };
             DeepAssert.Equal(expected, parsed);
 
@@ -116,7 +116,7 @@ namespace iCode.Tests
         {
 
             Mix_Field_Property expected = new Mix_Field_Property { FieldBool = true, intField = 2, StringProperty = "yes" };            
-            var parsed = " yes;2 ;True  ".Split(';', StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).AsObject<Mix_Field_Property>( new string[] { "StringProperty", "intField", "FieldBool" });
+            var parsed = NEW.Get<Mix_Field_Property>(" yes;2 ;True  ".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries), new string[] { "StringProperty", "intField", "FieldBool" });
             DeepAssert.Equal(expected, parsed);
 
         }
@@ -126,7 +126,7 @@ namespace iCode.Tests
         {
            
             Mix_Field_Oredered expected = new Mix_Field_Oredered { FieldBool = true, intField = 2, StringProperty = "yes" };
-            var parsed = " 2 ;yes; True  ".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).AsObject<Mix_Field_Oredered>();
+            var parsed = NEW.Get<Mix_Field_Oredered>(" 2 ;yes; True  ".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
 
             DeepAssert.Equal(expected, parsed);
 

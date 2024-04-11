@@ -8,14 +8,6 @@ namespace iCode.Framework
 
     public static class UnixStyleArgs
     {
-
-        public static IEnumerable<ArgRequirement> GetRquirements(IEnumerable<string> csvLines)
-                                                => csvLines.Where(x => !string.IsNullOrWhiteSpace(x))
-                                                            .SelectFew(line => line.Split(';', StringSplitOptions.TrimEntries)
-                                                            .Where(param => !param.IsNullOrEmpty())
-                                                            .Select(x => x.Convert())
-                                                            .ToArray().AsObject<ArgRequirement>());
-
         public static IEnumerable<string>? CheckAgains(this IEnumerable<ArgRequirement> requirements, string[] inputArgs, out List<string>? unixStyleArgs)
         {
             IEnumerable<string> missedArgs;

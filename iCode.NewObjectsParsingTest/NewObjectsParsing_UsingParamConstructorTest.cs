@@ -101,7 +101,7 @@ namespace iCode
         [Fact]
         void Parse_StringFields_returnsAllFieldsAreFilled()
         {
-            Mix_Field_PropertyWithConstructor? parsed = "True ;2 ;yes".Split(';',3).AsObject<Mix_Field_PropertyWithConstructor>();
+            Mix_Field_PropertyWithConstructor? parsed = NEW.Get<Mix_Field_PropertyWithConstructor>("True ;2 ;yes".Split(';', 3));
             Mix_Field_PropertyWithConstructor expected = new Mix_Field_PropertyWithConstructor(true, 2, "yes");
             DeepAssert.Equal(expected, parsed);
 

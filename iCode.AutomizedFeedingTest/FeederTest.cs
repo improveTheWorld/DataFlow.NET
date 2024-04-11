@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Xunit;
 using Xunit.Asserts.Compare;
 using System.Linq;
+using iCode.Framework.AutomizedFeeding;
 
 namespace iCode.Tests
 {
@@ -111,7 +112,7 @@ namespace iCode.Tests
         [MemberData(nameof(GetToFeedAndFood))]
         void FeedObjectTests(object objectTofeed, object expectedFeededObject, params object[] food)
         {
-            objectTofeed.Feed(food);
+            Feeder.Feed(objectTofeed, food);
             DeepAssert.Equal(expectedFeededObject, objectTofeed);
         }
 
@@ -133,10 +134,10 @@ namespace iCode.Tests
         [MemberData(nameof(GetFood))]
         void NewObjectTests(Type objectType, object expectedFeededObject, params object[] food)
         {
-            object objectTofeed = objectType.NewWithParams(food);
+            object objectTofeed = NEW.WithParams(objectType, food);
             if(objectTofeed == null)
             {
-                objectTofeed = objectType.NewThenFeed(food);
+                objectTofeed = NEW.ThenFeed(objectType, food);
             }
             DeepAssert.Equal(expectedFeededObject, objectTofeed);
         }

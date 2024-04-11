@@ -150,15 +150,7 @@ namespace iCode.Extensions
                 action(item);
         }
 
-        public static IEnumerable<TResult> SelectFew<TSource, TResult>(this IEnumerable<TSource> sequence, Func<TSource, TResult?> action)
-        {
-            foreach (var item in sequence)
-            {
-                var result = action(item);
-                if (result != null) yield return result;
-            }
-        }
-
+       
         public static T? Cumul<T>(this IEnumerable<T> sequence, Func<T?, T, T> cumulate)
         {
             T? cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
