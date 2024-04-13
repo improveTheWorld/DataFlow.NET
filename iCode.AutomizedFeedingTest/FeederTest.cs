@@ -19,7 +19,7 @@ namespace iCode.Tests
         }
     }
 
-    class All_Properties : IFeedingInternalOrder
+    class All_Properties : IWithIntenalSchema
     {
         public int Property { get; set; }
         public int Property1 { get; set; }
@@ -29,33 +29,33 @@ namespace iCode.Tests
 
        
 
-        public Dictionary<string,int> GetFeedingDictionary()
+        public Dictionary<string,int> GetSchema()
         {
             return Convert.AsFeedDictionary(_feedingOrder);
         }
     }
 
-    class All_Fields : IFeedingInternalOrder
+    class All_Fields : IWithIntenalSchema
     {
         public int Field;
         public int Field1;
 
         readonly static string[] _feedingOrder = { "Field", "Field1" };
-        public Dictionary<string, int> GetFeedingDictionary()
+        public Dictionary<string, int> GetSchema()
         {
             return Convert.AsFeedDictionary(_feedingOrder);
         }
     }
 
 
-    class Mix_Field_Property : IFeedingInternalOrder
+    class Mix_Field_Property : IWithIntenalSchema
     {
         public int intField;
         public string StringProperty { get; set; }
         public bool FieldBool;
 
         readonly static string[] _feedingOrder = { "intField", "StringProperty", "FieldBool" };
-        public Dictionary<string, int> GetFeedingDictionary()
+        public Dictionary<string, int> GetSchema()
         {
             return Convert.AsFeedDictionary(_feedingOrder);
         }
@@ -112,7 +112,7 @@ namespace iCode.Tests
         [MemberData(nameof(GetToFeedAndFood))]
         void FeedObjectTests(object objectTofeed, object expectedFeededObject, params object[] food)
         {
-            Feeder.Feed(objectTofeed, food);
+            Feeder.Feed_InternalOrder(objectTofeed, food);
             DeepAssert.Equal(expectedFeededObject, objectTofeed);
         }
 
@@ -132,13 +132,9 @@ namespace iCode.Tests
 
         [Theory]
         [MemberData(nameof(GetFood))]
-        void NewObjectTests(Type objectType, object expectedFeededObject, params object[] food)
+        void NewObjectTests<T>( T expectedFeededObject, params string[] parameters)
         {
-            object objectTofeed = NEW.WithParams(objectType, food);
-            if(objectTofeed == null)
-            {
-                objectTofeed = NEW.ThenFeed(objectType, food);
-            }
+            T  objectTofeed = NEW.GetNew<T>(parameters);
             DeepAssert.Equal(expectedFeededObject, objectTofeed);
         }
 

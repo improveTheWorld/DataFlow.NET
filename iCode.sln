@@ -55,7 +55,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Extensions.IEnumerabl
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.IEnumerableExtentionsTest", "iCode.Extensions.IEnumerableExtensionsTest\iCode.IEnumerableExtentionsTest.csproj", "{49A1721F-4D01-496E-A923-2D3000D5E821}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.IEnumerableExtensions.UsageExamples", "iCode.IEnumerableExtensions.UsageExamples\iCode.IEnumerableExtensions.UsageExamples.csproj", "{C55BFEB7-D40E-45CA-8BCD-C755ADF53D52}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Data.UsageExamples", "iCode.IEnumerableExtensions.UsageExamples\iCode.Data.UsageExamples.csproj", "{C55BFEB7-D40E-45CA-8BCD-C755ADF53D52}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Test.Tools", "iCode.Test.Tools\iCode.Test.Tools.csproj", "{0F9531FF-C6FA-4113-AEC9-5FCAC57A52D4}"
 EndProject
@@ -77,7 +77,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Data.StringEnumerable
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Data.String_Mapper", "iCode.Data.StringMapper\iCode.Data.String_Mapper.csproj", "{55E65B79-3073-4C03-85FE-89E55F6F3DCF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iCode.Data.Write", "iCode.Data.Write\iCode.Data.Write.csproj", "{A486C499-6B38-475D-BF1C-CCDD699137FB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Data.Write", "iCode.Data.Write\iCode.Data.Write.csproj", "{A486C499-6B38-475D-BF1C-CCDD699137FB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iCode.Data.CSV_Mapper", "iCode.Data.CSV_Mapper\iCode.Data.CSV_Mapper.csproj", "{99905257-8B09-47F2-8097-25B8B794C1D3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -217,6 +219,10 @@ Global
 		{A486C499-6B38-475D-BF1C-CCDD699137FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A486C499-6B38-475D-BF1C-CCDD699137FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A486C499-6B38-475D-BF1C-CCDD699137FB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{99905257-8B09-47F2-8097-25B8B794C1D3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{99905257-8B09-47F2-8097-25B8B794C1D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{99905257-8B09-47F2-8097-25B8B794C1D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{99905257-8B09-47F2-8097-25B8B794C1D3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -255,6 +261,7 @@ Global
 		{987474CF-97F9-4334-BAB0-0BDDC77BD366} = {D4045A51-337D-4B3C-8A9E-27BB23D3716E}
 		{55E65B79-3073-4C03-85FE-89E55F6F3DCF} = {D4045A51-337D-4B3C-8A9E-27BB23D3716E}
 		{A486C499-6B38-475D-BF1C-CCDD699137FB} = {D4045A51-337D-4B3C-8A9E-27BB23D3716E}
+		{99905257-8B09-47F2-8097-25B8B794C1D3} = {D4045A51-337D-4B3C-8A9E-27BB23D3716E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {61DDF856-8DAB-48DA-B9CA-ADCD419D66E8}

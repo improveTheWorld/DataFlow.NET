@@ -1,4 +1,8 @@
-﻿namespace iCode.Data
+﻿using iCode.Extensions;
+using System.Reflection.Metadata.Ecma335;
+using System.Xml.Linq;
+
+namespace iCode.Data
 {
     public static class Read
     {
@@ -16,8 +20,29 @@
             return text(new StreamReader(path), autoClose);
         }
 
-        public static IEnumerable<T /*scv_struct*/> csv<T>(string path, string separator = ";", bool autoClose = true) where T : struct
-                                                        => Read.text(path, autoClose).csv<T>(separator);
+        public static IEnumerable<T?> csv<T>(string path, string separator = ";", bool autoClose = true, params string[] schema)
+        {
+            // skip white lines
+            var csvLines = Read.text(path, autoClose)
+                  .SkipWhile(line => line.IsNullOrWhiteSpace());
+
+
+            //string[] csvSchema;
+
+            if (schema.IsNullOrEmpty())
+            {
+                string title = csvLines.First();
+                schema = title.Split(separator, StringSplitOptions.TrimEntries);
+            }
+           
+
+            return csvLines.Skip(1) // skip title
+                    .CSVs<T>(schema, separator);
+
+
+            
+        }
+           
     }
 }
     

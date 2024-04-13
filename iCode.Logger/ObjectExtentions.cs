@@ -1,9 +1,10 @@
 ﻿using iCode.Extensions;
 using System.Drawing;
+using System.Text;
 
 namespace iCode.Log
 {
-    public static class ObjectExtentions
+    public static class iLogger_ObjectExtentions
     {
 
         public static void WriteLine(this object requester, object toLog, LogLevel level = LogLevel.Info)
@@ -59,115 +60,45 @@ namespace iCode.Log
 
         //----------------------------------------------------------------------------
 
-        public static T Out<T>(this T item, string title = "")
-        {
-            iLogger.Out(title.IsNullOrEmpty() ? $"{item}" : $"{title}: {item}");
-            return item;
-        }
+        //public static T LogSpy<T>(this T item, string tag)
+        //{
+        //    iLogger.Out(tag.IsNullOrEmpty() ? $"{item}" : $"{tag}: {item}");
+        //    return item;
+        //}
 
-        public static string Out(this string item, string title = "")
-        {
-            iLogger.Out(title.IsNullOrEmpty() ? $"'{item}'" : $"{title}: '{item}'");
-            return item;
-        }
-
-        public static IEnumerable<T> Out<T>(this IEnumerable<T> items, string title = "")
-        {
-            string display = title.IsNullOrEmpty()? "{" :  $"{title}: {{";
-            int i=0;
-            foreach (var item in items)
-            {
-                if( i!=0 )
-                {
-                    display += ", ";
-                }
-                if(item is string)
-                {
-                    display += "'" + item + "'";
-                }
-                else
-                {
-                    display += item;
-                }
-
-                yield return item;
-                i++;
-            }
-            display += "}";
-            iLogger.Out(display);
-        }
-
-        public static IEnumerable<T> Out<T,Y>(this IEnumerable<T> items, Func<T,Y> derivateOut, string title = "")
-        {
-            foreach (var item in items)
-            {
-                derivateOut(item).Out(title);
-                yield return item;
-            }
-        }
-
-        public static IEnumerable<T> WriteLines<T>(this IEnumerable<T> items)
-        {
-            foreach (var item in items)
-            {
-                iLogger.Out(item.ToString());
-                yield return item;
-            }
-        }
+        //public static string LogSpy(this string item, string tag)
+        //{
+        //    iLogger.Out(tag.IsNullOrEmpty() ? $"'{item}'" : $"{tag}: '{item}'");
+        //    return item;
+        //}      
     }
 
-    public static class IEnumerableExtension
+    public static class iLogger_IEnumerableExtension
     {
+        public static IEnumerable<T> LogSpy<T>(this IEnumerable<T> items, string tag, string separator = ", ", string before = "{", string after = "}")
+        {
+            return items.LogSpy(tag, x => x is string ? $"'{x}'" : x?.ToString()??"null", separator, before, after);           
+        }
 
-       
+        public static IEnumerable<T> LogSpy<T>(this IEnumerable<T> items, string tag, Func<T,string> customDispay, string separator = ", ", string before = "{", string after = "}")
+        {
+            StringBuilder str = new StringBuilder();
 
-        
+            if (!tag.IsNullOrEmpty())
+                str.Append(tag).Append(" :");
 
-        //public static void Info(this object requester, object toLog)
-        //{
-        //    iLogger.Log(toLog, LogLevel.Info, requester);
-        //}
-        //public static void Debug(this object requester, object toLog)
-        //{
-        //    iLogger.Log(toLog, LogLevel.Debug, requester);
-        //}
-        //public static void Trace(this object requester, object toLog)
-        //{
-        //    iLogger.Log(toLog, LogLevel.Trace, requester);
-        //}
+            str.Append(before);
+            int i = 0;
+            foreach (var item in items)
+            {
+                if (i != 0) str.Append(separator);
+                str.Append(customDispay(item));
+                yield return item;
 
-        //public static void Warn(this object requester, object toLog)
-        //{
-        //    iLogger.Log(toLog, LogLevel.Warn, requester);
-        //}
-
-        //public static void Error(this object requester, object toLog, Exception e)
-        //{
-        //    iLogger.Log(toLog, LogLevel.Error, requester.ToString() + " Error : " + e.Message);
-        //}
-        //public static void Error(this object requester, object toLog)
-        //{
-        //    iLogger.Log(toLog, LogLevel.Error, requester);
-        //}
-
-        //public static object WatchByLogger(this object requester, string? InstanceName = null)
-        //{
-        //    iLogger.Filters.WatchedInstances.Watch(requester);
-
-        //    nameForLog(requester, ((InstanceName != null) ? InstanceName : nameof(requester)));
-
-        //    return requester;
-        //}
-
-        //public static bool isWatched(this object requester)
-        //{
-        //    return iLogger.Filters.WatchedInstances.isWatched(requester);
-        //}
-
-        //public static void nameForLog(this object requester, string name)
-        //{
-        //    iLogger.GiveName(requester, name);
-        //}
-
+                i++;
+            }
+            str.Append(after);
+            iLogger.Out(str.ToString());
+        }
     }
 }

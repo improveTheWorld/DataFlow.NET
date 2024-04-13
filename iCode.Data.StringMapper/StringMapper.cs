@@ -6,7 +6,7 @@ namespace iCode.Data.StringMapper
 
     public static class StringMapper
     {
-        public static object parse(this string objectValue)
+        public static object GetObject(string objectValue)
         {
             bool boolValue;
             Int32 intValue;
@@ -27,11 +27,11 @@ namespace iCode.Data.StringMapper
             else return objectValue;
 
         }
-        public static T csv<T>(this string line, string separator = ";") where T : struct
-                => NEW.Get<T>(line
-                .Split(separator, StringSplitOptions.TrimEntries)
-                .Where(param => !param.IsNullOrEmpty())
-                .Select(x => x.parse())
-                .ToArray());
+        public static T? GetCSV<T>(this string line, string[] schema, string separator = ";")// where T : struct
+                => NEW.GetNew<T>(schema,
+                                 line.Split(separator, StringSplitOptions.TrimEntries)
+                                .Select(x => GetObject(x))
+                                .ToArray());
+                                
         }
 }

@@ -8,17 +8,42 @@ using iCode.Framework;
 using iCode.Framework.Rgx;
 using iCode.Extensions;
 using iCode.Data.StringMapper;
+using System.Security.Cryptography.X509Certificates;
 
 namespace iCode.Data
 {
     public static class StringEnumerable_Mapper
     {
 
-        public static IEnumerable<T /*csv_struct*/> csv<T>(this IEnumerable<string /*line*/> items, string separator = ";") where T : struct
-                                                      => items
-                                                       .Where(x => !string.IsNullOrWhiteSpace(x))
-                                                       .Select(line => line.csv<T>(separator))
-                                                       .Where(csv => !csv.Equals(default(T)));
+        //public static string[] csvSchema(string title, string separator = ";")
+        //{
+        //    return title.Split(separator, StringSplitOptions.TrimEntries);
+        //}
+        //public static IEnumerable<T? > GetCSV<T>(this IEnumerable<string /*line*/> items, string separator = ";", params string[] schema) //where T : struct
+        //                                              => items
+        //                                               .Where(x => !x.IsNullOrWhiteSpace()).Spy("bfore")
+        //                                               .Select(line => line.GetCSV<T>(schema, separator))
+        //                                               .Where(csv => !csv?.Equals(default(T)) ?? false);
+
+        //public static IEnumerable<T> csvWithSchema<T>(this IEnumerable<string > lines, string separator = ";") where T : struct
+        //{
+        //    string[] schema = null;
+
+        //    return lines.SkipWhile(line => line.IsNullOrWhiteSpace())
+        //    .Cases(
+        //             (_, idx) => idx == 0,
+        //             (x, _) => true
+        //    )
+        //    .DoCase(
+        //        x => { schema = csvSchema(x); },
+        //        x => {}
+        //    )
+        //    .Select(x=>x.item)
+        //    .Where(x => !x.IsNullOrWhiteSpace())
+        //    .Select(x => x.csv<T>(separator, schema)?? null)
+        //    .Where(csv => !csv.Equals(default(T)));
+        //}
+                                                    
 
         public static EnumerablePlus<string, Rgxs> Map(this IEnumerable<string> items, Func<string, string> defaultMap)
                                          => items.Plus(new Rgxs(defaultMap));
@@ -29,9 +54,11 @@ namespace iCode.Data
  
         public static EnumerablePlus<string, Rgxs> Map(this IEnumerable<string> items, Regex rgx, string groupName, Func<string, string> map)
                                         => items.Plus(new Rgxs()).Add(rgx, groupName, map);
-            
 
-     
+        public static IEnumerable<T?> CSVs<T>(this IEnumerable<string> lines, string[] schema, string separator = ";")
+                                                      => lines.Where(line=>!line.IsNullOrWhiteSpace())
+                                                              .Select(line => line.GetCSV<T>(schema,separator))
+                                                              .Where(csv => !csv?.Equals(default(T)) ?? false);
     }
 
     public static class StringEnumerablePlusRgx_Mapper
@@ -51,6 +78,8 @@ namespace iCode.Data
         {
             return items.Select(line => items._Plus.Map(line));
         }
+
+
     }
 }
 

@@ -1,32 +1,28 @@
-﻿using iCode.Framework.AutomizedFeeding;
+﻿using iCode.Extensions;
+using iCode.Framework.AutomizedFeeding;
 
 namespace iCode.Framework
 {     
     public static class NEW
     {
-        public static T? Get<T>(object[] paramters, string[]? parsingOrder = null)
+        public static T? GetNew<T>(params string[] parameters)
         {
-            object retValue;
-
-            if (parsingOrder != null)
+            try
             {
-                retValue = NEW.ThenFeed(typeof(T), parsingOrder, paramters);
+                return (T)NEW_ExactConstructor(typeof(T), parameters);
             }
-            else
+            catch 
             {
-                retValue = NEW.WithParams(typeof(T), paramters);
+                return (T)NEW_InternalOrder(typeof(T), parameters);
             }
-
-            if (retValue != null)
-            {
-                return (T)retValue;
-            }
-            else
-            {
-                return default;
-            }
+                     
         }
-        public static object WithParams(Type objectType, params object[] parameters)
+        public static T? GetNew<T>(string[] schema, params object[] parameters)
+        {
+           return (T) NEW_GivenSchema(typeof(T), schema, parameters);  
+        }
+
+        static object NEW_ExactConstructor(Type objectType, params object[] parameters)
         {
 
             //: try:
@@ -42,18 +38,12 @@ namespace iCode.Framework
             {
                 throw new ArgumentNullException(nameof(parameters));
             }
-
-            try
-            {
-                return objectType.GetConstructor(parameters.Select(x => x.GetType()).ToArray()).Invoke(parameters);
-            }
-            catch (Exception ex)
-            {
-                return ThenFeed(objectType, parameters);
-            }
+            
+            return objectType.GetConstructor(parameters.Select(x => x.GetType()).ToArray()).Invoke(parameters);
+            
         }
 
-        public static object ThenFeed(Type objectType, params object[] parameters)
+        public static object NEW_InternalOrder(Type objectType, params object[] parameters)
         {
             if (objectType == null)
             {
@@ -64,11 +54,11 @@ namespace iCode.Framework
                 throw new ArgumentNullException(nameof(parameters));
             }
 
-            return Feeder.Feed(objectType.GetConstructor(Array.Empty<Type>()).Invoke(Array.Empty<object>()), parameters);
+            return Feeder.Feed_InternalOrder(objectType.GetConstructor(Array.Empty<Type>()).Invoke(Array.Empty<object>()), parameters);
         }
 
 
-        public static object ThenFeed(Type newObjectType, string[] feedingDictionary, params object[] parameters)
+        static object NEW_GivenSchema(Type newObjectType, string[] schema, params object[] parameters)
         {
             if (newObjectType == null)
             {
@@ -78,12 +68,24 @@ namespace iCode.Framework
             {
                 throw new ArgumentNullException(nameof(parameters));
             }
-            else if (feedingDictionary == null)
+            else if (schema == null)
             {
-                throw new ArgumentNullException(nameof(feedingDictionary));
+                throw new ArgumentNullException(nameof(schema));
             }
 
-            return Feeder.Feed(newObjectType.GetConstructor(Array.Empty<Type>()).Invoke(Array.Empty<object>()), feedingDictionary, parameters);
+            object instance;
+            try
+            {
+                instance = newObjectType.GetConstructor(Array.Empty<Type>()).Invoke(Array.Empty<object>());
+            }
+            catch
+            {
+                instance = Activator.CreateInstance(newObjectType);
+            }
+
+            
+            return  Feeder.Feed_WithSchema(instance, Feeder.GetSchemaDictionary(schema), parameters);
+            
         }
     }
 }

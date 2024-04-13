@@ -1,8 +1,8 @@
 ﻿namespace iCode.Framework
 {
-    public interface IFeedingInternalOrder
+    public interface IWithIntenalSchema
     {
-        Dictionary<string,int> GetFeedingDictionary();
+        Dictionary<string,int> GetSchema();
     }        
       
 }

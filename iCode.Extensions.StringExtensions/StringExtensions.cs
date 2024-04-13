@@ -21,7 +21,7 @@ namespace iCode.Extensions
 
 
         public static bool IsNullOrEmpty(this string text) => string.IsNullOrEmpty(text);
-        public static bool IsNullOrWhiteSpace( this string text) => !string.IsNullOrWhiteSpace(text);
+        public static bool IsNullOrWhiteSpace( this string text) => string.IsNullOrWhiteSpace(text);
         public static bool ContainsAny(this string line, IEnumerable<string> tokens)
         {
             Guard.AgainstNullArgument( nameof(line), line);

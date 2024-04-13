@@ -34,9 +34,9 @@ namespace iCode.Framework
 
                 // verify that we dont have expression like "() ..()" or "[]..[]"
                 input.Where((_, idx) => 0 < idx && idx < input.Length - 2)
-                        .Classify(x => x == '[', x => x == ']')
+                        .Cases(x => x == '[', x => x == ']')
                         .Until((_, _) => count < 0)
-                        .ForEachByClassification(_ => count++, x => count++);
+                        .ForEachCase(_ => count++, x => count++);
 
                 if (count != 0) throw new ArgumentException($"{nameof(input)}  Check  parantheses: {input}");
 
