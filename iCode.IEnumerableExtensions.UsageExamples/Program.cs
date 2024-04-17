@@ -287,7 +287,7 @@ namespace iCode.IEnumerableExtensions.UsageExamples
                     line => line = $"ERROR : {line}",   // for lines containing "error" 
                     line => line = $"WARNING : {line}", // for lines containing  "warning"
                     line => line = $"INFO : {line}"     // for other lines
-                )
+                    )
                 // Write each log level in a different file
                 .ForEachCase(
                     line => errorLogs.WriteLine(line),

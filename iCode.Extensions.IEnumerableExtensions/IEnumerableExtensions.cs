@@ -254,8 +254,13 @@ namespace iCode.Extensions
         public static IEnumerable<T> Flat<T>(this IEnumerable<IEnumerable<T>> items, T endOfEnumerable)
         => items.SelectMany(x => x.Append(endOfEnumerable));
     }
+
+
+
     public static class IEnumerable_CasesExtension
     {
+        //------------------------------------------ Cases
+
         public static IEnumerable<(int category, T item)> Cases<T>(this IEnumerable<T> items, params Func<T, bool>[] filters)
         {
             foreach (var item in items)
@@ -271,7 +276,6 @@ namespace iCode.Extensions
                 }
             }
         }
-
 
         public static IEnumerable<(int category, T item)> Cases<T>(this IEnumerable<T> items, params Func<T, int, bool>[] filters)
         {
@@ -290,56 +294,180 @@ namespace iCode.Extensions
             }
         }
 
-        public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> sequence, params Action[] actions)
-        => sequence.Where(x => x.category < actions.Length).ForEach(x => { if(x.category < actions.Length) actions[x.category](); }) ;
+        //----------------------------------------------- SelectCase
+        //internal kitchen
+        static IEnumerable<(C category, R item)> SelectCase<C, T, R>(this IEnumerable<(C category, T item)> items, Dictionary<C, Func<T, R>> selectors) where C : notnull
+       => items.Select(x => (x.category, selectors[x.category](x.item)));
 
-        public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> sequence, params Action<T>[] actions)
-        => sequence.Where(x => x.category < actions.Length).ForEach(x => { if (x.category < actions.Length) actions[x.category](x.item); });
+        static IEnumerable<(C category, R item)> SelectCase<C, T, R>(this IEnumerable<(C category, T item)> items, Dictionary<C, Func<T, int, R>> selectors) where C : notnull
+        => items.Select((x, idx) => (x.category, selectors[x.category](x.item, idx)));
 
-
-        public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> sequence, params Action<T, int>[] actions)
-        => sequence.Where(x => x.category < actions.Length).ForEach((x, index) => { if (x.category < actions.Length) actions[x.category](x.item, index); });
-
-
-
-        public static IEnumerable<(int category, TResult item)> SelectCase<T, TResult>(this IEnumerable<(int category, T item)> sequence, params Func<T, TResult>[] selectors)
-        => sequence.Where(x => x.category < selectors.Length).Select(x => (x.category, selectors[x.category](x.item)));
-
+        //------------ external : parameters enhancement
+        static public IEnumerable<(C category, R item)> SelectCase<C, T, R>(this IEnumerable<(C category, T item)> items, params (C category, Func<T, R> selector)[] selectors) where C : notnull
+        => items.SelectCase(new Dictionary<C, Func<T, R>>(selectors.Select((_) => new KeyValuePair<C, Func<T, R>>(_.category, _.selector))));
+        static public IEnumerable<(C category, R item)> SelectCase<C, T, R>(this IEnumerable<(C category, T item)> items, params (C category, Func<T,int, R> selector)[] selectors) where C : notnull
+     => items.SelectCase(new Dictionary<C, Func<T, int, R>>(selectors.Select((_) => new KeyValuePair<C, Func<T,int,R>>(_.category, _.selector))));
 
 
-        public static IEnumerable<(int category, TResult item)> SelectCase<T, TResult>(this IEnumerable<(int category, T item)> sequence, params Func<T, int, TResult>[] selectors)
-        => sequence.Where(x => x.category < selectors.Length).Select((x, idx) => (x.category, selectors[x.category](x.item, idx)));
+        // When category is of type int , we accept the order of selector as a category key to facilitate the input :
+        // accept params Func<T, R>[] selectors instead of params( int category, Func<T, R>[] selectors)
+        public static IEnumerable<(int category, R item)> SelectCase<T, R>(this IEnumerable<(int category, T item)> items, params Func<T, R>[] selectors)
+        => items.Select(x => (x.category, selectors[x.category](x.item)));
 
-    }
+        public static IEnumerable<(int category, R item)> SelectCase<T, R>(this IEnumerable<(int category, T item)> items, params Func<T, int, R>[] selectors)
+        => items.Select((x, idx) => (x.category, selectors[x.category](x.item, idx)));
 
-    public static class IEnumerableCasesExtensiosn
-    { 
 
-        public static IEnumerable<T> AllCases<C,T>(this IEnumerable<(C category, T item)> items)
-        => items.Select(x => x.item);
+        //Assume no transformation for selector not specified, when T==T 
+        public static IEnumerable<(int category, T item)> SelectCase<T>(this IEnumerable<(int category, T item)> items, params Func<T, T>[] selectors)
+        => items.Select(x => (x.category < selectors.Length) ? (x.category, selectors[x.category](x.item)) : x);
+
+        //-----------external with T=R
+        static public IEnumerable<(C category, T item)> SelectCase<C, T>(this IEnumerable<(C category, T item)> items, params (C category, Func<T, T> selector)[] selectors) where C : notnull
+        {
+            var dict = new Dictionary<C, Func<T, T>>(selectors.Select((_) => new KeyValuePair<C, Func<T, T>>(_.category, _.selector)));
+            return items.Select(x =>
+            {
+                Func<T, T> selector;
+                if (dict.TryGetValue(x.category, out selector)) return (x.category, selector(x.item));
+                else return x;
+            });
+        }
+        static public IEnumerable<(C category,T item)> SelectCase<C, T>(this IEnumerable<(C category, T item)> items, params (C category, Func<T, int, T> selector)[] selectors) where C : notnull
+        {
+            var dict = new Dictionary<C, Func<T,int, T>>(selectors.Select((_) => new KeyValuePair<C, Func<T,int, T>>(_.category, _.selector)));
+            return items.Select((x,idx) =>
+            {
+                Func<T,int, T> selector;
+                if (dict.TryGetValue(x.category, out selector)) return (x.category, selector(x.item,idx));
+                else return x;
+            });
+        }
+        //--------specialized implementation 
+
+        public static IEnumerable<(int category, string item)> SelectCase(this IEnumerable<(int category, string item)> items, params Func<string,string>[] selectors)
+       => items.Select(x => (x.category < selectors.Length) ? (x.category, selectors[x.category](x.item)) : x);
+        
+
+        //------------------------------------------- ForEachCase
+        //internal kitchen
+
+        static IEnumerable<(C category, T item)> ForEachCase<C, T>(this IEnumerable<(C category, T item)> items, Dictionary<C, Action> actions) where C : notnull
+       => items.ForEach(x => actions[x.category]());
+        static IEnumerable<(C category, T item)> ForEachCase<C, T>(this IEnumerable<(C category, T item)> items, Dictionary<C, Action<T>> actions) where C : notnull
+       => items.ForEach(x => actions[x.category](x.item));
+        static IEnumerable<(C category, T item)> ForEachCase<C, T>(this IEnumerable<(C category, T item)> items, Dictionary<C, Action<T,int>> actions) where C : notnull
+       => items.ForEach((x,idx) => actions[x.category](x.item,idx));
+
+        //------------ external : parameters enhancement
+
+        static public IEnumerable<(C category, T item)> ForEachCase<C, T>(this IEnumerable<(C category, T item)> items, params (C category, Action action)[] actions) where C : notnull
+       => items.ForEachCase(new Dictionary<C, Action>(actions.Select((_) => new KeyValuePair<C, Action>(_.category, _.action))));
+
+        static public IEnumerable<(C category, T item)> ForEachCase<C, T>(this IEnumerable<(C category, T item)> items, params (C category, Action<T> action)[] actions) where C : notnull
+        => items.ForEachCase(new Dictionary<C, Action<T>>(actions.Select((_) => new KeyValuePair<C, Action<T>>(_.category, _.action))));
+        static public IEnumerable<(C category, T item)> ForEachCase<C, T>(this IEnumerable<(C category, T item)> items, params (C category, Action<T, int> action)[] actions) where C : notnull
+       => items.ForEachCase(new Dictionary<C, Action<T, int>>(actions.Select((_) => new KeyValuePair<C, Action<T, int>>(_.category, _.action))));
+
+
+        // When category is of type int , we accept the order of selector as a category key to facilitate the input :
+        // accept params Action<T>[] actions instead of params( int category, Action<T>[] actions
+        //Assume no actions for actions not specified
+        public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> items, params Action[] actions)
+        => items.ForEach(x => { if (x.category < actions.Length) actions[x.category](); });
+
+        public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> items, params Action<T>[] actions)
+        => items.ForEach(x => { if (x.category < actions.Length) actions[x.category](x.item); });
+
+        public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> items, params Action<T, int>[] actions)
+        => items.ForEach((x, index) => { if (x.category < actions.Length) actions[x.category](x.item, index); });
+
+
+
+
+        //------------------------------------AllCases
 
         public static IEnumerable<IEnumerable<T>> AllCases<C, T>(this IEnumerable<IEnumerable<(C category, T item)>> items)
         => items.Select(x => x.Select(elem=>elem.item));
 
-        public static IEnumerable<IEnumerable<(string groupName, R subpart)>> SelectCase<R>(this IEnumerable<IEnumerable<(string groupName, string subpart)>> linesSubparts, params (string groupName, Func<string, R> transformation)[] transformations)
-        {
-            var grpTransformations = new Dictionary<string /*groupName*/, Func<string, R> /*transformation*/>();
+      
+    
+    }
+    static public class IEnumerableIEnumerable_Cases_Extensions    
+    {
 
-            transformations.ForEach(_ => grpTransformations[_.groupName] = _.transformation).Do();
 
-            return linesSubparts.Select(part => (part.groupName, grpTransformations[part.groupName](part.subpart)));
-        }
 
-        public static IEnumerable<IEnumerable<(string groupName, string subpart)>> ForEachCase<T>(this IEnumerable<IEnumerable<(string groupName, string subpart)>> linesSubparts, params (string groupName, Action<string> action)[] actions)
-        {
-            var grpTransformations = new Dictionary<string /*groupName*/, Action<string> /*transformation*/>();
+        //---------------------------extend for IEnumerable<IEnumerable<T>>-----SelectCase
+        //internal
+        static IEnumerable<IEnumerable<(C category, R item)>> SelectCase<C, T, R>(this IEnumerable<IEnumerable<(C category, T item)>> items, Dictionary<C, Func<T, R>> selectors) where C : notnull
+        => items.Select(x => (x.category, selectors[x.category](x.item)));
+        static IEnumerable<IEnumerable<(C category, R item)>> SelectCase<C, T, R>(this IEnumerable<IEnumerable<(C category, T item)>> items, Dictionary<C, Func<T, int, R>> selectors) where C : notnull
+       => items.Select((x, idx) => (x.category, selectors[x.category](x.item, idx)));
 
-            actions.ForEach(_ => grpTransformations[_.groupName] = _.action).Do();
+        //external , facilitate parameter input
+        static public IEnumerable<IEnumerable<(C category, R item)>> SelectCase<C, T, R>(this IEnumerable<IEnumerable<(C category, T item)>> items, params (C category, Func<T, R> selector)[] selectors) where C : notnull
+        => items.SelectCase(new Dictionary<C, Func<T, R>>(selectors.Select((_) => new KeyValuePair<C, Func<T, R>>(_.category, _.selector))));
 
-            return linesSubparts.ForEach(part => grpTransformations[part.groupName](part.subpart));
-        }
+        static public IEnumerable<IEnumerable<(C category, R item)>> SelectCase<C, T, R>(this IEnumerable<IEnumerable<(C category, T item)>> items, params (C category, Func<T, int, R> selector)[] selectors) where C : notnull
+        => items.SelectCase(new Dictionary<C, Func<T, int, R>>(selectors.Select((_) => new KeyValuePair<C, Func<T, int, R>>(_.category, _.selector))));
 
-        //ToDO : IEnumerable<IEnumerable<IEnumerable<T>>   ??
+
+
+
+        // When category is of type int , we accept the order of selector as a category key to facilitate the input :
+        // accept params Func<T, R>[] selectors instead of params( int category, Func<T, R>[] selectors)
+
+        public static IEnumerable<IEnumerable<(int category, R item)>> SelectCase<T, R>(this IEnumerable<IEnumerable<(int category, T item)>> items, params Func<T, R>[] selectors)
+        => items.Select(x => (x.category, selectors[x.category](x.item)));
+
+        public static IEnumerable<IEnumerable<(int category, R item)>> SelectCase<T, R>(this IEnumerable<IEnumerable<(int category, T item)>> items, params Func<T, int, R>[] selectors)
+        => items.Select((x, idx) => (x.category, selectors[x.category](x.item, idx)));
+
+        //Assume no transformation for selector not specified, when T==T 
+        public static IEnumerable<IEnumerable<(int category, T item)>> SelectCase<T>(this IEnumerable<IEnumerable<(int category, T item)>> items, params Func<T, T>[] selectors)
+        => items.Select(x => (x.category < selectors.Length) ? (x.category, selectors[x.category](x.item)) : x);
+
+        public static IEnumerable<IEnumerable<(int category, T item)>> SelectCase<T>(this IEnumerable<IEnumerable<(int category, T item)>> items, params Func<T, int, T>[] selectors)
+        => items.Select((x, idx) => (x.category < selectors.Length) ? (x.category, selectors[x.category](x.item, idx)) : x);
+
+
+        //---------------------------extend for IEnumerable<IEnumerable<T>>-----ForEachCase
+        //internal
+        static IEnumerable<IEnumerable<(C category, T item)>> ForEachCase<C, T>(this IEnumerable<IEnumerable<(C category, T item)>> items, Dictionary<C, Action> actions) where C : notnull
+        => items.ForEach(x => actions[x.category]());
+        static IEnumerable<IEnumerable<(C category, T item)>> ForEachCase<C, T>(this IEnumerable<IEnumerable<(C category, T item)>> items, Dictionary<C, Action<T>> actions) where C : notnull
+        => items.ForEach(x => actions[x.category](x.item));
+
+        static IEnumerable<IEnumerable<(C category, T item)>> ForEachCase<C, T>(this IEnumerable<IEnumerable<(C category, T item)>> items, Dictionary<C, Action<T, int>> actions) where C : notnull
+        => items.ForEach((x, idx) => actions[x.category](x.item, idx));
+
+        //external , facilitate parameter input
+        static public IEnumerable<IEnumerable<(C category, T item)>> ForEachCase<C, T>(this IEnumerable<IEnumerable<(C category, T item)>> items, params (C category, Action action)[] actions) where C : notnull
+        => items.ForEachCase(new Dictionary<C, Action>(actions.Select((_) => new KeyValuePair<C, Action>(_.category, _.action))));
+        static public IEnumerable<IEnumerable<(C category, T item)>> ForEachCase<C, T>(this IEnumerable<IEnumerable<(C category, T item)>> items, params (C category, Action<T> action)[] actions) where C : notnull
+        => items.ForEachCase(new Dictionary<C, Action<T>>(actions.Select((_) => new KeyValuePair<C, Action<T>>(_.category, _.action))));
+        static public IEnumerable<IEnumerable<(C category, T item)>> ForEachCase<C, T>(this IEnumerable<IEnumerable<(C category, T item)>> items, params (C category, Action<T, int> action)[] actions) where C : notnull
+        => items.ForEachCase(new Dictionary<C, Action<T, int>>(actions.Select((_) => new KeyValuePair<C, Action<T, int>>(_.category, _.action))));
+
+
+        // When category is of type int , we accept the order of selector as a category key to facilitate the input :
+        // accept params Action<T>[] actions instead of params( int category, Action<T>[] actions
+        //Assume no actions for actions not specified
+        public static IEnumerable<IEnumerable<(int category, T item)>> ForEachCase<T>(this IEnumerable<IEnumerable<(int category, T item)>> items, params Action[] actions)
+        => items.ForEach(x => { if (x.category < actions.Length) actions[x.category](); });
+
+        public static IEnumerable<IEnumerable<(int category, T item)>> ForEachCase<T>(this IEnumerable<IEnumerable<(int category, T item)>> items, params Action<T>[] actions)
+        => items.ForEach(x => { if (x.category < actions.Length) actions[x.category](x.item); });
+
+        public static IEnumerable<IEnumerable<(int category, T item)>> ForEachCase<T>(this IEnumerable<IEnumerable<(int category, T item)>> items, params Action<T, int>[] actions)
+        => items.ForEach((x, index) => { if (x.category < actions.Length) actions[x.category](x.item, index); });
+
+
+
+        //------------------------------------AllCases
+        public static IEnumerable<T> AllCases<C, T>(this IEnumerable<(C category, T item)> items)
+        => items.Select(x => x.item);
     }
 
     static public class  DictionnaryExtensions
