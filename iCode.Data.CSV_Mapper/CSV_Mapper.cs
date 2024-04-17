@@ -6,7 +6,7 @@ namespace iCode.Data
     public static class CSV_Mapper
     {
 
-        public static string csv<T>(T csvRecord, string separator = ";") where T : struct
+        public static string csv<T>(this T csvRecord, string separator = ";")// where T : struct
                              => typeof(T)
                                .GetFields()?
                                .Select(f => f?.GetValue(csvRecord)?.ToString() ?? String.Empty)

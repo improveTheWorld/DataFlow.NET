@@ -76,11 +76,11 @@ namespace iCode.Framework
             object instance;
             try
             {
-                instance = newObjectType.GetConstructor(Array.Empty<Type>()).Invoke(Array.Empty<object>());
+                instance = Activator.CreateInstance(newObjectType);
             }
             catch
             {
-                instance = Activator.CreateInstance(newObjectType);
+                instance = newObjectType.GetConstructor(Array.Empty<Type>()).Invoke(Array.Empty<object>());
             }
 
             

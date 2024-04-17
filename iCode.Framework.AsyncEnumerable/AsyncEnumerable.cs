@@ -18,12 +18,12 @@ namespace iCode.Framework
 
         public AsyncEnumerable(Func<T, bool>? condition = null, ChannelOptions? options = null, params  IDataSource<T>[] dataSource)
         {
-            dataSource.ForEach(source => ListenTo(source, condition, options));
+            dataSource.ForEach(source => ListenTo(source, condition, options)).Do();
         }
 
         public AsyncEnumerable(AsyncEnumerable<T> Source, Func<T, bool>? condition = null, ChannelOptions? options = null)
         {
-            Source.Subscriptions.ForEach(subscription => ListenTo(subscription.Key, condition, options)); 
+            Source.Subscriptions.ForEach(subscription => ListenTo(subscription.Key, condition, options)).Do(); 
         }
 
         Channel<T> CreateChannel(ChannelOptions? options = null)

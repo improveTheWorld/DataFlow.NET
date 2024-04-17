@@ -49,7 +49,8 @@ namespace iCode.Framework.AutomizedFeeding
             int valueIndex = 0;
 
             attributes.Where(attribute => schemaDictionay.TryGetValue(attribute.Name, out valueIndex))
-                .ForEach(x => SetAttributeValue(x, objectToFill, parameters[valueIndex]));
+                      .ForEach(x => SetAttributeValue(x, objectToFill, parameters[valueIndex]))
+                      .Do();
 
             return objectToFill;
         }
@@ -85,7 +86,9 @@ namespace iCode.Framework.AutomizedFeeding
                                             .Single()).Order
                                     select attribute;
 
-            valuesStore.Zip(orderedAttributes).ForEach((att)=>  SetAttributeValue(att.Second, objectToFill, att.First));
+            valuesStore.Zip(orderedAttributes)
+                        .ForEach((att) => SetAttributeValue(att.Second, objectToFill, att.First))
+                        .Do();
 
            
             return objectToFill;

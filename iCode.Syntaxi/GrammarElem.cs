@@ -35,13 +35,13 @@ namespace iCode.Framework.Syntaxi
         public TokenDigestion AcceptToken(string token)
         {
             TokenDigestion returnValue = TokenDigestion.None;
-            _rules.Where(x => x.IsActive()).ForEach(x => returnValue |= x.AcceptToken(token));
+            _rules.Where(x => x.IsActive()).ForEach(x => returnValue |= x.AcceptToken(token)).Do();
             return returnValue;
         }
 
         public void Activate()
         {
-            _rules.ForEach(x => x.Activate());
+            _rules.ForEach(x => x.Activate()).Do();
         }
         private GrammarElem() 
         {
@@ -60,7 +60,7 @@ namespace iCode.Framework.Syntaxi
                                                                  .Select(x => new KeyValuePair<string, ITokenEater>(x, new GrammarElem())));
 
             // For each rule, process the right part elements
-            rules.ForEach(rule => ((GrammarElem)gramm[rule.LeftPart]).AddRule(new(rule.RightPart.Select(token => getOrCreate(gramm, token)))));
+            rules.ForEach(rule => ((GrammarElem)gramm[rule.LeftPart]).AddRule(new(rule.RightPart.Select(token => getOrCreate(gramm, token))))).Do();
                 
             // Assuming we return the first element as the starting point of the grammar
             return (GrammarElem) gramm.Values.First();

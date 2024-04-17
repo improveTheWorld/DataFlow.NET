@@ -36,12 +36,12 @@ namespace iCode.Framework
             {
                 await subscribed.Key.WaitToWriteAsync();
                 await subscribed.Key.WriteAsync(newData);
-            });
+            }).Do();
         }
 
         public void Dispose()
         {
-            Writers.ForEach(x => x.Key.Complete());
+            Writers.ForEach(x => x.Key.Complete()).Do();
             Writers.Clear();
         }
     }

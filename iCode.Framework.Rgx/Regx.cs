@@ -9,14 +9,14 @@ namespace iCode.Framework
         public const string SPACE = @"\s"; // space or tab
         public const string ALPHNUM = @"\w"; // A-Z, a-z , 0-9 or _ (underscore) .
         public const string NUM = @"\d"; // digits
-        public const string ALPHA = "[a - zA - Z]"; // space or tab
+        public const string ALPHA = "[a-zA-Z]"; // space or tab
 
-        public const string BLABLA = ".*";  //  Any character except new line.
+        public const string ANY_CHARS = ".*";  //  Any character except new line.
         public const string SPACES = @"\s+"; // space or tab(0 or many)
         public const string MAYBE_SPACES = @"\s*"; // space or tab(0 or many)
         public const string ALPHNUMS = @"\w+"; // A-Z, a-z , 0-9 or _ (underscore) . One or plus
         public const string NUMS = @"\d+"; // digits
-        public const string ALPHAS = "[a - zA - Z]+"; // Alphabetic
+        public const string ALPHAS = "[a-zA-Z]+"; // Alphabetic
         public const string WORD = MAYBE_SPACES + ALPHNUMS + MAYBE_SPACES;
         public static string WORDS = MAYBE_SPACES + ALPHNUMS + Many(SPACE + ALPHNUMS) + MAYBE_SPACES;
 
@@ -30,15 +30,25 @@ namespace iCode.Framework
 
             if (input.Length >= 3 && (input.IsBetween("(", ")") || input.IsBetween("[", "]")))
             {
-                int count = 0;
+                int count1 = 0;
+                int count2 = 0;
 
                 // verify that we dont have expression like "() ..()" or "[]..[]"
                 input.Where((_, idx) => 0 < idx && idx < input.Length - 2)
-                        .Cases(x => x == '[', x => x == ']')
-                        .Until((_, _) => count < 0)
-                        .ForEachCase(_ => count++, x => count++);
+                        .Cases(
+                            x => x == '[',
+                            x => x == ']',
+                            x => x == '(',
+                            x => x == ')')                        
+                        .ForEachCase(
+                           () => count1++,
+                           () => count1--,
+                           () => count2++,
+                           () => count2--)
+                         .Until(() => count1 < 0 || count2 < 0 )
+                        .Do();
 
-                if (count != 0) throw new ArgumentException($"{nameof(input)}  Check  parantheses: {input}");
+                if (count1 != 0 || count2 !=0) throw new ArgumentException($"{nameof(input)}  Check  parantheses: {input}");
 
                 // count == 0
                 return input;

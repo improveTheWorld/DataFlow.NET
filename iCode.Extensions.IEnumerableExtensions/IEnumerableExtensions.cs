@@ -1,6 +1,12 @@
-﻿using System.Text.RegularExpressions;
+﻿using System;
 using System.Text;
 using System;
+using System.Security.AccessControl;
+using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Data.SqlTypes;
+using System.Linq;
 
 namespace iCode.Extensions
 {
@@ -58,89 +64,34 @@ namespace iCode.Extensions
         public static IEnumerable<T> Take<T>(this IEnumerable<T> sequence, int start, int count)
                 => sequence.Take(new Range(start, start + count - 1));
       
-        public static IEnumerable<(int category, T item)> Cases<T>(this IEnumerable<T> items, params Func<T, bool>[] filters)
+       
+        public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func< bool> stopCondition)
         {
-            foreach (var item in items)
-            {
-                for (int category = 0; category < filters.Length; category++)
-                {
-                    if (filters[category](item))
-                    {
-                        yield return (category, item);
-                    }
-                }
-            }
-        }
+            if (stopCondition == null)
+                throw new ArgumentNullException(nameof(stopCondition)); // Ensure there's a stop condition
 
-        public static IEnumerable<(int category, T item)> Cases<T>(this IEnumerable<T> items, params Func<T, int, bool>[] filters)
-        { 
-            int idx = 0;
-            foreach (var item in items)
-            {
-                for (int category = 0; category < filters.Length; category++)
-                {
-                    if (filters[category](item, idx))
-                    {
-                        yield return (category, item);
-                    }
-                }
-                idx++;
-            }
-        }
-
-        public static void ForEachCase<T>(this IEnumerable<(int category, T item)> sequence, params Action<T>[] actions)
-        => sequence.Where(x => x.category < actions.Length).ForEach(x => actions[x.category](x.item));
-
-
-        public static void ForEachCase<T>(this IEnumerable<(int category, T item)> sequence, params Action<T, int>[] actions)
-        => sequence.Where(x => x.category < actions.Length).ForEach((x, index) => actions[x.category](x.item, index));
-  
-                                   
-
-        public static IEnumerable<(int category, TResult item)> SelectCase<T, TResult>(this IEnumerable<(int category, T item)> sequence, params Func<T, TResult>[] selectors)
-        => sequence.Where(x => x.category < selectors.Length).Select(x => (x.category , selectors[x.category](x.item)));
-
-
-
-        public static IEnumerable<(int category, TResult item)> SelectCase<T, TResult>(this IEnumerable<(int category, T item)> sequence, params Func<T, int, TResult>[] selectors)
-        => sequence.Where(x => x.category < selectors.Length).Select((x, idx) => (x.category, selectors[x.category](x.item, idx)));
-
-        public static IEnumerable<(int category, T item)> DoCase<T>(this IEnumerable<(int category, T item)> sequence, params Action[] actions)
-        {
-            return sequence.Where(x => x.category < actions.Length)
-            .Select(x =>
-            {
-                actions[x.category]();
-                return x;
-            });
-        }
-        public static IEnumerable<(int category, T item)> DoCase<T>(this IEnumerable<(int category, T item)> sequence, params Action<T>[] actions)
-        {
-            return sequence.Where(x => x.category < actions.Length)
-            .Select(x =>
-            {
-                actions[x.category](x.item);
-                return x;
-            });
-        }
-
-        public static IEnumerable<(int category, T item)> DoCase<T>(this IEnumerable<(int category, T item)> sequence, params Action<T, int>[] actions)
-        {
-            return sequence.Where(x => x.category < actions.Length)
-             .Select((x, idx) =>
-             {
-                 actions[x.category](x.item, idx);  
-                 return x;
-             });
-        }
-
-        public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, bool> stopCondition)
-        {
             foreach (var item in items)
             {
                 yield return item;
 
-                if (stopCondition != null && stopCondition(item))
+                if (stopCondition())
+                {
+                    break;
+                }
+            }
+        }
+       
+        public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, bool> stopCondition)
+        {
+
+            if (stopCondition == null)
+                throw new ArgumentNullException(nameof(stopCondition)); // Ensure there's a stop condition
+
+            foreach (var item in items)
+            {
+                yield return item;
+
+                if (stopCondition(item))
                 {
                     break;
                 }
@@ -149,6 +100,8 @@ namespace iCode.Extensions
 
         public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, int, bool> stopCondition)
         {
+            if (stopCondition == null)
+                throw new ArgumentNullException(nameof(stopCondition)); // Ensure there's a stop condition
 
             int index = 0;
 
@@ -156,7 +109,7 @@ namespace iCode.Extensions
             {
                 yield return item;
 
-                if (stopCondition != null && stopCondition(item, index++))
+                if (stopCondition(item, index++))
                 {
                     break;
                 }
@@ -175,35 +128,7 @@ namespace iCode.Extensions
             }
         }
 
-
-        //public static IEnumerable<T> Update<T>(this IEnumerable<T> items, Action<T, int> action)
-        //    => items.Select((x, idx) =>
-        //    {
-        //        action(x, idx);
-        //        return x;
-        //    });
-
-        //public static IEnumerable<T> Update<T>(this IEnumerable<T> items, Action<T> action)
-        //    => items.Select(x =>
-        //    {
-        //        action(x);
-        //        return x;
-        //    });           
-
-
-        public static void ForEach<T>(this IEnumerable<T> sequence, Action<T, int> action)
-        {
-            int index = 0;
-            foreach (var item in sequence) action(item, index++);
-                           
-        }
-
-        public static void ForEach<T>(this IEnumerable<T> sequence, Action<T> action)
-        {
-            foreach (var item in sequence) action(item);       
-        }
-
-        public static IEnumerable<T> Do<T>(this IEnumerable<T> items, Action<T,int> action)
+        public static IEnumerable<T> ForEach<T>(this IEnumerable<T> items, Action<T,int> action)
         {
             return items.Select((x,idx) =>
             {
@@ -211,7 +136,7 @@ namespace iCode.Extensions
                 return x;
             });
         }
-        public static IEnumerable<T> Do<T>(this IEnumerable<T> items , Action<T> action)
+        public static IEnumerable<T> ForEach<T>(this IEnumerable<T> items , Action<T> action)
         {
             return items.Select(x =>
                         {
@@ -219,20 +144,27 @@ namespace iCode.Extensions
                             return x;
                         });
         }
-        public static IEnumerable<T> Do<T>(this IEnumerable<T> items, Action action)
+
+       
+        public static void Do<T>(this IEnumerable<T> items, Action action)
         {
-            return items.Select(x =>
+            foreach( var item in items)
             {
                 action();
-                return x;
-            });
+            }
         }
+
+        public static void Do<T>(this IEnumerable<T> items)
+        {
+            foreach (var item in items) ;
+        }
+
 
         public static T? Cumul<T>(this IEnumerable<T> sequence, Func<T?, T, T> cumulate)
         {
             T? cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
 
-            sequence.Skip(1).ForEach(x => cumul = cumulate(cumul, x));
+            sequence.Skip(1).ForEach(x => cumul = cumulate(cumul, x)).Do();
 
             return cumul;
         }
@@ -241,7 +173,7 @@ namespace iCode.Extensions
         {
             TResult? cumul = initial;
 
-            sequence.ForEach(x => cumul = cumulate(cumul, x));
+            sequence.ForEach(x => cumul = cumulate(cumul, x)).Do();
 
             return cumul;
         }
@@ -253,7 +185,7 @@ namespace iCode.Extensions
             if (!before.IsNullOrEmpty())
                 str.Append(before);
 
-            items.ForEach((x,idx) => { if(idx > 0) str.Append(separator); str.Append(x); });
+            items.ForEach((x,idx) => { if(idx > 0) str.Append(separator); str.Append(x); }).Do();
 
             if(!after.IsNullOrEmpty())
                 str.Append(after);
@@ -294,6 +226,120 @@ namespace iCode.Extensions
             return !sequence.Any();
         }
 
+    }
+
+
+    public static class IEnumerable_DeepLoopExtensions
+    {
+
+        //--------------------------------------  IEnumerable<IEnumerable<T>> 
+        public static IEnumerable<IEnumerable<T>> ForEach<T>(this IEnumerable<IEnumerable<T>> items, Action<T> action)
+        => items.ForEach(row => row.ForEach(item => action(item)));
+        public static IEnumerable<IEnumerable<T>> ForEach<T>(this IEnumerable<IEnumerable<T>> items, Action<T, int> action)
+        => items.ForEach((row, x) => row.ForEach(item => action(item, x)));
+
+        public static IEnumerable<IEnumerable<T>> ForEach<T>(this IEnumerable<IEnumerable<T>> items, Action<T, int, int> action)
+        => items.ForEach((row, x) => row.ForEach((item, y) => action(item, x, y)));
+
+        public static IEnumerable<IEnumerable<R>> Select<T, R>(this IEnumerable<IEnumerable<T>> items, Func<T, R> map)
+        => items.Select(row => row.Select(item => map(item)));
+        public static IEnumerable<IEnumerable<R>> Select<T, R>(this IEnumerable<IEnumerable<T>> items, Func<T, int, R> map)
+        => items.Select((row, x) => row.Select(item => map(item, x)));
+
+        public static IEnumerable<IEnumerable<R>> Select<T, R>(this IEnumerable<IEnumerable<T>> items, Func<T, int, int, R> map)
+        => items.Select((row, x) => row.Select((item, y) => map(item, x, y)));
+
+        public static IEnumerable<T> Flat<T>(this IEnumerable<IEnumerable<T>> items)
+        => items.SelectMany(x => x);
+        public static IEnumerable<T> Flat<T>(this IEnumerable<IEnumerable<T>> items, T endOfEnumerable)
+        => items.SelectMany(x => x.Append(endOfEnumerable));
+    }
+    public static class IEnumerable_CasesExtension
+    {
+        public static IEnumerable<(int category, T item)> Cases<T>(this IEnumerable<T> items, params Func<T, bool>[] filters)
+        {
+            foreach (var item in items)
+            {
+
+                for (int category = 0; category < filters.Length; category++)
+                {
+                    if (filters[category](item))
+                    {
+                        yield return (category, item);
+                        break;
+                    }
+                }
+            }
+        }
+
+
+        public static IEnumerable<(int category, T item)> Cases<T>(this IEnumerable<T> items, params Func<T, int, bool>[] filters)
+        {
+            int idx = 0;
+            foreach (var item in items)
+            {
+                for (int category = 0; category < filters.Length; category++)
+                {
+                    if (filters[category](item, idx))
+                    {
+                        yield return (category, item);
+                        break;
+                    }
+                }
+                idx++;
+            }
+        }
+
+        public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> sequence, params Action[] actions)
+        => sequence.Where(x => x.category < actions.Length).ForEach(x => { if(x.category < actions.Length) actions[x.category](); }) ;
+
+        public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> sequence, params Action<T>[] actions)
+        => sequence.Where(x => x.category < actions.Length).ForEach(x => { if (x.category < actions.Length) actions[x.category](x.item); });
+
+
+        public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> sequence, params Action<T, int>[] actions)
+        => sequence.Where(x => x.category < actions.Length).ForEach((x, index) => { if (x.category < actions.Length) actions[x.category](x.item, index); });
+
+
+
+        public static IEnumerable<(int category, TResult item)> SelectCase<T, TResult>(this IEnumerable<(int category, T item)> sequence, params Func<T, TResult>[] selectors)
+        => sequence.Where(x => x.category < selectors.Length).Select(x => (x.category, selectors[x.category](x.item)));
+
+
+
+        public static IEnumerable<(int category, TResult item)> SelectCase<T, TResult>(this IEnumerable<(int category, T item)> sequence, params Func<T, int, TResult>[] selectors)
+        => sequence.Where(x => x.category < selectors.Length).Select((x, idx) => (x.category, selectors[x.category](x.item, idx)));
+
+    }
+
+    public static class IEnumerableCasesExtensiosn
+    { 
+
+        public static IEnumerable<T> AllCases<C,T>(this IEnumerable<(C category, T item)> items)
+        => items.Select(x => x.item);
+
+        public static IEnumerable<IEnumerable<T>> AllCases<C, T>(this IEnumerable<IEnumerable<(C category, T item)>> items)
+        => items.Select(x => x.Select(elem=>elem.item));
+
+        public static IEnumerable<IEnumerable<(string groupName, R subpart)>> SelectCase<R>(this IEnumerable<IEnumerable<(string groupName, string subpart)>> linesSubparts, params (string groupName, Func<string, R> transformation)[] transformations)
+        {
+            var grpTransformations = new Dictionary<string /*groupName*/, Func<string, R> /*transformation*/>();
+
+            transformations.ForEach(_ => grpTransformations[_.groupName] = _.transformation).Do();
+
+            return linesSubparts.Select(part => (part.groupName, grpTransformations[part.groupName](part.subpart)));
+        }
+
+        public static IEnumerable<IEnumerable<(string groupName, string subpart)>> ForEachCase<T>(this IEnumerable<IEnumerable<(string groupName, string subpart)>> linesSubparts, params (string groupName, Action<string> action)[] actions)
+        {
+            var grpTransformations = new Dictionary<string /*groupName*/, Action<string> /*transformation*/>();
+
+            actions.ForEach(_ => grpTransformations[_.groupName] = _.action).Do();
+
+            return linesSubparts.ForEach(part => grpTransformations[part.groupName](part.subpart));
+        }
+
+        //ToDO : IEnumerable<IEnumerable<IEnumerable<T>>   ??
     }
 
     static public class  DictionnaryExtensions
@@ -341,38 +387,31 @@ namespace iCode.Extensions
     //    }
     //}
 
-    public static class iLogger_IEnumerableExtension
+    public static class Spy_IEnumerableExtension
     {
-        public static IEnumerable<T> Spy<T>(this IEnumerable<T> items, string tag, string separator = "|", string before = "{", string after = "}")
-        {
-            return items.Spy(tag, x => x is string ? $"'{x}'" : x?.ToString()??"null", separator, before, after);    
-        }
-
-        //public static IEnumerable<T> Spy<T>(this IEnumerable<T> items, string tag, Func<T, string> customDispay, string separator = "|", string before = "{", string after = "}")
+        //public static IEnumerable<T> Spy<T>(this IEnumerable<T> items, string tag, string separator = "|", string before = "{", string after = "}")
         //{
-
-        //    StringBuilder str = new StringBuilder();
-
-        //    if (!tag.IsNullOrEmpty())
-        //        str.Append(tag).Append(" :");
-
-        //    str.Append(before);
-        //    int i = 0;
-        //    foreach (var item in items)
-        //    {
-        //        if (i != 0) str.Append(separator);
-        //        str.Append(customDispay(item));
-        //        yield return item;
-
-        //        i++;
-        //    }
-        //    str.Append(after);
-        //    Console.WriteLine(str.ToString());
+        //    return items.Spy(tag, x => x is string ? $"'{x}'" : x?.ToString()??"null", separator, before, after);    
         //}
 
-        public static IEnumerable<T> Spy<T>(this IEnumerable<T> items, string tag, Func<T, string> customDispay, string separator = "|", string before = "{", string after = "}")
+        public static IEnumerable<string> Spy(this IEnumerable<string> items, string tag, bool timeStamp = false, string separator = "|", string before = "{", string after = "}" )
+        => items.Spy<string>(tag, x => x, timeStamp, separator, before, after);
+
+        public static IEnumerable<T> Spy<T>(this IEnumerable<T> items, string tag, Func<T, string> customDispay, bool timeStamp = false, string separator = "|", string before = "{", string after = "}")
         {
-            Console.WriteLine();
+            string startedAt = string.Empty;
+            Stopwatch stopwatch = new();
+            if ( timeStamp)
+            {
+                DateTime now = DateTime.Now;
+                startedAt = $"[{now.Hour}:{now.Minute}:{now.Second}.{now.Millisecond}]";
+                stopwatch = new Stopwatch();
+
+                // Start the stopwatch
+                stopwatch.Start();
+            }
+          
+            Console.WriteLine(startedAt);
             if (!tag.IsNullOrEmpty())
                 Console.Write(tag); Console.Write(" :");
 
@@ -386,7 +425,15 @@ namespace iCode.Extensions
 
                 i++;
             }
+
             Console.Write(after);
+            if (timeStamp)
+            {
+                // Stop the stopwatch
+                stopwatch.Stop();
+                Console.Write($"[{stopwatch.Elapsed.TotalMilliseconds} ms]" );
+            }
+            
         }
     }
     public static class consoleMapper
@@ -408,6 +455,10 @@ namespace iCode.Extensions
             Console.Write(after);
         }
     }
+
+
+
+
 }
    
 

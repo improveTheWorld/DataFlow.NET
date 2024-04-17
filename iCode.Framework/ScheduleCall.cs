@@ -169,7 +169,7 @@ namespace iCode.Framework
                     StartingTime = DateTime.Now;
                 }
 
-                toSchedule.OrderBy(x => x).ForEach((x,idx)=> planning[idx] = ((x + timeToAdd == 0) ? 1 : x + timeToAdd, callToDo)) ;
+                toSchedule.OrderBy(x => x).ForEach((x,idx)=> planning[idx] = ((x + timeToAdd == 0) ? 1 : x + timeToAdd, callToDo)).Do() ;
                 
                 _ScheduledCalls = new Queue<(double, Action)>(_ScheduledCalls.AsEnumerable().MergeOrdered(planning, (x, y) => x.Item1 <= y.Item1));
                 string serialized = _ScheduledCalls.Select(x => x.Item1.ToString()).Cumul((a, b) => a + ", " + b) ?? string.Empty;

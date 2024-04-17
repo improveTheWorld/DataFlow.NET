@@ -7,12 +7,15 @@ namespace iCode.Data
     {
         public static void WriteText(this IEnumerable<string> lines, StreamWriter file)
         {
-            lines.ForEach(line => file.WriteLine(line));
+
+            lines.ForEach(line => file.WriteLine(line)).Do();
             file.Close();
         }
-        public static void WriteText(this IEnumerable<string> lines, string path)
+        public static void WriteText(this IEnumerable<string> lines, string path, bool autoFlash = true)
         {
-            lines.WriteText(new StreamWriter(path));
+            var file = new StreamWriter(path);
+            file.AutoFlush = autoFlash;
+            lines.WriteText(file);
 
         }
         public static void WriteCSV<T>(this IEnumerable<T> records, StreamWriter file, bool withTitle = true, string separator = ";") where T : struct
@@ -21,13 +24,14 @@ namespace iCode.Data
             {
                 file.WriteLine(CSV_Mapper.csv<T>());
             }
-            records.ForEach(record => file.WriteLine(CSV_Mapper.csv<T>(record,separator)));
+            records.ForEach(record => file.WriteLine(CSV_Mapper.csv<T>(record,separator))).Do();
             file.Close();
         }
         public static void WriteCSV<T>(this IEnumerable<T> records, string path, bool withTitle = true, string separator = ";") where T : struct
         {
             records.WriteCSV(new StreamWriter(path), withTitle, separator);
         }
+        
     }
 
    
