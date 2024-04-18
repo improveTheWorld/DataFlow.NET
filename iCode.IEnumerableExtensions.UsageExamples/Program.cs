@@ -5,8 +5,10 @@ using iCode.Log;
 using iCode.Framework;
 using iCode.Data;
 using static iCode.Framework.Regx;
+using static iCode.Framework.Regxs;
 using System.Linq;
 using System.Text;
+using System.Security.Cryptography.X509Certificates;
 
 namespace iCode.IEnumerableExtensions.UsageExamples
 {
@@ -76,23 +78,26 @@ namespace iCode.IEnumerableExtensions.UsageExamples
 
 
             string pattern = OneOf(NUMS.As("numgroup"), ALPHAS.As("wordgroup"));
-            Console.WriteLine(pattern);  //"(?<numgroup>\\d+)|(?<wordgroup>[a-zA-Z]+)"
+            // Console.WriteLine(pattern);  //"(?<numgroup>\\d+)|(?<wordgroup>[a-zA-Z]+)"
 
             // Add transformation requests for specific group names
             // Regxs transformations = new Regxs(new Regex()));
 
             Data.Read.text(textFile)
-                .Map(OneOf(NUMS.As("numgroup"), ALPHAS.As("wordgroup")))
-                .SelectCase(
-                    ("numgroup", s => $"Number: {s}"),
-                    ("wordgroup", s => $"Word: {s}"),
-                    (RegxsExt.UNMATCHED_LINE, s => $"---Line : {s.ToUpper()} -----"),
-                    (RegxsExt.UNMATCHED_SLICE, s => $"<<{s.ToUpper()}>>")
+                .MapWithEOF(Environment.NewLine, OneOf(NUMS.As("numgroup"), ALPHAS.As("wordgroup")))
+                .Cases(
+                    "numgroup",
+                    "wordgroup",
+                    UNMATCHED.LINE
                 )
-                .AllCases()
-                .ForEach(x => x.Display())
-                .Do();
-                /*Display("Displaying :");*/
+                .SelectCase(
+                    s => $"Number: {s}",
+                    s => $"Word: {s}",
+                    s => null,
+                    x => x
+                )
+                .AllCases(null)
+                .Display();
 
         //// Test case 1: Line matching the regex pattern
 
@@ -295,7 +300,7 @@ namespace iCode.IEnumerableExtensions.UsageExamples
                     line => InfoLogs.WriteLine(line)
                 )
                 // Re-Write a new log file with the level information added for all processed log lines
-                .AllCases()
+                .AllCases().Spy("log_WithLevel.txt : \n")
                 .WriteText("log_WithLevel.txt");
 
             errorLogs.Close();

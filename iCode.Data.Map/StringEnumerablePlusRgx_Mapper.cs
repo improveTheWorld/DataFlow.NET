@@ -17,8 +17,11 @@ namespace iCode.Data
        => lines.Select(l =>l.Slices(regxs).Plus(l));
 
  
-        public static IEnumerable<IEnumerable<(string groupName, string subpart)>> Map(this IEnumerable<string> lines, params string[] patterns)
-        => lines.Select(l => l.Map(new Regxs(patterns)));
+        public static IEnumerable<(string groupName, string subpart)> Map(this IEnumerable<string> lines, params string[] patterns)
+        => lines.SelectMany(l => l.Map(new Regxs(patterns)));
+
+        public static IEnumerable<(string groupName, string subpart)> MapWithEOF(this IEnumerable<string> lines,string endOfFile, params string[] patterns)
+        => lines.SelectMany(l => l.Map(new Regxs(patterns)).Append((Regxs.UNMATCHED.EOF, endOfFile)));
 
         //public static IEnumerable<IEnumerable<(string groupName, R subpart)>> SelectCase<R>(this IEnumerable<IEnumerable<(string groupName, string subpart)>> linesSubparts, params (string groupName, Func<string, R> transformation)[] transformations)
         //{

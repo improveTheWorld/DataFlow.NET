@@ -5,6 +5,7 @@ namespace iCode.Framework
 {
     public static class Regx
     {
+       
         public const string CHAR = ".";  //  Any character except new line.
         public const string SPACE = @"\s"; // space or tab
         public const string ALPHNUM = @"\w"; // A-Z, a-z , 0-9 or _ (underscore) .

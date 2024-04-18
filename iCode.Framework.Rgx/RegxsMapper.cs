@@ -15,6 +15,14 @@ namespace iCode.Framework
 
     public class Regxs
     {
+
+        public struct UNMATCHED
+        {
+            public const string LINE = "%UnmatchedLine%";
+            public const string SLICE = "%UnmatchedSlice%";
+            public const string EOF = "%EOF%";
+        }
+
         HashSet<Regex> regexs = new HashSet<Regex>();
       
         public Regxs(params Regex[] Regs)
@@ -49,13 +57,13 @@ namespace iCode.Framework
 
             foreach (var item in capturesSortedByIndex)
             {
-                if(item.capture.Index > parserIndex) yield return (UNMATCHED_SLICE, parserIndex, item.capture.Index - parserIndex);
+                if(item.capture.Index > parserIndex) yield return (UNMATCHED.SLICE, parserIndex, item.capture.Index - parserIndex);
                 yield return (item.groupName, item.capture.Index, item.capture.Length);
                 parserIndex = item.capture.Index + item.capture.Length;
 
             }
 
-            if(parserIndex < MaxIndex) yield return (UNMATCHED_SLICE, parserIndex, MaxIndex - parserIndex);
+            if(parserIndex < MaxIndex) yield return (UNMATCHED.SLICE, parserIndex, MaxIndex - parserIndex);
         }
 
         public IEnumerable<(string groupName, int startIndex, int Length) > Slices(ref string line)
@@ -74,18 +82,18 @@ namespace iCode.Framework
                     return Slices(getCapturesSortedByIndex(result),line.Length);
                 }
             }            
-            return new (string groupName, int startIndex, int Length)[1] { (UNMATCHED_LINE, 0,-1) }; //ToDo: Unmatched Line? what about matched without any group( regex without group Caption)??
+            return new (string groupName, int startIndex, int Length)[1] { (UNMATCHED.LINE, 0,-1) }; //ToDo: Unmatched Line? what about matched without any group( regex without group Caption)??
         }
 
         public IEnumerable<(string groupName, string subpart)> Map(string line)
         {
             return Slices(ref line)
                 .Cases(
-                    _ => _.groupName == UNMATCHED_LINE,  
+                    _ => _.groupName == UNMATCHED.LINE,  
                     _ => true    //Slices
                 )
                 .SelectCase(
-                    _ => (UNMATCHED_LINE,  line),
+                    _ => (UNMATCHED.LINE,  line),
                     _ => (_.groupName, line.Substring(_.startIndex, _.Length))
                 )
                 .AllCases();
@@ -106,12 +114,8 @@ namespace iCode.Framework
     }
 
     public static class RegxsExt
-    {
+    {        
 
-        //public const string LAST_SLICE = "%LastLineSlice%";
-        public const string UNMATCHED_LINE = "%UnmatchedLine%";
-        public const string UNMATCHED_SLICE = "%UnmatchedSlice%";
-        public static bool isUnmatched(this (string groupName, string subpart) r) => r.groupName.StartsWith("%Unmatched");
 
         public static IEnumerable<(string groupName, string subpart)> Map(this string line, Regxs regxs)
         => regxs.Map(line);
@@ -170,12 +174,12 @@ namespace iCode.Framework
                 Func<string, string> map;
                 if (transformations.TryGetValue(x.groupName, out map))
                 {
-                    if (x.groupName == UNMATCHED_LINE) builder.Append(map(line));
+                    if (x.groupName == Regxs.UNMATCHED.LINE) builder.Append(map(line));
                     else builder.Append(map(line.Substring(x.startIndex, x.Length)));
                 }
                 else 
                 {
-                    if (x.groupName == UNMATCHED_LINE) builder.Append(line);
+                    if (x.groupName == Regxs.UNMATCHED.LINE) builder.Append(line);
                     else builder.Append(builder.Append(line.AsSpan().Slice(x.startIndex, x.Length)));
                 }
             })
