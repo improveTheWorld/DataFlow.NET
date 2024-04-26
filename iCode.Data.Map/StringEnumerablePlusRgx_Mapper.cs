@@ -13,15 +13,17 @@ namespace iCode.Data
 {
     public static class StringEnumerable_Mapper
     {       
-        public static IEnumerable<EnumerablePlus<(string groupName, int startIndex, int length), string>> Slices(this IEnumerable<string> lines, Regxs regxs)
+        public static IEnumerable<EnumerablePlus<(string groupName,( int startIndex, int length) slice), string>> Slices(this IEnumerable<string> lines, Regxs regxs)
        => lines.Select(l =>l.Slices(regxs).Plus(l));
 
- 
         public static IEnumerable<(string groupName, string subpart)> Map(this IEnumerable<string> lines, params string[] patterns)
-        => lines.SelectMany(l => l.Map(new Regxs(patterns)));
+        => lines.SelectMany(l => l.Map(new Regxs(patterns)).Append((Regxs.UNMATCHED.EOF, Environment.NewLine)));
 
-        public static IEnumerable<(string groupName, string subpart)> MapWithEOF(this IEnumerable<string> lines,string endOfFile, params string[] patterns)
-        => lines.SelectMany(l => l.Map(new Regxs(patterns)).Append((Regxs.UNMATCHED.EOF, endOfFile)));
+        public static IEnumerable<List<(string groupName, string subpart)>> MapLines(this IEnumerable<string> lines, params string[] patterns)
+        {
+            var regxs = new Regxs(patterns);
+            return lines.Select(line=> line.Map(regxs).ToList());
+        }
 
         //public static IEnumerable<IEnumerable<(string groupName, R subpart)>> SelectCase<R>(this IEnumerable<IEnumerable<(string groupName, string subpart)>> linesSubparts, params (string groupName, Func<string, R> transformation)[] transformations)
         //{

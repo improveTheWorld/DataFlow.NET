@@ -51,22 +51,22 @@ namespace iCode.Framework
             return this;
         }
 
-        static IEnumerable<(string groupName, int startIndex, int Length)> Slices(IEnumerable<(string groupName, Capture capture)> capturesSortedByIndex, int MaxIndex)
+        static IEnumerable<(string groupName, (int startIndex, int Length))> Slices(IEnumerable<(string groupName, Capture capture)> capturesSortedByIndex, int MaxIndex)
         {
             int parserIndex = 0;
 
             foreach (var item in capturesSortedByIndex)
             {
-                if(item.capture.Index > parserIndex) yield return (UNMATCHED.SLICE, parserIndex, item.capture.Index - parserIndex);
-                yield return (item.groupName, item.capture.Index, item.capture.Length);
+                if(item.capture.Index > parserIndex) yield return (UNMATCHED.SLICE, (parserIndex, item.capture.Index - parserIndex));
+                yield return (item.groupName, (item.capture.Index, item.capture.Length));
                 parserIndex = item.capture.Index + item.capture.Length;
 
             }
 
-            if(parserIndex < MaxIndex) yield return (UNMATCHED.SLICE, parserIndex, MaxIndex - parserIndex);
+            if(parserIndex < MaxIndex) yield return (UNMATCHED.SLICE, (parserIndex, MaxIndex - parserIndex));
         }
 
-        public IEnumerable<(string groupName, int startIndex, int Length) > Slices(ref string line)
+        public IEnumerable<(string groupName, (int startIndex, int Length)slice )> Slices(string line)
         {
             foreach (var regex in regexs)
             {
@@ -79,22 +79,21 @@ namespace iCode.Framework
                 // Case regex matched
                 if (!result.IsNullOrEmpty())
                 {
-                    return Slices(getCapturesSortedByIndex(result),line.Length);
+                    return Slices(getCapturesSortedByIndex(result), line.Length);
                 }
-            }            
-            return new (string groupName, int startIndex, int Length)[1] { (UNMATCHED.LINE, 0,-1) }; //ToDo: Unmatched Line? what about matched without any group( regex without group Caption)??
+            }
+            return new (string groupName, (int startIndex, int Length))[1] { (UNMATCHED.LINE,( 0, -1)) }; //ToDo: Unmatched Line? what about matched without any group( regex without group Caption)??
         }
 
         public IEnumerable<(string groupName, string subpart)> Map(string line)
         {
-            return Slices(ref line)
+            return Slices(line)
                 .Cases(
-                    _ => _.groupName == UNMATCHED.LINE,  
-                    _ => true    //Slices
+                        _ => _.groupName == UNMATCHED.LINE
                 )
                 .SelectCase(
-                    _ => (UNMATCHED.LINE,  line),
-                    _ => (_.groupName, line.Substring(_.startIndex, _.Length))
+                    _ => (UNMATCHED.LINE, line),
+                    _ => (_.groupName, line.Substring(_.slice.startIndex, _.slice.Length))
                 )
                 .AllCases();
         }
@@ -156,10 +155,10 @@ namespace iCode.Framework
             return lineSubparts.ForEach(part => grpActions[part.groupName]());
         }
 
-        public static IEnumerable<(string groupName, int startIndex, int Length)> Slices(this string line, Regxs regxs)
-       => regxs.Slices(ref line);
+        public static IEnumerable<(string groupName, (int startIndex, int Length) slice)> Slices(this string line, Regxs regxs)
+       => regxs.Slices(line);
 
-        public static string toString(this IEnumerable<(string groupName, int startIndex, int Length)> slices, string line, params (string groupName, Func<string, string> transformation)[] transformations)
+        public static string toString(this IEnumerable<(string groupName, (int startIndex, int Length) slice)> slices, string line, params (string groupName, Func<string, string> transformation)[] transformations)
         {
             
             var rgxRequests = new Dictionary<string /*groupName*/, Func<string, string> /*transformation*/>();
@@ -167,7 +166,7 @@ namespace iCode.Framework
             return new StringBuilder().Build(line, slices, rgxRequests).ToString(); 
         }
 
-        public static StringBuilder Build(this StringBuilder builder, string line, IEnumerable<(string groupName, int startIndex, int Length)> slices, RgxRequests transformations )
+        public static StringBuilder Build(this StringBuilder builder, string line, IEnumerable<(string groupName, (int startIndex, int Length) slice)> slices, RgxRequests transformations )
         {
             slices.ForEach(x =>
             {
@@ -175,12 +174,12 @@ namespace iCode.Framework
                 if (transformations.TryGetValue(x.groupName, out map))
                 {
                     if (x.groupName == Regxs.UNMATCHED.LINE) builder.Append(map(line));
-                    else builder.Append(map(line.Substring(x.startIndex, x.Length)));
+                    else builder.Append(map(line.Substring(x.slice.startIndex, x.slice.Length)));
                 }
                 else 
                 {
                     if (x.groupName == Regxs.UNMATCHED.LINE) builder.Append(line);
-                    else builder.Append(builder.Append(line.AsSpan().Slice(x.startIndex, x.Length)));
+                    else builder.Append(builder.Append(line.AsSpan().Slice(x.slice.startIndex, x.slice.Length)));
                 }
             })
             .Do();

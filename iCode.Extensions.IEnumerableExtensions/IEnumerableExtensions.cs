@@ -9,6 +9,8 @@ using System.Data.SqlTypes;
 using System.Linq;
 using System.Diagnostics.Metrics;
 using static iCode.Extensions.Spy_IEnumerableExtension;
+using System.Collections.Generic;
+
 namespace iCode.Extensions
 {
 
@@ -272,36 +274,52 @@ namespace iCode.Extensions
             return items.Select(x => (Dict.ContainsKey(x.category) ? Dict[x.category] : Dict.Count,  x.item));
         }
 
-        public static IEnumerable<(int category, T item)> Cases<T>(this IEnumerable<T> items, params Func<T, bool>[] filters)
-        {
-            foreach (var item in items)
-            {
 
-                for (int category = 0; category < filters.Length; category++)
-                {
-                    if (filters[category](item))
-                    {
-                        yield return (category, item);
-                        break;
-                    }
-                }
+        //public static IEnumerable<IEnumerable<(int categoryIndex,  T item)>> Cases<C, T>(this IEnumerable<IEnumerable<(C category, T item)>> items, params C[] categories) where C : notnull
+        //{
+        //    var Dict = new Dictionary<C, int>(categories.Select((category, idx) => new KeyValuePair<C, int>(category, idx)));
+        //    return items.Select(x => (Dict.ContainsKey(x.category) ? Dict[x.category] : Dict.Count,  x.item));
+        //}
+
+        static int getFilterIndex<T>(this Func<T, bool>[] filters, T item)
+        {
+
+            int CategoryIndex = 0;
+            foreach( var predicate in filters)
+            {
+                if (predicate(item))
+                    return CategoryIndex;
+                else 
+                    CategoryIndex++;
             }
+
+            return CategoryIndex;
         }
 
+        public static IEnumerable<(int category, T item)> Cases<T>(this IEnumerable<T> items, params Func<T, bool>[] filters)
+        => items.Select(item => (filters.getFilterIndex(item), item));
+
+       
 
 
         //----------------------------------------------- SelectCase
      
-        public static IEnumerable<(int category, R item)> SelectCase<T, R>(this IEnumerable<(int category, T item)> items, params Func<T, R>[] selectors)
-        => items.Select(x => (x.category, selectors[x.category](x.item)));
+        public static IEnumerable<(int category, T item, R newItem)> SelectCase<T, R>(this IEnumerable<(int category, T item)> items, params Func<T, R>[] selectors)
+        => items.Select(x => (x.category, x.item, selectors[x.category](x.item)));
 
-        public static IEnumerable<(int category, R item)> SelectCase<T, R>(this IEnumerable<(int category, T item)> items, params Func<T, int, R>[] selectors)
-        => items.Select((x, idx) => (x.category, selectors[x.category](x.item, idx)));
+        public static IEnumerable<(int category, T,  R item)> SelectCase<T, R>(this IEnumerable<(int category, T item)> items, params Func<T, int, R>[] selectors)
+        => items.Select((x, idx) => (x.category,x.item, selectors[x.category](x.item, idx)));
 
-        
+        //-----------------with newItem
+
+        public static IEnumerable<(int category, T item,Y newItem)> SelectCase<T, R,Y>(this IEnumerable<(int category, T item, R newItem)> items, params Func<R, Y>[] selectors)
+       => items.Select(x => (x.category, x.item, selectors[x.category](x.newItem)));
+
+        public static IEnumerable<(int category, T item, Y newItem)> SelectCase<T, R, Y>(this IEnumerable<(int category, T item, R newItem)> items, params Func<R, int, Y>[] selectors)
+        => items.Select((x, idx) => (x.category, x.item, selectors[x.category](x.newItem, idx)));
 
         //------------------------------------------- ForEachCase
-       
+
         public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> items, params Action[] actions)
         => items.ForEach(x => { if (x.category < actions.Length) actions[x.category](); });
 
@@ -309,15 +327,48 @@ namespace iCode.Extensions
         => items.ForEach(x => { if (x.category < actions.Length) actions[x.category](x.item); });
 
         public static IEnumerable<(int category, T item)> ForEachCase<T>(this IEnumerable<(int category, T item)> items, params Action<T, int>[] actions)
+
         => items.ForEach((x, index) => { if (x.category < actions.Length) actions[x.category](x.item, index); });
+
+
+        //-----------------with newItem
+        public static IEnumerable<(int category, T item, R newItem)> ForEachCase<T,R>(this IEnumerable<(int category, T item, R newItem)> items, params Action[] actions)
+        => items.ForEach(x => { if (x.category < actions.Length) actions[x.category](); });
+
+        public static IEnumerable<(int category, T item, R newItem)> ForEachCase<T, R>(this IEnumerable<(int category, T item, R newItem)> items, params Action<R>[] actions)
+        => items.ForEach(x => { if (x.category < actions.Length) actions[x.category](x.newItem); });
+
+        public static IEnumerable<(int category, T item, R newItem)> ForEachCase<T, R>(this IEnumerable<(int category, T item, R newItem)> items, params Action<R, int>[] actions)
+        => items.ForEach((x, index) => { if (x.category < actions.Length) actions[x.category](x.newItem, index); });
 
 
 
         //------------------------------------AllCases
-        public static IEnumerable<T> AllCases<T>(this IEnumerable<(int category, T item)> items)
+        public static IEnumerable<T> UnCase<T>(this IEnumerable<(int category, T item)> items)
         => items.Select(x => x.item);
 
+        //------------------------------------AllCases
+        public static IEnumerable<T> UnCase<T,Y>(this IEnumerable<(int category, T item, Y newItem)> items)
+        => items.Select(x => x.item);
 
+        public static IEnumerable<R> AllCases<T, R>(this IEnumerable<(int category, T item, R newItem)> items)
+        => items.Select(x => x.newItem);
+
+        public static IEnumerable<string> ToLines(this IEnumerable< string > slices, string separator)
+        {
+            string sum = "";
+            foreach (var slice in slices)
+            {
+                if (slice != separator)
+                    sum += slice;
+                else
+                {
+                    yield return sum;
+                    sum = "";
+                }
+
+            }
+        }
         public static IEnumerable<string> AllCases(this IEnumerable<(int category, string item)> items, string separator)
         {
             string sum = "";

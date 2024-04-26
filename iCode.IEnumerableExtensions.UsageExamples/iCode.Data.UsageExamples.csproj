@@ -16,6 +16,7 @@
     <ProjectReference Include="..\iCode.Data.CSV_Mapper\iCode.Data.CSV_Mapper.csproj" />
     <ProjectReference Include="..\iCode.Data.Map\iCode.Data.StringEnumerablePlusRgx_Mapper.csproj" />
     <ProjectReference Include="..\iCode.Data.Write\iCode.Data.Write.csproj" />
+    <ProjectReference Include="..\iCode.Framework.EnumerablePlus\iCode.Framework.EnumerablePlus.csproj" />
     <ProjectReference Include="..\iCode.Framework.Rgx\iCode.Framework.Rgx.csproj" />
     <ProjectReference Include="..\iCode.Logger\iCode.Logger.csproj" />
     <ProjectReference Include="..\iCode.read\iCode.Data.Read.csproj" />

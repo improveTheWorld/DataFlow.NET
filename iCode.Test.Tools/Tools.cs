@@ -3,7 +3,7 @@ namespace iCode.TestTools.Fake
 {
     public static  class InMemory
     {
-        public static StreamReader fakeFile(this IEnumerable<string> lines)
+        public static StreamReader PutInStream( this IEnumerable<string> lines)
         {
             MemoryStream stream = new MemoryStream();
 
