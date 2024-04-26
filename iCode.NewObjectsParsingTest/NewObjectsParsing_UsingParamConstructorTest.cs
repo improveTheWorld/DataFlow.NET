@@ -17,39 +17,39 @@ namespace iCode
                             => new(feedingOrder.Select((x, idx) => new KeyValuePair<string, int>(x.Trim(), idx)));
         }
 
-        class All_Properties : IFeedingInternalOrder
+        class All_Properties : IWithIntenalSchema
         {
             public int Property { get; set; }
             public int Property1 { get; set; }
 
             readonly static string[] _feedingOrder = { "Property", "Property1" };
-            public Dictionary<string, int> GetFeedingDictionary()
+            public Dictionary<string, int> GetSchema()
             {
                 return Convert.ConvertToFeedDictionary(_feedingOrder);
             }
         }
 
-        class All_Fields : IFeedingInternalOrder
+        class All_Fields : IWithIntenalSchema
         {
             public int Field;
             public int Field1;
 
             readonly static string[] _feedingOrder = { "Field", "Field1" };
-            public Dictionary<string, int> GetFeedingDictionary()
+            public Dictionary<string, int> GetSchema()
             {
                 return Convert.ConvertToFeedDictionary(_feedingOrder);
             }
         }
 
 
-        class Mix_Field_Property : IFeedingInternalOrder
+        class Mix_Field_Property : IWithIntenalSchema
         {
             public int intField;
             public string StringProperty { get; set; }
             public bool FieldBool;
 
             readonly static string[] _feedingOrder = { "intField", "StringProperty", "FieldBool" };
-            public Dictionary<string, int> GetFeedingDictionary()
+            public Dictionary<string, int> GetSchema()
             {
                 return Convert.ConvertToFeedDictionary(_feedingOrder);
             }
@@ -101,7 +101,7 @@ namespace iCode
         [Fact]
         void Parse_StringFields_returnsAllFieldsAreFilled()
         {
-            Mix_Field_PropertyWithConstructor? parsed = "True ;2 ;yes".Split(';',3).AsObject<Mix_Field_PropertyWithConstructor>();
+            Mix_Field_PropertyWithConstructor? parsed = NEW.GetNew<Mix_Field_PropertyWithConstructor>("True ;2 ;yes".Split(';', 3));
             Mix_Field_PropertyWithConstructor expected = new Mix_Field_PropertyWithConstructor(true, 2, "yes");
             DeepAssert.Equal(expected, parsed);
 

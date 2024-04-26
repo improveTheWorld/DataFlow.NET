@@ -32,14 +32,14 @@ namespace iCode.Tests
             string[] argsMandatoryMissed = { "-D", "c:/test/text.txt", "-c", "10" };
             Console.WriteLine("****************GetMissedRequiredOption : list should be empty********************");
             List<string>? unixStyleArgs;
-            parser.CheckAgains(argsOk,out unixStyleArgs)?.ForEach(x=> Console.WriteLine(x));
+            parser.CheckAgains(argsOk,out unixStyleArgs)?.Display();
             
             Console.WriteLine($"Updated command parameter :{string.Join(" ", argsOk)}");
 
             Console.WriteLine("**************** GetMissedRequiredOption : Missed one argument : mandatory ********************");
 
             unixStyleArgs?.Clear();
-            parser.CheckAgains(argsMandatoryMissed, out unixStyleArgs)?.ForEach(x => Console.WriteLine(x));
+            parser.CheckAgains(argsMandatoryMissed, out unixStyleArgs)?.Display();
             
             Console.WriteLine($"Updated command parameter :{string.Join(" ", argsMandatoryMissed)}");
         }

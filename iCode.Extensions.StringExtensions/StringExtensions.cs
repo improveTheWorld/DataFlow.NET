@@ -6,33 +6,6 @@ namespace iCode.Extensions
 {
     public static class StringExtensions
     {
-        /// <summary>
-        /// Try to Convert a string to a typed value ( in order bool,  int, Int64, double, dataTime ) 
-        /// </summary>
-        /// <param name="value"></param>
-        /// <returns> Return the first succefull convertion result. If none , return the input string as it</returns>
-        public static object Convert(this string value)
-        {
-            bool boolValue;
-            Int32 intValue;
-            Int64 bigintValue;
-            double doubleValue;
-            DateTime dateValue;
-
-            if (bool.TryParse(value, out boolValue))
-                return boolValue;
-            else if (Int32.TryParse(value, out intValue))
-                return intValue;
-            else if (Int64.TryParse(value, out bigintValue))
-                return bigintValue;
-            else if (double.TryParse(value, out doubleValue))
-                return doubleValue;
-            else if (DateTime.TryParse(value, out dateValue))
-                return dateValue;
-            else return value;
-
-        }
-
         public static int LastIdx(this string text) => text.Length - 1;
         
        
@@ -48,7 +21,7 @@ namespace iCode.Extensions
 
 
         public static bool IsNullOrEmpty(this string text) => string.IsNullOrEmpty(text);
-        public static bool IsNullOrWhiteSpace( this string text) => !string.IsNullOrWhiteSpace(text);
+        public static bool IsNullOrWhiteSpace( this string text) => string.IsNullOrWhiteSpace(text);
         public static bool ContainsAny(this string line, IEnumerable<string> tokens)
         {
             Guard.AgainstNullArgument( nameof(line), line);

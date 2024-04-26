@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\iCode.Extensions.IEnumerableExtensions\iCode.Extensions.IEnumerableExtensions.csproj" />
+    <ProjectReference Include="..\iCode.Framework.AutomizedFeeding\iCode.Framework.AutomizedFeeding.csproj" />
   </ItemGroup>
 
 </Project>

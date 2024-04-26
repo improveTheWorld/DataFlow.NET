@@ -166,7 +166,7 @@ namespace iCode.Log
         // Method to clear loggerTarget list after disposing the old ones
         public static void ResetLoggers(ILoggerTarget? logger = null)
         {
-            loggerTargets.Where(x => x is IDisposable).ForEach(x => ((IDisposable)x).Dispose());
+            loggerTargets.Where(x => x is IDisposable).ForEach(x => ((IDisposable)x).Dispose()).Do();
 
             loggerTargets.Clear();
 
@@ -186,7 +186,7 @@ namespace iCode.Log
         // Dispose method to cleanup
         void IDisposable.Dispose()
         {
-            loggerTargets.Where(x => x is IDisposable).ForEach(x => ((IDisposable)x).Dispose());
+            loggerTargets.Where(x => x is IDisposable).ForEach(x => ((IDisposable)x).Dispose()).Do();
         }
 
         // Method to remove a logger

@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\iCode.Data.CSV_Mapper\iCode.Data.CSV_Mapper.csproj" />
     <ProjectReference Include="..\iCode.Extensions.IEnumerableExtensions\iCode.Extensions.IEnumerableExtensions.csproj" />
   </ItemGroup>
 

@@ -3,13 +3,13 @@ namespace iCode.TestTools.Fake
 {
     public static  class InMemory
     {
-        public static StreamReader AsStreamReader(this List<string> lines)
+        public static StreamReader PutInStream( this IEnumerable<string> lines)
         {
             MemoryStream stream = new MemoryStream();
 
             var writer = new StreamWriter(stream);
                 
-            lines.ForEach(line =>writer.WriteLine(line));
+            lines.ForEach(line =>writer.WriteLine(line)).Do();
               
             writer.Flush(); // Ensures all data is written to the stream
 

@@ -32,7 +32,7 @@ namespace iCode.Extensions
             {
                 fileWriter.WriteLine(line);
                 if(idx % flusheach == 0  ) fileWriter.Flush();
-            });
+            }).Do();
             fileWriter.Flush();
             fileWriter.Close();
         }

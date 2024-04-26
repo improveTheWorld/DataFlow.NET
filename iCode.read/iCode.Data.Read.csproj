@@ -7,7 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\iCode.Data.Map\iCode.Data.StringEnumerablePlusRgx_Mapper.csproj" />
     <ProjectReference Include="..\iCode.Extensions.IEnumerableExtensions\iCode.Extensions.IEnumerableExtensions.csproj" />
+    <ProjectReference Include="..\iCode.Extensions.StringExtensions\iCode.Extentions.StringExtensions.csproj" />
   </ItemGroup>
 
 </Project>

@@ -24,7 +24,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\iCode.Extensions.NewObjectsParsing\iCode.Extensions.NewObjectsParsing.csproj" />
     <ProjectReference Include="..\iCode.Framework.AutomizedFeeding\iCode.Framework.AutomizedFeeding.csproj" />
   </ItemGroup>
 
