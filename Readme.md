@@ -2,7 +2,7 @@
 
 iCode is a powerful and flexible open-source framework for data processing, transformation, and manipulation in C#. It provides a set of classes and extensions that simplify common data handling tasks and enhance code reusability and extensibility.
 
-**Please note that iCode is currently under development and the current version is a prototype.**
+**Please note that iCode still currently under development and the current version is a prototype.**
 
 iCode framework is designed to streamline data processing and manipulation tasks, making it easier for developers to work with data efficiently. Whether you're dealing with text files, CSV files, regular expressions, or complex data transformations, iCode provides a comprehensive set of tools to simplify your code and boost productivity.
 
@@ -163,4 +163,4 @@ public static void LogAnalysisExample()
 ## Contact
 
 For licensing inquiries or more information, please contact:
-Email: [contact@icode.com](mailto:tecnet.paris@gmail.com)
+Email: [tecnet.paris@gmail.com](mailto:tecnet.paris@gmail.com)
