@@ -1,21 +1,21 @@
-# The *iCode* Framework
+# The *DataFlow.NET* Framework
 
-iCode is a powerful and flexible open-source framework for data processing, transformation, and manipulation in C#. It provides a set of classes and extensions that simplify common data handling tasks and enhance code reusability and extensibility.
+DataFlow.NET is a powerful and flexible open-source framework for data processing, transformation, and manipulation in C#. It provides a set of classes and extensions that simplify common data handling tasks and enhance code reusability and extensibility.
 
-**Please note that iCode still currently under development and the current version is a prototype.**
+**Please note that DataFlow.NET still currently under development and the current version is a prototype.**
 
-iCode framework is designed to streamline data processing and manipulation tasks, making it easier for developers to work with data efficiently. Whether you're dealing with text files, CSV files, regular expressions, or complex data transformations, iCode provides a comprehensive set of tools to simplify your code and boost productivity.
+DataFlow.NET framework is designed to streamline data processing and manipulation tasks, making it easier for developers to work with data efficiently. Whether you're dealing with text files, CSV files, regular expressions, or complex data transformations, DataFlow.NET provides a comprehensive set of tools to simplify your code and boost productivity.
 
 ## Key Features
 
 1. **Simplified Data Reading**: The `Read` class allows you to effortlessly read data from text files, CSV, YAML and JSON files, or even a custom-defined CFG Grammar formatted file, with just a few lines of code. The complexities of file handling and parsing are abstracted away, enabling you to focus on working with the data itself.
-2. **Powerful Data Transformation**: Easily perform complex data transformations and manipulation by cascading multiple simple transformations in a fluent code style. A wide range of data transformation capabilities are already provided through the `EnumerablePlus` class and the extensive collection of `IEnumerable` extensions, from selecting, filtering, and classifying data to applying custom transformations. iCode empowers you to manipulate data with ease and flexibility.
+2. **Powerful Data Transformation**: Easily perform complex data transformations and manipulation by cascading multiple simple transformations in a fluent code style. A wide range of data transformation capabilities are already provided through the `EnumerablePlus` class and the extensive collection of `IEnumerable` extensions, from selecting, filtering, and classifying data to applying custom transformations. DataFlow.NET empowers you to manipulate data with ease and flexibility.
 3. **Lazy Evaluation**: Read and transformations are only applied as needed, allowing efficient processing and drastically optimizing memory usage. It makes it possible to easily process huge files without dumping hardware resources.
 4. **Regular Expression Matching**: The `Rgxs` class simplifies the process of defining regular expression patterns and associating them with specific transformations. It allows you to extract, validate, and transform data based on regular expressions, making it ideal for tasks such as parsing log files, extracting information from text, and data cleaning.
-5. **Simplified Regular Expression Syntax**: iCode adds a cosmetic lightweight layer over defining regular expressions, making it much more intuitive and human-friendly.
-6. **Integration**: iCode seamlessly integrates with other popular libraries and frameworks in the .NET ecosystem. It leverages the power of LINQ and follows standard C# conventions, making it easy to incorporate into your existing codebase. Whether you're using Entity Framework for data access or working with third-party libraries, iCode fits right in.
-7. **Performance Optimization**: Performance is a key consideration in the design of the iCode framework. It utilizes efficient data structures and algorithms to ensure optimal performance when processing large datasets. Whether you're dealing with millions of records or complex data transformations, iCode is built to handle the load efficiently.
-8. **Fluent API**: Chain together regex patterns and transformations using a fluent, readable syntax. By leveraging the capabilities of the iCode framework, you can significantly reduce the amount of boilerplate code you write, improve code readability, and enhance the overall maintainability of your data processing pipelines. It provides a solid foundation for building data-driven applications, whether you're working on data analysis, ETL processes, or any other data-related tasks.
+5. **Simplified Regular Expression Syntax**: DataFlow.NET adds a cosmetic lightweight layer over defining regular expressions, making it much more intuitive and human-friendly.
+6. **Integration**: DataFlow.NET seamlessly integrates with other popular libraries and frameworks in the .NET ecosystem. It leverages the power of LINQ and follows standard C# conventions, making it easy to incorporate into your existing codebase. Whether you're using Entity Framework for data access or working with third-party libraries, DataFlow.NET fits right in.
+7. **Performance Optimization**: Performance is a key consideration in the design of the DataFlow.NET framework. It utilizes efficient data structures and algorithms to ensure optimal performance when processing large datasets. Whether you're dealing with millions of records or complex data transformations, DataFlow.NET is built to handle the load efficiently.
+8. **Fluent API**: Chain together regex patterns and transformations using a fluent, readable syntax. By leveraging the capabilities of the DataFlow.NET framework, you can significantly reduce the amount of boilerplate code you write, improve code readability, and enhance the overall maintainability of your data processing pipelines. It provides a solid foundation for building data-driven applications, whether you're working on data analysis, ETL processes, or any other data-related tasks.
 
 ### Usage
 
@@ -49,7 +49,7 @@ Read.csv<Person>("People.csv", ",")
 
 #### Advanced Example with Multiprocessing
 
-In the next code example we use iCode to process a log file and categorize log entries based on their log levels (error, warning, or info). Here's a simple explanation of what the algorithm does:
+In the next code example we use DataFlow.NET to process a log file and categorize log entries based on their log levels (error, warning, or info). Here's a simple explanation of what the algorithm does:
 
 - It reads the log file line by line until it encounters a line Starting with "STOP:".
 - For each line, it categorizes the log entry based on whether it contains "ERROR", "WARNING", or neither (assumed to be an info log).
