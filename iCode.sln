@@ -45,7 +45,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.Guard", "iC
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.EnumerableLines.UsageExamples", "iCode.Framework.EnumerableLines.UsageExamples\iCode.Framework.EnumerableLines.UsageExamples.csproj", "{D6A0A73D-4F8B-4CAF-8A00-1D0978DD832F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.AsyncEnumerable", "iCode.Framework.AsyncEnumerable\iCode.Framework.AsyncEnumerable.csproj", "{F0EE9D86-E91D-4B4A-BA08-D8DDCC3A14F8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.AsyncEnumerableMerger", "iCode.Framework.AsyncEnumerable\iCode.Framework.AsyncEnumerableMerger.csproj", "{F0EE9D86-E91D-4B4A-BA08-D8DDCC3A14F8}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Extensions.IntExtensions", "iCode.Extensions.IntExtensions\iCode.Extensions.IntExtensions.csproj", "{D37A6432-5AB0-47D9-A575-972421F5C598}"
 EndProject
@@ -63,7 +63,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Extensions.ArrayExten
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.UnixStyleArgs", "iCode.Framework.UnixStyleArgs\iCode.Framework.UnixStyleArgs.csproj", "{0341F21E-E0B8-42EE-8154-209B7C59DAB6}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.EnumerablePlus", "iCode.Framework.EnumerablePlus\iCode.Framework.EnumerablePlus.csproj", "{F91288AD-9E19-4E5B-8003-DBA0EC439D0D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.EnumerableWithNote", "iCode.Framework.EnumerablePlus\iCode.Framework.EnumerableWithNote.csproj", "{F91288AD-9E19-4E5B-8003-DBA0EC439D0D}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "iCode.Framework.Rgx", "iCode.Framework.Rgx\iCode.Framework.Rgx.csproj", "{D32C4469-BCD7-4099-9C7B-1C0C8CB9D6BB}"
 EndProject

@@ -4,18 +4,18 @@ using iCode.Log;
 
 namespace iCode.Framework
 {
-    public class AsyncEnumerator<T> : IAsyncEnumerator<T>
+    public class AsyncEnumeratorMerger<T> : IAsyncEnumerator<T>
     {
         readonly List<ChannelReader<T>> Readers;
         readonly List<ChannelReader<T>> ReadersToRemove;
         readonly List<Task> ReadTaskList;
         readonly ControlledTask TokenTask;
-        readonly AsyncEnumerable<T> MyEnumerable;
+        readonly AsyncEnumerableMerger<T> MyEnumerable;
 
         int ReadersCount = 0;
         public T Current { get; private set; }
 
-        public AsyncEnumerator(AsyncEnumerable<T> enumerable, IEnumerable<ChannelReader<T>> readers)
+        public AsyncEnumeratorMerger(AsyncEnumerableMerger<T> enumerable, IEnumerable<ChannelReader<T>> readers)
         {
             MyEnumerable = enumerable;
             TokenTask = new ControlledTask();

@@ -9,7 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\iCode.Extensions.IEnumerableExtensions\iCode.Extensions.IEnumerableExtensions.csproj" />
     <ProjectReference Include="..\iCode.Extensions.StringExtensions\iCode.Extentions.StringExtensions.csproj" />
-    <ProjectReference Include="..\iCode.Framework.EnumerablePlus\iCode.Framework.EnumerablePlus.csproj" />
+    <ProjectReference Include="..\iCode.Framework.EnumerablePlus\iCode.Framework.EnumerableWithNote.csproj" />
     <ProjectReference Include="..\iCode.Framework.Guard\iCode.Framework.Guard.csproj" />
   </ItemGroup>
 

@@ -86,8 +86,8 @@ namespace iCode.Tests
         class AsyncEnumerableConsumerr<T>
         {
             public  List<T> savedItems;
-            readonly AsyncEnumerable<T> MyAsyncEnumerable;
-            public AsyncEnumerableConsumerr(AsyncEnumerable<T> asyncEnumerable)
+            readonly AsyncEnumerableMerger<T> MyAsyncEnumerable;
+            public AsyncEnumerableConsumerr(AsyncEnumerableMerger<T> asyncEnumerable)
             {
                 MyAsyncEnumerable = asyncEnumerable;
                 savedItems = new List<T>();
@@ -109,7 +109,7 @@ namespace iCode.Tests
         {
             (var oddCoordPublisher, var evenCoordPublisher, var coordPublisher, var everyTic, var evenTic, var oddTic, var var1, var var2, var var3) = setUpDifferentFoctories(30, 30, 30);
 
-            AsyncEnumerable<Coordinate> allItemsAsync = new AsyncEnumerable<Coordinate>().
+            AsyncEnumerableMerger<Coordinate> allItemsAsync = new AsyncEnumerableMerger<Coordinate>().
                                                                 ListenTo(coordPublisher).
                                                                 ListenTo(evenCoordPublisher).
                                                                 ListenTo(oddCoordPublisher);
@@ -164,7 +164,7 @@ namespace iCode.Tests
 
 
 
-            AsyncEnumerable<Coordinate> allItemsAsync = new AsyncEnumerable<Coordinate>(null,null,
+            AsyncEnumerableMerger<Coordinate> allItemsAsync = new AsyncEnumerableMerger<Coordinate>(null,null,
                                                 coordPublisher,evenCoordPublisher,oddCoordPublisher);
             
             var consumer = new AsyncEnumerableConsumerr<Coordinate>(allItemsAsync);

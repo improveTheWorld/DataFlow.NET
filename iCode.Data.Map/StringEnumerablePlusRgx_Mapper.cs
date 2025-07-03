@@ -13,8 +13,8 @@ namespace iCode.Data
 {
     public static class StringEnumerable_Mapper
     {       
-        public static IEnumerable<EnumerablePlus<(string groupName,( int startIndex, int length) slice), string>> Slices(this IEnumerable<string> lines, Regxs regxs)
-       => lines.Select(l =>l.Slices(regxs).Plus(l));
+        public static IEnumerable<EnumerableWithNote<(string groupName,( int startIndex, int length) slice), string>> Slices(this IEnumerable<string> lines, Regxs regxs)
+       => lines.Select(l =>l.Slices(regxs).WithNote(l));
 
         public static IEnumerable<(string groupName, string subpart)> Map(this IEnumerable<string> lines, params string[] patterns)
         => lines.SelectMany(l => l.Map(new Regxs(patterns)).Append((Regxs.UNMATCHED.EOF, Environment.NewLine)));

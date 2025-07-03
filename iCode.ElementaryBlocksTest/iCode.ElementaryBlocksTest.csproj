@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\iCode.Framework.AsyncEnumerable\iCode.Framework.AsyncEnumerable.csproj" />
+    <ProjectReference Include="..\iCode.Framework.AsyncEnumerable\iCode.Framework.AsyncEnumerableMerger.csproj" />
     <ProjectReference Include="..\iCode.Logger\iCode.Logger.csproj" />
   </ItemGroup>
 

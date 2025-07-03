@@ -5,23 +5,23 @@ using iCode.Extensions;
 
 namespace iCode.Framework
 {
-    public class AsyncEnumerable<T> : IAsyncEnumerable<T>, IDisposable
+    public class AsyncEnumerableMerger<T> : IAsyncEnumerable<T>, IDisposable
     {
         readonly public Dictionary<IDataSource<T>, Channel<T>> Subscriptions = new Dictionary<IDataSource<T>, Channel<T>>();
 
-        public AsyncEnumerator<T> Enumerator;
+        public AsyncEnumeratorMerger<T> Enumerator;
 
-        public AsyncEnumerable(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
+        public AsyncEnumerableMerger(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
         {
             ListenTo(dataSource, condition, options);
         }
 
-        public AsyncEnumerable(Func<T, bool>? condition = null, ChannelOptions? options = null, params  IDataSource<T>[] dataSource)
+        public AsyncEnumerableMerger(Func<T, bool>? condition = null, ChannelOptions? options = null, params  IDataSource<T>[] dataSource)
         {
             dataSource.ForEach(source => ListenTo(source, condition, options)).Do();
         }
 
-        public AsyncEnumerable(AsyncEnumerable<T> Source, Func<T, bool>? condition = null, ChannelOptions? options = null)
+        public AsyncEnumerableMerger(AsyncEnumerableMerger<T> Source, Func<T, bool>? condition = null, ChannelOptions? options = null)
         {
             Source.Subscriptions.ForEach(subscription => ListenTo(subscription.Key, condition, options)).Do(); 
         }
@@ -47,7 +47,7 @@ namespace iCode.Framework
             return dataChannel;
         }
 
-        public AsyncEnumerable<T> ListenTo(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
+        public AsyncEnumerableMerger<T> ListenTo(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
         {
             if (dataSource == null)
             {
@@ -73,7 +73,7 @@ namespace iCode.Framework
             Subscriptions.Remove(dataSource);
         }
 
-        public AsyncEnumerable<T> Unlisten(IDataSource<T> dataSource)
+        public AsyncEnumerableMerger<T> Unlisten(IDataSource<T> dataSource)
         {
             Channel<T> dataChannel;
 
@@ -85,7 +85,7 @@ namespace iCode.Framework
             return this;
         }
 
-        public AsyncEnumerable<T> Unlisten(ChannelReader<T> reader)
+        public AsyncEnumerableMerger<T> Unlisten(ChannelReader<T> reader)
         {
             KeyValuePair<IDataSource<T>,Channel<T>>? subscription = Subscriptions.FirstOrDefault((x)=>x.Value.Reader == reader);
             
@@ -106,7 +106,7 @@ namespace iCode.Framework
 
         public IAsyncEnumerator<T> GetAsyncEnumerator()
         {
-            Enumerator = new AsyncEnumerator<T>(this,Subscriptions.Values.Select(x => x.Reader));
+            Enumerator = new AsyncEnumeratorMerger<T>(this,Subscriptions.Values.Select(x => x.Reader));
 
             if(this.isWatched())
             {
