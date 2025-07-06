@@ -7,9 +7,9 @@
 3. [Architecture](#architecture)
 4. [Quick Start Guide](#quick-start-guide)
 5. [Layer Documentation](#layer-documentation)
-   - [iCode.Data Layer](#icode-data-layer)
-   - [iCode.Extensions Layer](#icode-extensions-layer)
-   - [iCode.Framework Layer](#icode-framework-layer)
+   - [DataFlow.Data Layer](#DataFlow-data-layer)
+   - [DataFlow.Extensions Layer](#DataFlow-extensions-layer)
+   - [DataFlow.Framework Layer](#DataFlow-framework-layer)
 6. [Stream Processing Deep Dive](#stream-processing-deep-dive)
 7. [API Reference](#api-reference)
 8. [Advanced Topics](#advanced-topics)
@@ -244,14 +244,14 @@ public class RealTimeAnalyticsEngine
 
 The DataFlow.NET framework follows a **three-layer architecture** optimized for unified batch and streaming processing:
 
-### Layer 1: iCode.Data
+### Layer 1: DataFlow.Data
 **Unified Data Access Layer**
 - File I/O operations (Read, Write) with async support
 - Data format handling (CSV, Text, JSON, YAML) for both files and streams
 - Data mapping and transformation utilities
 - **Stream-aware readers** that work with both files and live data sources
 
-### Layer 2: iCode.Extensions
+### Layer 2: DataFlow.Extensions
 **Unified Extension Methods Layer**
 - **Dual IEnumerable/IAsyncEnumerable extensions** for data manipulation
 - String processing utilities with async support
@@ -259,7 +259,7 @@ The DataFlow.NET framework follows a **three-layer architecture** optimized for 
 - Type conversion and parsing extensions
 - **Cases/SelectCase/ForEachCase pattern** for both sync and async
 
-### Layer 3: iCode.Framework
+### Layer 3: DataFlow.Framework
 **Stream Processing Infrastructure Layer**
 - **AsyncEnumerableMerger<T>** for multi-source stream collection
 - **DataPublisher<T>** for real-time data distribution
@@ -281,9 +281,9 @@ dotnet add package DataFlow.NET
 
 ### Basic Unified Processing Example
 ```csharp
-using iCode.Data;
-using iCode.Extensions;
-using iCode.Framework;
+using DataFlow.Data;
+using DataFlow.Extensions;
+using DataFlow.Framework;
 
 // Define your data structure
 public struct LogEntry
@@ -385,7 +385,7 @@ await Task.WhenAll(orderTask, inventoryTask);
 
 ## Layer Documentation
 
-### iCode.Data Layer
+### DataFlow.Data Layer
 
 #### Read Class - Unified Data Reading
 The `Read` class provides static methods for reading data from various sources with **lazy evaluation** and **stream compatibility**.
@@ -440,7 +440,7 @@ public static Task WriteCSVAsync<T>(this IAsyncEnumerable<T> items, string path,
 public static Task WriteJSONAsync<T>(this IAsyncEnumerable<T> items, string path)
 ```
 
-### iCode.Extensions Layer
+### DataFlow.Extensions Layer
 
 #### Unified IEnumerable/IAsyncEnumerable Extensions
 **The core innovation**: Identical extension methods for both `IEnumerable<T>` and `IAsyncEnumerable<T>`.
@@ -581,7 +581,7 @@ var transactionAlerts = await liveTransactionStream
     .WriteCSVAsync("special_transactions.csv");
 ```
 
-### iCode.Framework Layer
+### DataFlow.Framework Layer
 
 #### AsyncEnumerableMerger<T> - Stream Collection Engine
 The **heart of DataFlow.NET's streaming capabilities**. Merges multiple `IAsyncEnumerable<T>` sources into a single processable stream.
@@ -2039,6 +2039,6 @@ Whether you're processing log files, transforming CSV data, analyzing sensor str
 
 *For detailed API documentation and layer-specific guides, refer to:*
 - *[API Reference](API-Reference.md) - Complete method signatures and usage examples*
-- *[iCode.Data Layer](iCode-Data-Layer.md) - Data access and transformation utilities*
-- *[iCode.Extensions Layer](iCode-Extensions-Layer.md) - Extension methods and processing patterns*
-- *[iCode.Framework Layer](iCode-Framework-Layer.md) - Core framework components and streaming infrastructure*
+- *[DataFlow.Data Layer](DataFlow-Data-Layer.md) - Data access and transformation utilities*
+- *[DataFlow.Extensions Layer](DataFlow-Extensions-Layer.md) - Extension methods and processing patterns*
+- *[DataFlow.Framework Layer](DataFlow-Framework-Layer.md) - Core framework components and streaming infrastructure*

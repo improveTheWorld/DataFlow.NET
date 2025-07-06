@@ -1,0 +1,648 @@
+﻿//using DataFlow.Log;
+//using System.Threading.Channels;
+//using DataFlow.Extensions;
+//using System.Collections.Concurrent;
+
+//namespace DataFlow.Framework
+//{
+//    public class DataFlow<T> : IAsyncEnumerable<T>, IDisposable
+//    {
+//        readonly public Dictionary<IDataSource<T>, ChannelInfo<T>> Subscriptions = new();
+
+//        // BOTTLENECK FIX 1: Bounded expansion channel with backpressure
+//        private readonly Channel<ExpansionRequest<T>> _expansionChannel;
+//        private readonly SemaphoreSlim _expansionSemaphore;
+//        private readonly Task _expansionProcessor;
+//        private readonly CancellationTokenSource _cancellationTokenSource = new();
+
+//        // BOTTLENECK FIX 2: Memory pressure monitoring
+//        private readonly MemoryPressureMonitor _memoryMonitor;
+//        private readonly ConcurrentDictionary<IDataSource<T>, FlowMetrics> _flowMetrics = new();
+
+//        // BOTTLENECK FIX 3: Adaptive capacity management
+//        private readonly AdaptiveCapacityManager _capacityManager;
+
+//        public DataFlowEnumerator<T> Enumerator;
+
+//        IAsyncEnumerator<T> IAsyncEnumerable<T>.GetAsyncEnumerator(CancellationToken token)
+//        {
+//            token.Register(Dispose);
+//            return GetAsyncEnumerator();
+//        }
+//        public IAsyncEnumerator<T> GetAsyncEnumerator()
+//        {
+//            Enumerator = new DataFlowEnumerator<T>(this, Subscriptions.Values.Select(x => x.Reader));
+
+//            if (this.isWatched())
+//            {
+//                Enumerator.WatchByLogger();
+//            }
+//            return Enumerator;
+//        }
+
+//        public DataFlow(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
+//        {
+//            // SOLUTION: Bounded expansion channel with intelligent capacity
+//            var expansionOptions = new BoundedChannelOptions(100) // Prevent memory explosion
+//            {
+//                FullMode = BoundedChannelFullMode.Wait, // Backpressure for expansion requests
+//                SingleReader = true,
+//                SingleWriter = false,
+//                AllowSynchronousContinuations = false // Prevent thread pool starvation
+//            };
+
+//            _expansionChannel = Channel.CreateBounded<ExpansionRequest<T>>(expansionOptions);
+//            _expansionSemaphore = new SemaphoreSlim(Environment.ProcessorCount, Environment.ProcessorCount);
+//            _memoryMonitor = new MemoryPressureMonitor();
+//            _capacityManager = new AdaptiveCapacityManager();
+
+//            _expansionProcessor = ProcessExpansionRequestsAsync(_cancellationTokenSource.Token);
+
+//            ListenTo(dataSource, condition, options);
+//        }
+
+//        // BOTTLENECK-FREE: Intelligent expansion processing with flow control
+//        private async Task ProcessExpansionRequestsAsync(CancellationToken cancellationToken)
+//        {
+//            await foreach (var request in _expansionChannel.Reader.ReadAllAsync(cancellationToken))
+//            {
+//                // FLOW CONTROL 1: Acquire semaphore to limit concurrent expansions
+//                await _expansionSemaphore.WaitAsync(cancellationToken);
+
+//                try
+//                {
+//                    // FLOW CONTROL 2: Check memory pressure before expansion
+//                    if (_memoryMonitor.IsUnderPressure())
+//                    {
+//                        await _memoryMonitor.WaitForMemoryRelief(cancellationToken);
+//                    }
+
+//                    // FLOW CONTROL 3: Adaptive expansion based on system load
+//                    var adaptiveRequest = _capacityManager.AdjustRequest(request);
+//                    await PerformControlledExpansion(adaptiveRequest);
+//                }
+//                catch (Exception ex)
+//                {
+//                    Console.WriteLine($"Expansion error: {ex.Message}");
+//                    request.CompletionSource.SetException(ex);
+//                }
+//                finally
+//                {
+//                    _expansionSemaphore.Release();
+//                }
+//            }
+//        }
+
+//        // SOLUTION: Controlled expansion with intelligent flow management
+//        private async Task PerformControlledExpansion(ExpansionRequest<T> request)
+//        {
+//            var dataSource = request.DataSource;
+//            var newCapacity = request.NewCapacity;
+//            var completionSource = request.CompletionSource;
+
+//            try
+//            {
+//                if (!Subscriptions.TryGetValue(dataSource, out var channelInfo))
+//                {
+//                    completionSource.SetResult(false);
+//                    return;
+//                }
+
+//                // STEP 1: Create bounded channel with intelligent capacity
+//                var expandedChannel = CreateIntelligentChannel(newCapacity, dataSource);
+
+//                // STEP 2: Controlled bridging with backpressure awareness
+//                var bridgeSuccess = await ControlledChannelBridge(dataSource, channelInfo, expandedChannel);
+
+//                if (bridgeSuccess)
+//                {
+//                    // Update metrics and complete
+//                    UpdateFlowMetrics(dataSource, newCapacity);
+//                    completionSource.SetResult(true);
+//                }
+//                else
+//                {
+//                    completionSource.SetResult(false);
+//                }
+//            }
+//            catch (Exception ex)
+//            {
+//                completionSource.SetException(ex);
+//            }
+//        }
+
+//        // SOLUTION: Intelligent channel creation with adaptive bounds
+//        private ChannelInfo<T> CreateIntelligentChannel(int requestedCapacity, IDataSource<T> dataSource)
+//        {
+//            // Get current flow metrics for this data source
+//            var metrics = _flowMetrics.GetOrAdd(dataSource, _ => new FlowMetrics());
+
+//            // ADAPTIVE CAPACITY: Adjust based on historical patterns
+//            var adaptiveCapacity = _capacityManager.CalculateOptimalCapacity(
+//                requestedCapacity, metrics, _memoryMonitor.AvailableMemory);
+
+//            // INTELLIGENT BOUNDS: Choose strategy based on flow characteristics
+//            if (metrics.IsHighThroughputLowLatency)
+//            {
+//                // High-performance bounded channel for fast flows
+//                var options = new BoundedChannelOptions(adaptiveCapacity)
+//                {
+//                    FullMode = BoundedChannelFullMode.DropOldest, // Prevent blocking
+//                    SingleReader = metrics.HasSingleConsumer,
+//                    SingleWriter = metrics.HasSingleProducer,
+//                    AllowSynchronousContinuations = true // Performance optimization
+//                };
+
+//                return new ChannelInfo<T>
+//                {
+//                    Channel = Channel.CreateBounded<T>(options),
+//                    Capacity = adaptiveCapacity,
+//                    Strategy = ChannelStrategy.HighPerformanceBounded
+//                };
+//            }
+//            else if (metrics.IsReliabilityFocused)
+//            {
+//                // Reliable bounded channel with waiting
+//                var options = new BoundedChannelOptions(adaptiveCapacity)
+//                {
+//                    FullMode = BoundedChannelFullMode.Wait, // Ensure no data loss
+//                    SingleReader = false,
+//                    SingleWriter = false,
+//                    AllowSynchronousContinuations = false
+//                };
+
+//                return new ChannelInfo<T>
+//                {
+//                    Channel = Channel.CreateBounded<T>(options),
+//                    Capacity = adaptiveCapacity,
+//                    Strategy = ChannelStrategy.ReliableBounded
+//                };
+//            }
+//            else
+//            {
+//                // Conservative unbounded for unpredictable flows (with monitoring)
+//                var options = new UnboundedChannelOptions
+//                {
+//                    SingleReader = false,
+//                    SingleWriter = false,
+//                    AllowSynchronousContinuations = false
+//                };
+
+//                var channelInfo = new ChannelInfo<T>
+//                {
+//                    Channel = Channel.CreateUnbounded<T>(options),
+//                    Capacity = int.MaxValue,
+//                    Strategy = ChannelStrategy.MonitoredUnbounded
+//                };
+
+//                // SAFETY: Monitor unbounded channels for memory pressure
+//                _memoryMonitor.MonitorChannel(channelInfo);
+
+//                return channelInfo;
+//            }
+//        }
+
+//        // SOLUTION: Controlled bridging with intelligent backpressure
+//        private async Task<bool> ControlledChannelBridge(IDataSource<T> dataSource,
+//            ChannelInfo<T> oldChannelInfo, ChannelInfo<T> newChannelInfo)
+//        {
+//            try
+//            {
+//                var oldChannel = oldChannelInfo.Channel;
+//                var newChannel = newChannelInfo.Channel;
+
+//                // STEP 1: Start intelligent bridge task
+//                var bridgeTask = IntelligentBridgeAsync(oldChannel, newChannel, dataSource);
+
+//                // STEP 2: Atomic writer replacement with flow control
+//                var condition = GetConditionForDataSource(dataSource);
+
+//                // Add new writer with backpressure awareness
+//                dataSource.AddWriter(newChannel.Writer, condition);
+
+//                // Brief pause to ensure new writer is active
+//                await Task.Delay(1, _cancellationTokenSource.Token);
+
+//                // Remove old writer
+//                dataSource.RemoveWriter(oldChannel.Writer);
+
+//                // STEP 3: Update subscription atomically
+//                Subscriptions[dataSource] = newChannelInfo;
+
+//                // STEP 4: Update enumerator with flow control
+//                if (Enumerator != null)
+//                {
+//                    await Enumerator.ControlledReaderReplacement(oldChannel.Reader, newChannel.Reader);
+//                }
+
+//                // STEP 5: Wait for controlled bridge completion
+//                await bridgeTask;
+
+//                // STEP 6: Graceful old channel completion
+//                oldChannel.Writer.TryComplete();
+
+//                return true;
+//            }
+//            catch (Exception ex)
+//            {
+//                Console.WriteLine($"Bridge error: {ex.Message}");
+//                return false;
+//            }
+//        }
+
+//        // SOLUTION: Intelligent bridging with adaptive flow control
+//        private async Task IntelligentBridgeAsync(Channel<T> source, Channel<T> destination, IDataSource<T> dataSource)
+//        {
+//            var transferCount = 0;
+//            var batchSize = 100;
+//            var metrics = _flowMetrics[dataSource];
+//            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+//            try
+//            {
+//                var batch = new List<T>(batchSize);
+
+//                await foreach (var item in source.Reader.ReadAllAsync(_cancellationTokenSource.Token))
+//                {
+//                    batch.Add(item);
+
+//                    // INTELLIGENT BATCHING: Process in optimal batch sizes
+//                    if (batch.Count >= batchSize || source.Reader.Completion.IsCompleted)
+//                    {
+//                        await ProcessBatchWithBackpressure(batch, destination.Writer, metrics);
+//                        transferCount += batch.Count;
+//                        batch.Clear();
+
+//                        // ADAPTIVE FLOW CONTROL: Adjust based on performance
+//                        if (transferCount % 1000 == 0)
+//                        {
+//                            await AdaptiveFlowControl(stopwatch.Elapsed, transferCount, metrics);
+//                        }
+
+//                        // MEMORY PRESSURE CHECK: Pause if system under pressure
+//                        if (_memoryMonitor.IsUnderPressure())
+//                        {
+//                            await _memoryMonitor.WaitForMemoryRelief(_cancellationTokenSource.Token);
+//                        }
+//                    }
+//                }
+
+//                // Process remaining items
+//                if (batch.Count > 0)
+//                {
+//                    await ProcessBatchWithBackpressure(batch, destination.Writer, metrics);
+//                    transferCount += batch.Count;
+//                }
+
+//                Console.WriteLine($"🚀 Controlled expansion: {transferCount} items bridged " +
+//                                $"in {stopwatch.ElapsedMilliseconds}ms");
+//            }
+//            catch (OperationCanceledException)
+//            {
+//                Console.WriteLine($"⏹️ Bridge cancelled: {transferCount} items transferred");
+//            }
+//            catch (Exception ex)
+//            {
+//                Console.WriteLine($"❌ Bridge error: {ex.Message}");
+//                throw;
+//            }
+//        }
+
+//        // SOLUTION: Batch processing with intelligent backpressure
+//        private async Task ProcessBatchWithBackpressure(List<T> batch, ChannelWriter<T> writer, FlowMetrics metrics)
+//        {
+//            foreach (var item in batch)
+//            {
+//                var retryCount = 0;
+//                const int maxRetries = 10;
+
+//                while (!writer.TryWrite(item))
+//                {
+//                    if (retryCount++ >= maxRetries)
+//                    {
+//                        // BACKPRESSURE: Use async write with timeout
+//                        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+//                        try
+//                        {
+//                            await writer.WriteAsync(item, cts.Token);
+//                            break;
+//                        }
+//                        catch (OperationCanceledException)
+//                        {
+//                            // Log backpressure event
+//                            metrics.RecordBackpressureEvent();
+//                            Console.WriteLine("⚠️ Backpressure detected - slowing down producer");
+
+//                            // Exponential backoff
+//                            await Task.Delay(Math.Min(1000, 10 * retryCount));
+//                        }
+//                    }
+//                    else
+//                    {
+//                        // Brief yield before retry
+//                        await Task.Yield();
+//                    }
+//                }
+//            }
+//        }
+
+//        // SOLUTION: Adaptive flow control based on performance metrics
+//        private async Task AdaptiveFlowControl(TimeSpan elapsed, int transferCount, FlowMetrics metrics)
+//        {
+//            var throughput = transferCount / elapsed.TotalSeconds;
+
+//            // Update metrics
+//            metrics.UpdateThroughput(throughput);
+
+//            // ADAPTIVE CONTROL: Adjust flow based on performance
+//            if (throughput < metrics.ExpectedThroughput * 0.5)
+//            {
+//                // Performance degradation detected - apply flow control
+//                Console.WriteLine($"⚠️ Performance degradation: {throughput:F0} items/sec " +
+//                                $"(expected: {metrics.ExpectedThroughput:F0})");
+
+//                // Brief pause to allow system recovery
+//                await Task.Delay(50);
+//            }
+//            else if (throughput > metrics.ExpectedThroughput * 1.5)
+//            {
+//                // High performance - can increase batch size
+//                metrics.OptimizeBatchSize();
+//            }
+//        }
+
+//        // PUBLIC API: Controlled buffer expansion with flow management
+//        public async Task<bool> ExpandBufferAsync(IDataSource<T> dataSource, int newCapacity)
+//        {
+//            // FLOW CONTROL: Check if expansion is advisable
+//            if (_memoryMonitor.IsUnderPressure())
+//            {
+//                Console.WriteLine("⚠️ Expansion delayed due to memory pressure");
+//                await _memoryMonitor.WaitForMemoryRelief(_cancellationTokenSource.Token);
+//            }
+
+//            var completionSource = new TaskCompletionSource<bool>();
+//            var request = new ExpansionRequest<T>
+//            {
+//                DataSource = dataSource,
+//                NewCapacity = newCapacity,
+//                CompletionSource = completionSource
+//            };
+
+//            // BACKPRESSURE: Use async write to handle bounded expansion channel
+//            try
+//            {
+//                await _expansionChannel.Writer.WriteAsync(request, _cancellationTokenSource.Token);
+//                return await completionSource.Task;
+//            }
+//            catch (InvalidOperationException)
+//            {
+//                return false; // Channel completed
+//            }
+//        }
+
+//        // Enhanced monitoring and metrics
+//        public PerformanceReport GetPerformanceReport()
+//        {
+//            var report = new PerformanceReport
+//            {
+//                MemoryPressure = _memoryMonitor.GetPressureLevel(),
+//                TotalExpansions = _flowMetrics.Values.Sum(m => m.ExpansionCount),
+//                SystemHealth = CalculateSystemHealth()
+//            };
+
+//            foreach (var (dataSource, metrics) in _flowMetrics)
+//            {
+//                if (Subscriptions.TryGetValue(dataSource, out var channelInfo))
+//                {
+//                    report.DataSourceReports[dataSource as IDataSource<object>] = new DataSourceReport
+//                    {
+//                        Capacity = channelInfo.Capacity,
+//                        Strategy = channelInfo.Strategy,
+//                        Throughput = metrics.CurrentThroughput,
+//                        BackpressureEvents = metrics.BackpressureEventCount,
+//                        Health = metrics.CalculateHealth()
+//                    };
+//                }
+//            }
+
+//            return report;
+//        }
+
+//        private SystemHealth CalculateSystemHealth()
+//        {
+//            if (_memoryMonitor.IsUnderPressure()) return SystemHealth.Stressed;
+
+//            var avgHealth = _flowMetrics.Values.Average(m => (int)m.CalculateHealth());
+//            return avgHealth > 2.5 ? SystemHealth.Optimal :
+//                   avgHealth > 1.5 ? SystemHealth.Good : SystemHealth.Degraded;
+//        }
+
+//        // Your existing methods with flow control enhancements...
+//        public DataFlow<T> ListenTo(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
+//        {
+//            if (dataSource == null)
+//                throw new ArgumentNullException(nameof(dataSource));
+
+//            // Initialize flow metrics
+//            var metrics = new FlowMetrics();
+//            _flowMetrics[dataSource] = metrics;
+
+//            // Create intelligent channel
+//            var channelInfo = CreateIntelligentChannel(1000, dataSource); // Default capacity
+//            dataSource.AddWriter(channelInfo.Channel.Writer, condition);
+//            Subscriptions[dataSource] = channelInfo;
+
+//            return this;
+//        }
+
+//        private Func<T, bool>? GetConditionForDataSource(IDataSource<T> dataSource)
+//        {
+//            return null; // Implement condition tracking if needed
+//        }
+
+//        private void UpdateFlowMetrics(IDataSource<T> dataSource, int newCapacity)
+//        {
+//            if (_flowMetrics.TryGetValue(dataSource, out var metrics))
+//            {
+//                metrics.RecordExpansion(newCapacity);
+//            }
+//        }
+
+//        public void Dispose()
+//        {
+//            _cancellationTokenSource.Cancel();
+//            _expansionChannel.Writer.TryComplete();
+
+//            try
+//            {
+//                _expansionProcessor?.Wait(TimeSpan.FromSeconds(5));
+//            }
+//            catch { }
+
+//            foreach (var (dataSource, channelInfo) in Subscriptions)
+//            {
+//                dataSource.RemoveWriter(channelInfo.Channel.Writer);
+//                channelInfo.Channel.Writer.TryComplete();
+//            }
+
+//            _memoryMonitor?.Dispose();
+//            _expansionSemaphore?.Dispose();
+//            _cancellationTokenSource?.Dispose();
+//        }
+//    }
+
+//    // Add a 'Reader' property to the 'ChannelInfo<T>' class to resolve the CS1061 error.
+//    public class ChannelInfo<T>
+//    {
+//        public Channel<T> Channel { get; set; }
+//        public int Capacity { get; set; }
+//        public ChannelStrategy Strategy { get; set; }
+
+//        // Add the missing 'Reader' property
+//        public ChannelReader<T> Reader => Channel.Reader;
+//    }
+
+//    public enum ChannelStrategy
+//    {
+//        HighPerformanceBounded,
+//        ReliableBounded,
+//        MonitoredUnbounded
+//    }
+
+//    public class FlowMetrics
+//    {
+//        public double CurrentThroughput { get; private set; }
+//        public double ExpectedThroughput { get; set; } = 1000; // items/sec
+//        public int BackpressureEventCount { get; private set; }
+//        public int ExpansionCount { get; private set; }
+//        public bool IsHighThroughputLowLatency => CurrentThroughput > 5000;
+//        public bool IsReliabilityFocused => BackpressureEventCount < 5;
+//        public bool HasSingleConsumer { get; set; }
+//        public bool HasSingleProducer { get; set; }
+
+//        public void UpdateThroughput(double throughput)
+//        {
+//            CurrentThroughput = throughput;
+//        }
+
+//        public void RecordBackpressureEvent()
+//        {
+//            Interlocked.Increment(ref BackpressureEventCount);
+//        }
+
+//        public void RecordExpansion(int newCapacity)
+//        {
+//            Interlocked.Increment(ref ExpansionCount);
+//        }
+
+//        public void OptimizeBatchSize()
+//        {
+//            // Implement batch size optimization
+//        }
+
+//        public SystemHealth CalculateHealth()
+//        {
+//            if (BackpressureEventCount > 100) return SystemHealth.Stressed;
+//            if (CurrentThroughput < ExpectedThroughput * 0.5) return SystemHealth.Degraded;
+//            if (CurrentThroughput > ExpectedThroughput * 0.8) return SystemHealth.Optimal;
+//            return SystemHealth.Good;
+//        }
+//    }
+
+//    public class MemoryPressureMonitor : IDisposable
+//    {
+//        private readonly Timer _monitorTimer;
+//        private volatile bool _isUnderPressure;
+//        private readonly List<ChannelInfo<object>> _monitoredChannels = new();
+
+//        public MemoryPressureMonitor()
+//        {
+//            _monitorTimer = new Timer(CheckMemoryPressure, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5));
+//        }
+
+//        public bool IsUnderPressure() => _isUnderPressure;
+
+//        public long AvailableMemory => GC.GetTotalMemory(false);
+
+//        public async Task WaitForMemoryRelief(CancellationToken cancellationToken)
+//        {
+//            while (_isUnderPressure && !cancellationToken.IsCancellationRequested)
+//            {
+//                await Task.Delay(100, cancellationToken);
+//            }
+//        }
+
+//        public void MonitorChannel<T>(ChannelInfo<T> channelInfo)
+//        {
+//            _monitoredChannels.Add((ChannelInfo<object>)(object)channelInfo);
+//        }
+
+//        public MemoryPressureLevel GetPressureLevel()
+//        {
+//            var totalMemory = GC.GetTotalMemory(false);
+//            if (totalMemory > 1_000_000_000) return MemoryPressureLevel.High; // 1GB
+//            if (totalMemory > 500_000_000) return MemoryPressureLevel.Medium; // 500MB
+//            return MemoryPressureLevel.Low;
+//        }
+
+//        private void CheckMemoryPressure(object state)
+//        {
+//            var gen2Collections = GC.CollectionCount(2);
+//            var totalMemory = GC.GetTotalMemory(false);
+
+//            // Simple heuristic for memory pressure
+//            _isUnderPressure = totalMemory > 800_000_000 || gen2Collections > 10;
+//        }
+
+//        public void Dispose()
+//        {
+//            _monitorTimer?.Dispose();
+//        }
+//    }
+
+//    public class AdaptiveCapacityManager
+//    {
+//        public ExpansionRequest<T> AdjustRequest<T>(ExpansionRequest<T> request)
+//        {
+//            // Implement intelligent request adjustment
+//            return request;
+//        }
+
+//        public int CalculateOptimalCapacity(int requested, FlowMetrics metrics, long availableMemory)
+//        {
+//            // Implement capacity calculation logic
+//            var memoryFactor = availableMemory > 1_000_000_000 ? 1.0 : 0.5;
+//            var throughputFactor = metrics.CurrentThroughput > 1000 ? 1.2 : 0.8;
+
+//            return Math.Max(100, (int)(requested * memoryFactor * throughputFactor));
+//        }
+//    }
+
+//    public class ExpansionRequest<T>
+//    {
+//        public IDataSource<T> DataSource { get; set; }
+//        public int NewCapacity { get; set; }
+//        public TaskCompletionSource<bool> CompletionSource { get; set; }
+//    }
+
+//    public class PerformanceReport
+//    {
+//        public MemoryPressureLevel MemoryPressure { get; set; }
+//        public int TotalExpansions { get; set; }
+//        public SystemHealth SystemHealth { get; set; }
+//        public Dictionary<IDataSource<object>, DataSourceReport> DataSourceReports { get; set; } = new();
+//    }
+
+//    public class DataSourceReport
+//    {
+//        public int Capacity { get; set; }
+//        public ChannelStrategy Strategy { get; set; }
+//        public double Throughput { get; set; }
+//        public int BackpressureEvents { get; set; }
+//        public SystemHealth Health { get; set; }
+//    }
+
+//    public enum MemoryPressureLevel { Low, Medium, High }
+//    public enum SystemHealth { Optimal, Good, Degraded, Stressed }
+//}

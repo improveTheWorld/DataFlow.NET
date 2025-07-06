@@ -1,6 +1,6 @@
-# iCode.Extensions Layer Documentation
+# DataFlow.Extensions Layer Documentation
 
-The iCode.Extensions layer provides a comprehensive set of extension methods that enhance the functionality of built-in .NET types, particularly focusing on `IEnumerable<T>` manipulation, string processing, and utility operations.
+The DataFlow.Extensions layer provides a comprehensive set of extension methods that enhance the functionality of built-in .NET types, particularly focusing on `IEnumerable<T>` manipulation, string processing, and utility operations.
 
 ## Overview
 
@@ -595,4 +595,4 @@ var processedData = Read.csv<SalesRecord>("sales.csv")
 - Creating excessive intermediate collections
 - Not disposing file streams properly
 
-This completes the comprehensive documentation for the iCode.Extensions layer, covering all major extension methods, patterns, and usage scenarios.
+This completes the comprehensive documentation for the DataFlow.Extensions layer, covering all major extension methods, patterns, and usage scenarios.

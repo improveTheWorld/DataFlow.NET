@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataFlow.Data.StringMapper\DataFlow.Data.String_Mapper.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.EnumerablePlus\DataFlow.Framework.EnumerableWithNote.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.Rgx\DataFlow.Framework.Rgx.csproj" />
+  </ItemGroup>
+
+</Project>

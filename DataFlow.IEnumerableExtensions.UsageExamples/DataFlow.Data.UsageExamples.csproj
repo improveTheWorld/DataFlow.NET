@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="RegexExtensions.cs" />
+    <Compile Remove="Rgx.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataFlow.Data.CSV_Mapper\DataFlow.Data.CSV_Mapper.csproj" />
+    <ProjectReference Include="..\DataFlow.Data.Map\DataFlow.Data.StringEnumerablePlusRgx_Mapper.csproj" />
+    <ProjectReference Include="..\DataFlow.Data.Write\DataFlow.Data.Write.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.EnumerablePlus\DataFlow.Framework.EnumerableWithNote.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.Rgx\DataFlow.Framework.Rgx.csproj" />
+    <ProjectReference Include="..\DataFlow.Logger\DataFlow.Logger.csproj" />
+    <ProjectReference Include="..\DataFlow.Logger\DataFlow.Logger.csproj" />
+    <ProjectReference Include="..\DataFlow.read\DataFlow.Data.Read.csproj" />
+    <ProjectReference Include="..\DataFlow.Test.Tools\DataFlow.Test.Tools.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="log.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="People.csv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

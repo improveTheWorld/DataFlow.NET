@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataFlow.Extensions.IEnumerableExtensions\DataFlow.Extensions.IEnumerableExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Extensions.StringExtensions\DataFlow.Extentions.StringExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.EnumerablePlus\DataFlow.Framework.EnumerableWithNote.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.Guard\DataFlow.Framework.Guard.csproj" />
+  </ItemGroup>
+
+</Project>

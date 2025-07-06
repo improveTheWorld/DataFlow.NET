@@ -1,6 +1,6 @@
-# iCode.Framework Layer Documentation
+# DataFlow.Framework Layer Documentation
 
-The iCode.Framework layer provides the core infrastructure components of the DataFlow.NET framework, including async processing capabilities, data publishing patterns, validation utilities, regular expression helpers, and syntax parsing functionality.
+The DataFlow.Framework layer provides the core infrastructure components of the DataFlow.NET framework, including async processing capabilities, data publishing patterns, validation utilities, regular expression helpers, and syntax parsing functionality.
 
 ## Overview
 
@@ -406,7 +406,7 @@ Returns position information for matched groups.
 
 ##### Basic Pattern Matching
 ```csharp
-using static iCode.Framework.Regx;
+using static DataFlow.Framework.Regx;
 
 // Simple email pattern
 string emailPattern = ALPHNUMS.As("user") + "@" + ALPHNUMS.As("domain") + "." + ALPHAS.As("tld");
@@ -927,4 +927,4 @@ public void Regxs_ParsesLogEntryCorrectly()
 }
 ```
 
-This completes the comprehensive documentation for the iCode.Framework layer, covering all major components, usage patterns, integration strategies, and best practices for building robust, high-performance data processing applications.
+This completes the comprehensive documentation for the DataFlow.Framework layer, covering all major components, usage patterns, integration strategies, and best practices for building robust, high-performance data processing applications.

@@ -4,13 +4,13 @@ This document provides a comprehensive reference for all public APIs in the Data
 
 ## Table of Contents
 
-1. [iCode.Data Namespace](#icode-data-namespace)
-2. [iCode.Extensions Namespace](#icode-extensions-namespace)
-3. [iCode.Framework Namespace](#icode-framework-namespace)
+1. [DataFlow.Data Namespace](#DataFlow-data-namespace)
+2. [DataFlow.Extensions Namespace](#DataFlow-extensions-namespace)
+3. [DataFlow.Framework Namespace](#DataFlow-framework-namespace)
 4. [Type Definitions](#type-definitions)
 5. [Extension Method Quick Reference](#extension-method-quick-reference)
 
-## iCode.Data Namespace
+## DataFlow.Data Namespace
 
 ### Read Class
 
@@ -122,7 +122,7 @@ public static void WriteCSV<T>(this IEnumerable<T> records, string path, bool wi
 products.WriteCSV("products.csv", withTitle: true, separator: ",");
 ```
 
-## iCode.Extensions Namespace
+## DataFlow.Extensions Namespace
 
 ### IEnumerableExtensions Class
 
@@ -414,7 +414,7 @@ public static string DerivateFileName(this string name, Func<string, string> der
 - `derivates`: Additional transformations for directory parts  
 **Returns:** `string` - Derived filename  
 
-## iCode.Framework Namespace
+## DataFlow.Framework Namespace
 
 ### Guard Class
 

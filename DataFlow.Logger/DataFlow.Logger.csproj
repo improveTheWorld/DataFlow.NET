@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Confluent.Kafka" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataFlow.Extensions.FileSystemExtensions\DataFlow.Extensions.FileSystemExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.CriteriasEvaluator\DataFlow.Framework.CriteriasEvaluator.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.FilePath\DataFlow.Framework.FilePath.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.WatchedValue\DataFlow.Framework.WatchedValueWrapper.csproj" />
+  </ItemGroup>
+
+</Project>

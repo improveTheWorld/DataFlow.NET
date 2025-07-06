@@ -1,6 +1,6 @@
-# iCode.Data Layer Documentation
+# DataFlow.Data Layer Documentation
 
-The iCode.Data layer provides the foundation for data access, reading, writing, and transformation operations in the DataFlow.NET framework.
+The DataFlow.Data layer provides the foundation for data access, reading, writing, and transformation operations in the DataFlow.NET framework.
 
 ## Overview
 
@@ -292,7 +292,7 @@ var records = Read.csv<MyRecord>("data.csv")
 
 ## Integration Examples
 
-### With iCode.Extensions
+### With DataFlow.Extensions
 ```csharp
 Read.text("log.txt")
     .Until(line => line.StartsWith("END"))
@@ -309,7 +309,7 @@ Read.text("log.txt")
     .WriteText("categorized.log");
 ```
 
-### With iCode.Framework
+### With DataFlow.Framework
 ```csharp
 var publisher = new DataPublisher<string>();
 
@@ -319,4 +319,4 @@ Read.text("data.txt")
     .Do(); // Execute the enumeration
 ```
 
-This completes the comprehensive documentation for the iCode.Data layer, covering all major components, usage patterns, and best practices.
+This completes the comprehensive documentation for the DataFlow.Data layer, covering all major components, usage patterns, and best practices.

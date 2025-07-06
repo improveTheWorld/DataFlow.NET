@@ -1,0 +1,32 @@
+[Trace] : [DateTime: 2025-07-05 17:37:41.584], New Schedule : 166,7123, 556,7123
+[Trace] : [DateTime: 2025-07-05 17:37:41.585], [S2025-07-05 17:37:41.585] : Timer already in progress
+[Trace] : [DateTime: 2025-07-05 17:37:41.586], [2025-07-05 17:37:41.585] : scheduleNextCall, elapsedTime = 158,2951 ms
+[Trace] : [DateTime: 2025-07-05 17:37:41.586], [2025-07-05 17:37:41.586] : scheduleNextCall 8,417200000000008 ms
+[Trace] : [DateTime: 2025-07-05 17:37:41.586], [2025-07-05 17:37:41.586] : Starting new Schedule, First call scheduled in 8,417200000000008 
+[Trace] : [DateTime: 2025-07-05 17:37:41.610], [2025-07-05 17:37:41.610] : OnPullingTimer Tic
+[Trace] : [DateTime: 2025-07-05 17:37:41.612], [2025-07-05 17:37:41.611] : scheduleNextCall, elapsedTime = 183,736 ms
+[Trace] : [DateTime: 2025-07-05 17:37:41.612], [2025-07-05 17:37:41.612] : scheduleNextCall 372,97630000000004 ms
+[Trace] : [DateTime: 2025-07-05 17:37:41.613], [2025-07-05 17:37:41.613] : Exit OnPullingTimer
+[Trace] : [DateTime: 2025-07-05 17:37:41.688], New Schedule : 461,156, 556,7123
+[Trace] : [DateTime: 2025-07-05 17:37:41.689], [S2025-07-05 17:37:41.689] : Timer already in progress
+[Trace] : [DateTime: 2025-07-05 17:37:41.689], [2025-07-05 17:37:41.689] : scheduleNextCall, elapsedTime = 262,1341 ms
+[Trace] : [DateTime: 2025-07-05 17:37:41.690], [2025-07-05 17:37:41.690] : scheduleNextCall 199,02190000000002 ms
+[Trace] : [DateTime: 2025-07-05 17:37:41.691], [2025-07-05 17:37:41.691] : Starting new Schedule, First call scheduled in 199,02190000000002 
+[Trace] : [DateTime: 2025-07-05 17:37:41.894], [2025-07-05 17:37:41.894] : OnPullingTimer Tic
+[Trace] : [DateTime: 2025-07-05 17:37:41.894], [2025-07-05 17:37:41.894] : scheduleNextCall, elapsedTime = 467,0651 ms
+[Trace] : [DateTime: 2025-07-05 17:37:41.895], [2025-07-05 17:37:41.895] : scheduleNextCall 89,64720000000005 ms
+[Trace] : [DateTime: 2025-07-05 17:37:41.895], [2025-07-05 17:37:41.895] : Exit OnPullingTimer
+[Trace] : [DateTime: 2025-07-05 17:37:41.989], [2025-07-05 17:37:41.988] : OnPullingTimer Tic
+[Trace] : [DateTime: 2025-07-05 17:37:41.989], [2025-07-05 17:37:41.989] : ScheduleCall Tic, Will execute last Call
+[Trace] : [DateTime: 2025-07-05 17:37:41.990], [2025-07-05 17:37:41.990] : Stopping
+[Trace] : [DateTime: 2025-07-05 17:37:41.990], [2025-07-05 17:37:41.990] : Exit OnPullingTimer
+[Trace] : [DateTime: 2025-07-05 17:37:42.149], New Schedule : 
+[Warn] : [DateTime: 2025-07-05 17:37:42.150], [2025-07-05 17:37:42.150] : Start request while no call planned!!!
+[Trace] : [DateTime: 2025-07-05 17:37:42.150], New Schedule : 
+[Warn] : [DateTime: 2025-07-05 17:37:42.151], [2025-07-05 17:37:42.151] : Start request while no call planned!!!
+[Trace] : [DateTime: 2025-07-05 17:37:42.151], New Schedule : 
+[Warn] : [DateTime: 2025-07-05 17:37:42.152], [2025-07-05 17:37:42.152] : Start request while no call planned!!!
+[Trace] : [DateTime: 2025-07-05 17:37:42.152], New Schedule : 
+[Warn] : [DateTime: 2025-07-05 17:37:42.152], [2025-07-05 17:37:42.152] : Start request while no call planned!!!
+[Trace] : [DateTime: 2025-07-05 17:37:42.153], New Schedule : 
+[Warn] : [DateTime: 2025-07-05 17:37:42.153], [2025-07-05 17:37:42.153] : Start request while no call planned!!!
