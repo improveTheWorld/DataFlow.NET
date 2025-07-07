@@ -25,7 +25,7 @@ DataFlow.NET is a revolutionary open-source framework that **unifies batch and s
 - **🔄 Unified Processing Model**: Identical APIs for `IEnumerable<T>` and `IAsyncEnumerable<T>`
 - **⚡ Stream-First Architecture**: Built on async enumeration with sync compatibility
 - **🎯 Intelligent Category Processing**: Sophisticated "Supra Category" pattern for selective data handling
-- **📊 Multi-Source Stream Merging**: `AsyncEnumerableMerger<T>` for combining real-time data sources
+- **📊 Multi-Source Stream Merging**: `DataFlow<T>` for combining real-time data sources
 - **🚀 Lazy Evaluation**: Process data streams efficiently with minimal memory footprint
 - **💡 Fluent API**: Chain operations using intuitive, readable syntax
 - **📁 Multi-format Support**: Handle CSV, text, JSON, YAML, and custom data formats seamlessly
@@ -77,9 +77,9 @@ var batchResults = await ProcessBusinessLogic(
 var streamResults = await ProcessBusinessLogic(liveDataStream);
 ```
 
-#### Stream Collection with AsyncEnumerableMerger
+#### Stream Collection with DataFlow
 
-The `AsyncEnumerableMerger<T>` serves as your **streaming data collector**, aggregating multiple real-time sources into a single processable stream:
+The `DataFlow<T>` serves as your **streaming data collector**, aggregating multiple real-time sources into a single processable stream:
 
 ```csharp
 // 1. Set up multiple data sources
@@ -87,8 +87,8 @@ var webServerLogs = new DataPublisher<LogEntry>();
 var databaseLogs = new DataPublisher<LogEntry>();  
 var authServiceLogs = new DataPublisher<LogEntry>();
 
-// 2. Merge streams with AsyncEnumerableMerger
-var unifiedLogStream = new AsyncEnumerableMerger<LogEntry>(
+// 2. Merge streams with DataFlow
+var unifiedLogStream = new DataFlow<LogEntry>(
     webServerLogs, databaseLogs, authServiceLogs
 );
 
@@ -161,19 +161,19 @@ public class RealTimeAnalyticsEngine
     public async Task ProcessMultiSourceAnalytics()
     {
         // Collect sensor data from IoT devices
-        var sensorStream = new AsyncEnumerableMerger<SensorReading>(
+        var sensorStream = new DataFlow<SensorReading>(
             condition: reading => reading.IsValid && reading.Timestamp > DateTime.Now.AddMinutes(-5),
             temperatureSensors, humiditySensors, pressureSensors, vibrationSensors
         );
         
         // Collect system events from multiple services
-        var systemEventStream = new AsyncEnumerableMerger<SystemEvent>(
+        var systemEventStream = new DataFlow<SystemEvent>(
             condition: evt => evt.Severity >= EventSeverity.Warning,
             webServerEvents, databaseEvents, cacheEvents, authEvents
         );
         
         // Collect user activity from all platforms
-        var userActivityStream = new AsyncEnumerableMerger<UserActivity>(
+        var userActivityStream = new DataFlow<UserActivity>(
             webUserActions, mobileUserActions, apiUserActions, adminActions
         );
 
@@ -261,7 +261,7 @@ The DataFlow.NET framework follows a **three-layer architecture** optimized for 
 
 ### Layer 3: DataFlow.Framework
 **Stream Processing Infrastructure Layer**
-- **AsyncEnumerableMerger<T>** for multi-source stream collection
+- **DataFlow<T>** for multi-source stream collection
 - **DataPublisher<T>** for real-time data distribution
 - Channel-based async communication
 - Regular expression utilities with stream support
@@ -309,7 +309,7 @@ var batchResults = Read.csv<LogEntry>("historical_logs.csv", ",")
     .WriteText("processed_batch.log");
 
 // STREAMING PROCESSING: Same logic, different source
-var liveLogStream = new AsyncEnumerableMerger<LogEntry>(
+var liveLogStream = new DataFlow<LogEntry>(
     webServerLogs, databaseLogs, authServiceLogs
 );
 
@@ -335,8 +335,8 @@ var inventoryStream = new DataPublisher<InventoryUpdate>();
 var customerStream = new DataPublisher<CustomerAction>();
 
 // Merge heterogeneous streams (different types require separate processing)
-var orderProcessor = new AsyncEnumerableMerger<Order>(orderStream);
-var inventoryProcessor = new AsyncEnumerableMerger<InventoryUpdate>(inventoryStream);
+var orderProcessor = new DataFlow<Order>(orderStream);
+var inventoryProcessor = new DataFlow<InventoryUpdate>(inventoryStream);
 
 // Process orders in real-time
 var orderTask = orderProcessor
@@ -583,7 +583,7 @@ var transactionAlerts = await liveTransactionStream
 
 ### DataFlow.Framework Layer
 
-#### AsyncEnumerableMerger<T> - Stream Collection Engine
+#### DataFlow<T> - Stream Collection Engine
 The **heart of DataFlow.NET's streaming capabilities**. Merges multiple `IAsyncEnumerable<T>` sources into a single processable stream.
 
 **Key Features:**
@@ -595,24 +595,24 @@ The **heart of DataFlow.NET's streaming capabilities**. Merges multiple `IAsyncE
 **Constructor Overloads:**
 ```csharp
 // Basic merger - combines all data from sources
-public AsyncEnumerableMerger(params IAsyncEnumerable<T>[] sources)
+public DataFlow(params IAsyncEnumerable<T>[] sources)
 
 // Conditional merger - only items matching condition are included
-public AsyncEnumerableMerger(Func<T, bool> condition, params IAsyncEnumerable<T>[] sources)
+public DataFlow(Func<T, bool> condition, params IAsyncEnumerable<T>[] sources)
 
 // Publisher-based merger - for real-time data sources
-public AsyncEnumerableMerger(params DataPublisher<T>[] publishers)
+public DataFlow(params DataPublisher<T>[] publishers)
 ```
 
 **Usage Examples:**
 ```csharp
 // Merge multiple log sources
-var logMerger = new AsyncEnumerableMerger<LogEntry>(
+var logMerger = new DataFlow<LogEntry>(
     webServerLogs, databaseLogs, authServiceLogs
 );
 
 // Merge with filtering for performance
-var criticalLogMerger = new AsyncEnumerableMerger<LogEntry>(
+var criticalLogMerger = new DataFlow<LogEntry>(
     condition: log => log.Level == LogLevel.Error || log.Level == LogLevel.Warning,
     webServerLogs, databaseLogs, authServiceLogs
 );
@@ -735,9 +735,9 @@ public class MultiSourceProcessor
     public async Task ProcessBusinessEvents()
     {
         // Create separate mergers for different event types
-        var orderStream = new AsyncEnumerableMerger<OrderEvent>(_orderPublisher);
-        var inventoryStream = new AsyncEnumerableMerger<InventoryEvent>(_inventoryPublisher);
-        var customerStream = new AsyncEnumerableMerger<CustomerEvent>(_customerPublisher);
+        var orderStream = new DataFlow<OrderEvent>(_orderPublisher);
+        var inventoryStream = new DataFlow<InventoryEvent>(_inventoryPublisher);
+        var customerStream = new DataFlow<CustomerEvent>(_customerPublisher);
         
         // Process each stream type with specialized logic
         var orderTask = ProcessOrderEvents(orderStream);
@@ -847,17 +847,17 @@ public class ConditionalStreamProcessor
     public async Task ProcessConditionalStreams()
     {
         // Create conditional mergers for different priority levels
-        var criticalEventsMerger = new AsyncEnumerableMerger<SystemEvent>(
+        var criticalEventsMerger = new DataFlow<SystemEvent>(
             condition: evt => evt.Severity == EventSeverity.Critical,
             webServerEvents, databaseEvents, authEvents, paymentEvents
         );
         
-        var warningEventsMerger = new AsyncEnumerableMerger<SystemEvent>(
+        var warningEventsMerger = new DataFlow<SystemEvent>(
             condition: evt => evt.Severity == EventSeverity.Warning,
             webServerEvents, databaseEvents, authEvents, paymentEvents
         );
         
-        var infoEventsMerger = new AsyncEnumerableMerger<SystemEvent>(
+        var infoEventsMerger = new DataFlow<SystemEvent>(
             condition: evt => evt.Severity == EventSeverity.Info,
             webServerEvents, databaseEvents, authEvents, paymentEvents
         );
@@ -1081,7 +1081,7 @@ public async Task ProcessFireAndForget()
     // Set up background processing
     _ = Task.Run(async () =>
     {
-        var merger = new AsyncEnumerableMerger<LogEntry>(publisher);
+        var merger = new DataFlow<LogEntry>(publisher);
         await merger
             .Cases(IsError, IsWarning)
             .SelectCase(ProcessError, ProcessWarning)
@@ -1134,13 +1134,13 @@ public async Task ProcessWithBackpressure()
 public class ResourceAwareProcessor : IAsyncDisposable
 {
     private readonly DataPublisher<SensorData> _publisher;
-    private readonly AsyncEnumerableMerger<SensorData> _merger;
+    private readonly DataFlow<SensorData> _merger;
     private readonly List<StreamWriter> _writers;
     
     public ResourceAwareProcessor()
     {
         _publisher = new DataPublisher<SensorData>();
-        _merger = new AsyncEnumerableMerger<SensorData>(_publisher);
+        _merger = new DataFlow<SensorData>(_publisher);
         _writers = new List<StreamWriter>();
     }
     
@@ -1328,7 +1328,7 @@ public async Task ProcessBusinessEvents(IAsyncEnumerable<BusinessEvent> events)
 #### 3. **Use Conditional Mergers for Performance**
 ```csharp
 // ✅ Good: Filter at merger level for better performance
-var criticalEventsMerger = new AsyncEnumerableMerger<SystemEvent>(
+var criticalEventsMerger = new DataFlow<SystemEvent>(
     condition: evt => evt.Severity >= EventSeverity.Warning,  // Pre-filter
     webServerEvents, databaseEvents, authEvents
 );
@@ -1399,7 +1399,7 @@ public class HighThroughputProcessor
 public static class DataSources
 {
     public static IAsyncEnumerable<Order> GetLiveOrders() => 
-        new AsyncEnumerableMerger<Order>(orderPublisher);
+        new DataFlow<Order>(orderPublisher);
     
     public static IAsyncEnumerable<Order> GetHistoricalOrders() => 
         Read.csvAsync<Order>("orders.csv");
@@ -1656,7 +1656,7 @@ await dataStream
 public async Task ProcessWithoutProperCleanup()
 {
     var publisher = new DataPublisher<Data>();
-    var merger = new AsyncEnumerableMerger<Data>(publisher);
+    var merger = new DataFlow<Data>(publisher);
     
     await merger.Cases(pred1, pred2).AllCases().WriteTextAsync("output.txt");
     // Resources not disposed - potential memory leaks
@@ -1666,7 +1666,7 @@ public async Task ProcessWithoutProperCleanup()
 public async Task ProcessWithProperCleanup()
 {
     using var publisher = new DataPublisher<Data>();
-    using var merger = new AsyncEnumerableMerger<Data>(publisher);
+    using var merger = new DataFlow<Data>(publisher);
     
     await merger
         .Cases(pred1, pred2)
@@ -1846,10 +1846,10 @@ public async Task ProcessWithMonitoring()
 ```csharp
 public class StreamProcessorHealthCheck : IHealthCheck
 {
-    private readonly AsyncEnumerableMerger<HealthData> _merger;
+    private readonly DataFlow<HealthData> _merger;
     private readonly DataPublisher<HealthData> _publisher;
     
-    public StreamProcessorHealthCheck(AsyncEnumerableMerger<HealthData> merger, DataPublisher<HealthData> publisher)
+    public StreamProcessorHealthCheck(DataFlow<HealthData> merger, DataPublisher<HealthData> publisher)
     {
         _merger = merger;
         _publisher = publisher;
@@ -1928,7 +1928,7 @@ public async Task TestStreamProcessingIntegration()
 {
     // Arrange
     var mockPublisher = new DataPublisher<LogEntry>();
-    var merger = new AsyncEnumerableMerger<LogEntry>(mockPublisher);
+    var merger = new DataFlow<LogEntry>(mockPublisher);
     var processedLogs = new List<string>();
     
     // Set up processing pipeline
@@ -2019,7 +2019,7 @@ DataFlow.NET represents a **paradigm shift** in .NET data processing by unifying
 1. **🔄 Unified Processing**: Write identical code for batch files and real-time streams
 2. **⚡ Stream-First Architecture**: Built on `IAsyncEnumerable<T>` with sync compatibility
 3. **🎯 Intelligent Categorization**: Supra Category Pattern for robust, future-proof processing
-4. **📊 Multi-Source Merging**: `AsyncEnumerableMerger<T>` for real-time data collection
+4. **📊 Multi-Source Merging**: `DataFlow<T>` for real-time data collection
 5. **🚀 Performance Optimized**: Lazy evaluation and memory-efficient streaming
 6. **💡 Developer-Friendly**: Intuitive fluent API with comprehensive tooling
 
