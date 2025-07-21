@@ -175,9 +175,9 @@ while (sensorActive)
 }
 ```
 
-### AsyncEnumerableMerger<T>
+### DataFlow<T>
 
-The `AsyncEnumerableMerger<T>` class provides asynchronous enumeration capabilities for data streams, enabling efficient processing of data from multiple sources.
+The `DataFlow<T>` class provides asynchronous enumeration capabilities for data streams, enabling efficient processing of data from multiple sources.
 
 #### Key Features
 - Multiple data source subscription
@@ -188,13 +188,13 @@ The `AsyncEnumerableMerger<T>` class provides asynchronous enumeration capabilit
 
 #### Constructors
 
-##### `AsyncEnumerableMerger(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)`
+##### `DataFlow(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)`
 Creates an async enumerable from a single data source.
 
-##### `AsyncEnumerableMerger(Func<T, bool>? condition = null, ChannelOptions? options = null, params IDataSource<T>[] dataSources)`
+##### `DataFlow(Func<T, bool>? condition = null, ChannelOptions? options = null, params IDataSource<T>[] dataSources)`
 Creates an async enumerable from multiple data sources.
 
-##### `AsyncEnumerableMerger(AsyncEnumerableMerger<T> source, Func<T, bool>? condition = null, ChannelOptions? options = null)`
+##### `DataFlow(DataFlow<T> source, Func<T, bool>? condition = null, ChannelOptions? options = null)`
 Creates an async enumerable by copying subscriptions from another instance.
 
 #### Methods
@@ -204,7 +204,7 @@ Adds a subscription to a data source.
 
 **Example:**
 ```csharp
-var asyncEnum = new AsyncEnumerableMerger<LogEntry>();
+var asyncEnum = new DataFlow<LogEntry>();
 
 asyncEnum
     .ListenTo(fileLogSource, log => log.Level >= LogLevel.Warning)
@@ -223,7 +223,7 @@ Gets the async enumerator for iteration.
 ##### Basic Async Processing
 ```csharp
 var publisher = new DataPublisher<string>();
-var asyncEnum = new AsyncEnumerableMerger<string>(publisher);
+var asyncEnum = new DataFlow<string>(publisher);
 
 // Start publishing data in background
 _ = Task.Run(async () =>
@@ -251,7 +251,7 @@ var filePublisher = new DataPublisher<LogEntry>();
 var networkPublisher = new DataPublisher<LogEntry>();
 var databasePublisher = new DataPublisher<LogEntry>();
 
-var combinedLogs = new AsyncEnumerableMerger<LogEntry>(
+var combinedLogs = new DataFlow<LogEntry>(
     condition: log => log.Level >= LogLevel.Warning,
     dataSources: filePublisher, networkPublisher, databasePublisher);
 
@@ -539,7 +539,7 @@ var filePublisher = new DataPublisher<LogEntry>();
 var networkPublisher = new DataPublisher<LogEntry>();
 
 // Create async enumerable that combines both sources
-var combinedLogs = new AsyncEnumerableMerger<LogEntry>(
+var combinedLogs = new DataFlow<LogEntry>(
     condition: log => log.Level >= LogLevel.Warning,
     dataSources: filePublisher, networkPublisher);
 
@@ -680,7 +680,7 @@ public class DataPipeline
     private void SetupPipeline()
     {
         // Stage 1: Raw data processing
-        var rawDataStream = new AsyncEnumerableMerger<RawData>(_inputPublisher);
+        var rawDataStream = new DataFlow<RawData>(_inputPublisher);
         _ = Task.Run(async () =>
         {
             await foreach (var rawData in rawDataStream)
@@ -691,7 +691,7 @@ public class DataPipeline
         });
         
         // Stage 2: Data enrichment
-        var processedDataStream = new AsyncEnumerableMerger<ProcessedData>(_processedPublisher);
+        var processedDataStream = new DataFlow<ProcessedData>(_processedPublisher);
         _ = Task.Run(async () =>
         {
             await foreach (var processedData in processedDataStream)
@@ -702,7 +702,7 @@ public class DataPipeline
         });
         
         // Stage 3: Final output
-        var enrichedDataStream = new AsyncEnumerableMerger<EnrichedData>(_enrichedPublisher);
+        var enrichedDataStream = new DataFlow<EnrichedData>(_enrichedPublisher);
         _ = Task.Run(async () =>
         {
             await foreach (var enrichedData in enrichedDataStream)
@@ -793,7 +793,7 @@ public class SystemMonitor
     private void SetupMonitoring()
     {
         // Process metrics and generate alerts
-        var metricsStream = new AsyncEnumerableMerger<SystemMetric>(_metricsPublisher);
+        var metricsStream = new DataFlow<SystemMetric>(_metricsPublisher);
         _ = Task.Run(async () =>
         {
             await foreach (var metric in metricsStream)
@@ -807,7 +807,7 @@ public class SystemMonitor
         });
         
         // Handle alerts
-        var alertsStream = new AsyncEnumerableMerger<Alert>(_alertPublisher);
+        var alertsStream = new DataFlow<Alert>(_alertPublisher);
         _ = Task.Run(async () =>
         {
             await foreach (var alert in alertsStream)
@@ -851,7 +851,7 @@ public class SystemMonitor
 
 ### Memory Management
 - **Channel Cleanup**: `DataPublisher<T>` automatically completes channels on disposal
-- **Async Enumeration**: `AsyncEnumerableMerger<T>` properly disposes resources
+- **Async Enumeration**: `DataFlow<T>` properly disposes resources
 - **Guard Validation**: Minimal overhead with compile-time optimizations
 - **Regex Compilation**: `Regxs` uses compiled regex for better performance
 
@@ -862,7 +862,7 @@ public class SystemMonitor
 - **Cancellation Support**: Proper cancellation token handling throughout
 
 ### Best Practices
-1. **Dispose Resources**: Always dispose `DataPublisher<T>` and `AsyncEnumerableMerger<T>`
+1. **Dispose Resources**: Always dispose `DataPublisher<T>` and `DataFlow<T>`
 2. **Use Guards Early**: Apply validation at method entry points
 3. **Compile Regex**: Use compiled regex for frequently used patterns
 4. **Batch Operations**: Group related operations to reduce overhead

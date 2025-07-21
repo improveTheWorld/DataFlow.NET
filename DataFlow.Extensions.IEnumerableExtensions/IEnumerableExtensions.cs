@@ -199,12 +199,12 @@ namespace DataFlow.Extensions
             return items.BuildString(new StringBuilder(), separator, before, after);
         }
 
-        public static T? Sum<T>(this IEnumerable<T> items)  
-        {
-            T? sum = default;
-            items.ForEach(item => sum += (dynamic)item).Do();
-            return sum;
-        }
+        //public static T? Sum<T>(this IEnumerable<T> items)  
+        //{
+        //    T? sum = default;
+        //    items.ForEach(item => sum += (dynamic)item).Do();
+        //    return sum;
+        //}
 
         public static bool IsNullOrEmpty<T>(this IEnumerable<T> sequence)
         {
@@ -351,7 +351,7 @@ namespace DataFlow.Extensions
         public static IEnumerable<T> UnCase<T,Y>(this IEnumerable<(int category, T item, Y newItem)> items)
         => items.Select(x => x.item);
 
-        public static IEnumerable<R> AllCases<T, R>(this IEnumerable<(int category, T item, R newItem)> items, bool filter = true) where T : class
+        public static IEnumerable<R> AllCases<T, R>(this IEnumerable<(int category, T item, R newItem)> items, bool filter = true)
         => filter ? items.Select(x => x.newItem).Where(x => x is not null && !x.Equals(default)) : items.Select(x => x.newItem);
 
         public static IEnumerable<string> ToLines(this IEnumerable< string > slices, string separator)
@@ -388,12 +388,128 @@ namespace DataFlow.Extensions
     }
 
 
-
-
     //---------------------------------------------------IEnumerable<IEnumerable<T>>
 
+    public static class EnumeratorExtensions
+    {
+        /// <summary>
+        /// Advances the enumerator to the next element in the sequence,
+        /// providing the result in an out parameter.
+        /// </summary>
+        /// <typeparam name="T">The type of the elements.</typeparam>
+        /// <param name="enumerator">The enumerator to advance.</param>
+        /// <param name="value">When this method returns, contains the element at the new
+        /// position, or default(T) if the end of the sequence was reached.</param>
+        /// <returns>
+        /// true if the enumerator was successfully advanced to the next element;
+        /// false if the enumerator has passed the end of the sequence.
+        /// </returns>
+        public static bool TryGetNext<T>(this IEnumerator<T> enumerator, out T? value)
+        {
+            if (enumerator.MoveNext())
+            {
+                value = enumerator.Current;
+                return true;
+            }
+
+            value = default(T);
+            return false;
+        }
+        public static T? GetNext<T>(this IEnumerator<T> enumerator)
+        {
+            if (enumerator.MoveNext())
+            {
+                return enumerator.Current;
+
+            }
+            else
+
+               return default(T);
+        }
+    }
+
+    public static class Enumerable_dataSourceExtensions
+    {
+        /// <summary>
+        /// Wraps a synchronous IEnumerable<T> in a cooperative IAsyncEnumerable<T>.
+        /// It processes items in batches, yielding control periodically to prevent
+        /// blocking the thread for extended periods.
+        /// </summary>
+        /// <param name="source">The source synchronous enumerable.</param>
+        /// <param name="yieldThresholdMs">
+        /// The time slice in milliseconds. After this much time has elapsed in a 
+        /// synchronous batch, the method will yield control. Defaults to 15ms, which
+        /// is ideal for maintaining UI responsiveness (under a 60fps frame budget).
+        /// Set to long.MaxValue to effectively disable yielding and maximize throughput.
+        /// </param>
+        public static async IAsyncEnumerable<T> Async<T>(
+            this IEnumerable<T> source,
+            long yieldThresholdMs = 15) // Parameter with default value
+        {
+            // A threshold of 0 or less would yield on every item, which is inefficient.
+            // We can treat it as a request to be highly responsive.
+            if (yieldThresholdMs <= 0) yieldThresholdMs = 1;
+
+            var stopwatch = Stopwatch.StartNew();
+
+            foreach (var item in source)
+            {
+                yield return item;
+
+                if (stopwatch.ElapsedMilliseconds > yieldThresholdMs)
+                {
+                    await Task.Yield();
+                    stopwatch.Restart();
+                }
+            }
+        }
 
 
+        /// <summary>
+        /// Throttles a synchronous sequence, converting it to an asynchronous one that emits items at a specified interval.
+        /// </summary>
+        /// <returns>An IAsyncEnumerable that yields items from the source sequence with a delay between each item.</returns>
+        public static async IAsyncEnumerable<T> Throttle<T>(
+            this IEnumerable<T> source,
+            TimeSpan interval,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var item in source)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return item;
+                try
+                {
+                    await Task.Delay(interval, cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
+                }
+            }
+        }
+
+        public static async IAsyncEnumerable<T> Throttle<T>(
+            this IEnumerable<T> source,
+            double intervalInMS,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var interval = TimeSpan.FromMilliseconds(intervalInMS);
+            foreach (var item in source)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return item;
+                try
+                {
+                    await Task.Delay(interval, cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
+                }
+            }
+        }
+    }
     static public class IEnumerableIEnumerable_Cases_Extensions    
     {
         //------------------------------------------------------ Cases

@@ -522,14 +522,14 @@ public void Dispose()
 - `IDataSource<T>`
 - `IDisposable`
 
-### AsyncEnumerableMerger<T> Class
+### DataFlow<T> Class
 
 Provides asynchronous enumeration capabilities for data streams.
 
 #### Constructors
 
 ```csharp
-public AsyncEnumerableMerger(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
+public DataFlow(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
 ```
 **Description:** Creates an async enumerable from a single data source  
 **Parameters:**
@@ -538,7 +538,7 @@ public AsyncEnumerableMerger(IDataSource<T> dataSource, Func<T, bool>? condition
 - `options`: Channel options for buffering  
 
 ```csharp
-public AsyncEnumerableMerger(Func<T, bool>? condition = null, ChannelOptions? options = null, params IDataSource<T>[] dataSource)
+public DataFlow(Func<T, bool>? condition = null, ChannelOptions? options = null, params IDataSource<T>[] dataSource)
 ```
 **Description:** Creates an async enumerable from multiple data sources  
 **Parameters:**
@@ -547,33 +547,33 @@ public AsyncEnumerableMerger(Func<T, bool>? condition = null, ChannelOptions? op
 - `dataSource`: Array of data sources to subscribe to  
 
 ```csharp
-public AsyncEnumerableMerger(AsyncEnumerableMerger<T> Source, Func<T, bool>? condition = null, ChannelOptions? options = null)
+public DataFlow(DataFlow<T> Source, Func<T, bool>? condition = null, ChannelOptions? options = null)
 ```
 **Description:** Creates an async enumerable by copying subscriptions from another instance  
 **Parameters:**
-- `Source`: Source AsyncEnumerableMerger to copy from
+- `Source`: Source DataFlow to copy from
 - `condition`: Optional filter condition
 - `options`: Channel options for buffering  
 
 #### Methods
 
 ```csharp
-public AsyncEnumerableMerger<T> ListenTo(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
+public DataFlow<T> ListenTo(IDataSource<T> dataSource, Func<T, bool>? condition = null, ChannelOptions? options = null)
 ```
 **Description:** Adds a subscription to a data source  
 **Parameters:**
 - `dataSource`: Data source to subscribe to
 - `condition`: Optional filter condition
 - `options`: Channel options  
-**Returns:** `AsyncEnumerableMerger<T>` - Self for method chaining  
+**Returns:** `DataFlow<T>` - Self for method chaining  
 
 ```csharp
-public AsyncEnumerableMerger<T> Unlisten(IDataSource<T> dataSource)
+public DataFlow<T> Unlisten(IDataSource<T> dataSource)
 ```
 **Description:** Removes subscription from a data source  
 **Parameters:**
 - `dataSource`: Data source to unsubscribe from  
-**Returns:** `AsyncEnumerableMerger<T>` - Self for method chaining  
+**Returns:** `DataFlow<T>` - Self for method chaining  
 
 ```csharp
 public IAsyncEnumerator<T> GetAsyncEnumerator()

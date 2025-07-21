@@ -111,18 +111,16 @@ public class ParallelQueriesPlaygroundExamples
         // ✅ PATH 3: ASYNC SEQUENTIAL PROCESSING (IAsyncEnumerable)
         Console.WriteLine("🌊 Path 3: Async Sequential Processing (IAsyncEnumerable)...");
         var asyncSequentialStopwatch = Stopwatch.StartNew();
-
-        var webServerLogs = new TestDataSource<LogEntry>("WebServer");
-        var databaseLogs = new TestDataSource<LogEntry>("Database");
-        var cacheLogsSource = new TestDataSource<LogEntry>("Cache");
+      
+        var webServerLogs = webLogs.Throttle(1).ToDataSource();
+        var databaseLogs = dbLogs.Throttle(1).ToDataSource();
+        var cacheLogsSource = cacheLogs.Throttle(1).ToDataSource();
 
         var merger = new DataFlow<LogEntry>(null, null,
             webServerLogs, databaseLogs, cacheLogsSource
         );
 
-        await webServerLogs.StartStreamingAsync(webLogs, TimeSpan.FromMilliseconds(1));
-        await databaseLogs.StartStreamingAsync(dbLogs, TimeSpan.FromMilliseconds(1));
-        await cacheLogsSource.StartStreamingAsync(cacheLogs, TimeSpan.FromMilliseconds(1));
+      
 
         var asyncSequentialResults = await merger
             .Cases(
@@ -147,7 +145,7 @@ public class ParallelQueriesPlaygroundExamples
         var asyncParallelStopwatch = Stopwatch.StartNew();
 
         var asyncParallelResults = await allLogs
-            .ToAsyncEnumerable()
+            .Async()
             .AsParallel()
             .WithMaxConcurrency(Environment.ProcessorCount)
             .Where(log => !string.IsNullOrEmpty(log.Level))
@@ -160,7 +158,7 @@ public class ParallelQueriesPlaygroundExamples
                 "INFO" => $"ℹ️ INFO: [{x.Source}] {x.Message}",
                 _ => $"❓ UNKNOWN: [{x.Source}] {x.Message}"
             })
-            .ToListAsync();
+            .ToList();
 
         asyncParallelResults = asyncParallelResults.OrderBy(x => x).ToList();
         asyncParallelStopwatch.Stop();
@@ -174,9 +172,6 @@ public class ParallelQueriesPlaygroundExamples
             ("Async Parallel", asyncParallelResults, asyncParallelStopwatch.ElapsedMilliseconds));
 
         // Cleanup
-        webServerLogs.Stop();
-        databaseLogs.Stop();
-        cacheLogsSource.Stop();
         merger.Dispose();
     }
 
@@ -242,17 +237,15 @@ public class ParallelQueriesPlaygroundExamples
         Console.WriteLine("🌊 Path 3: Async Sequential Processing...");
         var asyncSequentialStopwatch = Stopwatch.StartNew();
 
-        var cpuSource = new TestDataSource<MetricEntry>("CPU-Monitor");
-        var memorySource = new TestDataSource<MetricEntry>("Memory-Monitor");
-        var networkSource = new TestDataSource<MetricEntry>("Network-Monitor");
+        var cpuSource = cpuMetrics.Throttle(1).ToDataSource();
+        var memorySource = memoryMetrics.Throttle(1).ToDataSource();    
+        var networkSource = networkMetrics.Throttle(1).ToDataSource();
 
         var merger = new DataFlow<MetricEntry>(null, null,
             cpuSource, memorySource, networkSource
         );
 
-        await cpuSource.StartStreamingAsync(cpuMetrics, TimeSpan.FromMilliseconds(1));
-        await memorySource.StartStreamingAsync(memoryMetrics, TimeSpan.FromMilliseconds(1));
-        await networkSource.StartStreamingAsync(networkMetrics, TimeSpan.FromMilliseconds(1));
+       
 
         var asyncSequentialResults = await merger
             .Cases(
@@ -277,7 +270,7 @@ public class ParallelQueriesPlaygroundExamples
         var asyncParallelStopwatch = Stopwatch.StartNew();
 
         var asyncParallelResults = await allMetrics
-            .ToAsyncEnumerable()
+            .Async()
             .AsParallel()
             .WithMaxConcurrency(Environment.ProcessorCount)
             .Where(metric =>
@@ -294,7 +287,7 @@ public class ParallelQueriesPlaygroundExamples
                     $"🌐 HIGH LATENCY ALERT: {metric.Value:F1}ms on {metric.Tags.GetValueOrDefault("host", "unknown")}",
                 _ => $"❓ UNKNOWN ALERT: {metric.Name}={metric.Value:F1}"
             })
-            .ToListAsync();
+            .ToList();
 
         asyncParallelResults = asyncParallelResults.OrderBy(x => x).ToList();
         asyncParallelStopwatch.Stop();
@@ -308,9 +301,6 @@ public class ParallelQueriesPlaygroundExamples
             ("Async Parallel", asyncParallelResults, asyncParallelStopwatch.ElapsedMilliseconds));
 
         // Cleanup
-        cpuSource.Stop();
-        memorySource.Stop();
-        networkSource.Stop();
         merger.Dispose();
     }
 
@@ -366,9 +356,9 @@ public class ParallelQueriesPlaygroundExamples
 
         // PATH 3: Async Sequential Orders
         var orderAsyncSequentialStopwatch = Stopwatch.StartNew();
-        var orderSource = new TestDataSource<OrderEvent>("Order-System");
+        var orderSource = orders.Throttle(1).ToDataSource();
         var orderMerger = new DataFlow<OrderEvent>(orderSource);
-        await orderSource.StartStreamingAsync(orders, TimeSpan.FromMilliseconds(1));
+        
 
         var orderAsyncSequentialResults = await orderMerger
             .Cases(
@@ -389,7 +379,7 @@ public class ParallelQueriesPlaygroundExamples
         // PATH 4: Async Parallel Orders
         var orderAsyncParallelStopwatch = Stopwatch.StartNew();
         var orderAsyncParallelResults = await orders
-            .ToAsyncEnumerable()
+            .Async()
             .AsParallel()
             .WithMaxConcurrency(Environment.ProcessorCount)
             .Select(order => order.EventType switch
@@ -400,7 +390,7 @@ public class ParallelQueriesPlaygroundExamples
                 _ => $"✅ STANDARD ORDER: {order.OrderId} - ${order.Amount:F2}"
             })
             .Where(result => !result.StartsWith("✅")) // Filter out standard orders to match other paths
-            .ToListAsync();
+            .ToList();
         orderAsyncParallelResults = orderAsyncParallelResults.OrderBy(x => x).ToList();
         orderAsyncParallelStopwatch.Stop();
 
@@ -451,9 +441,8 @@ public class ParallelQueriesPlaygroundExamples
 
         // PATH 3: Async Sequential Sensors
         var sensorAsyncSequentialStopwatch = Stopwatch.StartNew();
-        var sensorSource = new TestDataSource<SensorReading>("IoT-Sensors");
+        var sensorSource = sensors.Throttle(1).ToDataSource();
         var sensorMerger = new DataFlow<SensorReading>(sensorSource);
-        await sensorSource.StartStreamingAsync(sensors, TimeSpan.FromMilliseconds(1));
 
         var sensorAsyncSequentialResults = await sensorMerger
             .Cases(
@@ -474,7 +463,7 @@ public class ParallelQueriesPlaygroundExamples
         // PATH 4: Async Parallel Sensors
         var sensorAsyncParallelStopwatch = Stopwatch.StartNew();
         var sensorAsyncParallelResults = await sensors
-            .ToAsyncEnumerable()
+            .Async()
             .AsParallel()
             .WithMaxConcurrency(Environment.ProcessorCount)
             .Where(sensor =>
@@ -491,7 +480,7 @@ public class ParallelQueriesPlaygroundExamples
                     $"🌪️ ABNORMAL PRESSURE: {sensor.Value:F1}hPa (Sensor: {sensor.SensorId})",
                 _ => $"❓ UNKNOWN SENSOR: {sensor.Type}={sensor.Value:F1}"
             })
-            .ToListAsync();
+            .ToList();
         sensorAsyncParallelResults = sensorAsyncParallelResults.OrderBy(x => x).ToList();
         sensorAsyncParallelStopwatch.Stop();
 
@@ -514,8 +503,6 @@ public class ParallelQueriesPlaygroundExamples
             ("Async Parallel", sensorAsyncParallelResults, sensorAsyncParallelStopwatch.ElapsedMilliseconds));
 
         // Cleanup
-        orderSource.Stop();
-        sensorSource.Stop();
         orderMerger.Dispose();
         sensorMerger.Dispose();
     }
@@ -633,13 +620,13 @@ public class ParallelQueriesPlaygroundExamples
         Console.WriteLine("Demonstrating async parallel processing for metrics:");
 
         var results = await metrics
-            .ToAsyncEnumerable()
+            .Async()
             .AsParallel()
             .WithMaxConcurrency(4)
             .Where(m => m.Value > 50)
             .Select(m => $"📊 {m.Name}: {m.Value:F1}")
             .Take(10)
-            .ToListAsync();
+            .ToList();
 
         Console.WriteLine("🚀 Async Parallel Results:");
         results.ForEach(Console.WriteLine);
@@ -657,23 +644,23 @@ public class ParallelQueriesPlaygroundExamples
 
         // Compare sequential vs parallel async
         var sequentialTask = orders
-            .ToAsyncEnumerable()
+            .Async()
             .Cases(o => o.Amount > 1000, o => o.EventType == "cancelled")
             .SelectCase(
                 highValue => $"💎 High Value: ${highValue.Amount:F2}",
                 cancelled => $"❌ Cancelled: {cancelled.OrderId}",
                 standard => $"✅ Standard: {standard.OrderId}")
             .AllCases()
-            .ToListAsync();
+            .ToList();
 
         var parallelTask = orders
-            .ToAsyncEnumerable()
+            .Async()
             .AsParallel()
             .WithMaxConcurrency(Environment.ProcessorCount)
             .Select(o => o.Amount > 1000 ? $"💎 High Value: ${o.Amount:F2}" :
                         o.EventType == "cancelled" ? $"❌ Cancelled: {o.OrderId}" :
                         $"✅ Standard: {o.OrderId}")
-            .ToListAsync();
+            .ToList();
 
         var sequentialResults = await sequentialTask;
         var parallelResults = await parallelTask;

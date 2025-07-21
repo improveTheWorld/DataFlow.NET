@@ -77,18 +77,14 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("🌊 Processing logs as STREAM...");
         var streamStopwatch = Stopwatch.StartNew();
 
-        var webServerLogs = new TestDataSource<LogEntry>("WebServer");
-        var databaseLogs = new TestDataSource<LogEntry>("Database");
-        var cacheLogsSource = new TestDataSource<LogEntry>("Cache");
+        var webServerLogs = webLogs.Throttle(1).ToDataSource();
+        var databaseLogs = dbLogs.Throttle(1).ToDataSource();
+        var cacheLogsSource = cacheLogs.Throttle(1).ToDataSource();
 
         var merger = new DataFlow<LogEntry>(null, null,
             webServerLogs, databaseLogs, cacheLogsSource
         );
 
-        // Start streaming
-        await webServerLogs.StartStreamingAsync(webLogs, TimeSpan.FromMilliseconds(1));
-        await databaseLogs.StartStreamingAsync(dbLogs, TimeSpan.FromMilliseconds(1));
-        await cacheLogsSource.StartStreamingAsync(cacheLogs, TimeSpan.FromMilliseconds(1));
 
 
 
@@ -119,9 +115,6 @@ public class StreamVSBArchPlaygroundExamples
         CompareResults("LOG PROCESSING", batchResults, streamResults, batchStopwatch.ElapsedMilliseconds, streamStopwatch.ElapsedMilliseconds);
 
         // Cleanup
-        webServerLogs.Stop();
-        databaseLogs.Stop();
-        cacheLogsSource.Stop();
         merger.Dispose();
     }
 
@@ -164,17 +157,15 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("🌊 Processing metrics as STREAM...");
         var streamStopwatch = Stopwatch.StartNew();
 
-        var cpuSource = new TestDataSource<MetricEntry>("CPU-Monitor");
-        var memorySource = new TestDataSource<MetricEntry>("Memory-Monitor");
-        var networkSource = new TestDataSource<MetricEntry>("Network-Monitor");
+        var cpuSource = cpuMetrics.Throttle(1).ToDataSource();
+        var memorySource = memoryMetrics.Throttle(1).ToDataSource();
+        var networkSource = networkMetrics.Throttle(1).ToDataSource();
 
         var merger = new DataFlow<MetricEntry>(null, null,
             cpuSource, memorySource, networkSource
         );
 
-        await cpuSource.StartStreamingAsync(cpuMetrics, TimeSpan.FromMilliseconds(1));
-        await memorySource.StartStreamingAsync(memoryMetrics, TimeSpan.FromMilliseconds(1));
-        await networkSource.StartStreamingAsync(networkMetrics, TimeSpan.FromMilliseconds(1));
+       
 
         var streamResults = 
         await merger
@@ -201,9 +192,6 @@ public class StreamVSBArchPlaygroundExamples
         CompareResults("METRICS MONITORING", batchResults, streamResults, batchStopwatch.ElapsedMilliseconds, streamStopwatch.ElapsedMilliseconds);
 
         // Cleanup
-        cpuSource.Stop();
-        memorySource.Stop();
-        networkSource.Stop();
         merger.Dispose();
     }
 
@@ -266,14 +254,11 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("🌊 Processing mixed data as STREAM...");
         var streamStopwatch = Stopwatch.StartNew();
 
-        var orderSource = new TestDataSource<OrderEvent>("Order-System");
-        var sensorSource = new TestDataSource<SensorReading>("IoT-Sensors");
+        var orderSource = orders.Throttle(1).ToDataSource();
+        var sensorSource = sensors.Throttle(1).ToDataSource();
 
         var orderMerger = new DataFlow<OrderEvent>(orderSource);
         var sensorMerger = new DataFlow<SensorReading>(sensorSource);
-
-        await orderSource.StartStreamingAsync(orders, TimeSpan.FromMilliseconds(1));
-        await sensorSource.StartStreamingAsync(sensors, TimeSpan.FromMilliseconds(1));
 
         var orderStreamResults = new List<string>();
         var sensorStreamResults = new List<string>();
@@ -325,8 +310,6 @@ public class StreamVSBArchPlaygroundExamples
             sensorBatchStopwatch.ElapsedMilliseconds, streamStopwatch.ElapsedMilliseconds);
 
         // Cleanup
-        orderSource.Stop();
-        sensorSource.Stop();
         orderMerger.Dispose();
         sensorMerger.Dispose();
     }

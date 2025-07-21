@@ -7,7 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DataFlow.Extensions.IEnumerableExtensions\DataFlow.Extensions.IEnumerableExtensions.csproj" />
     <ProjectReference Include="..\DataFlow.Logger\DataFlow.Logger.csproj" />
   </ItemGroup>
 

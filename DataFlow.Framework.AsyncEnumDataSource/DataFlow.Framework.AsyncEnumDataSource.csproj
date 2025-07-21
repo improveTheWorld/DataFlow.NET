@@ -6,8 +6,4 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="ParallelAsyncQuery - Copie.cs" />
-  </ItemGroup>
-
 </Project>

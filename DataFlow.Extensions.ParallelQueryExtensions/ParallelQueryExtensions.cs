@@ -14,8 +14,8 @@ namespace DataFlow.Extensions.ParallelQueryExtensions
         public static IEnumerable<T> MergeOrdered<T>(this ParallelQuery<T> first, ParallelQuery<T> second, Func<T, T, bool> isFirstLessThanOrEqualToSecond)
         {
             // Convert to sequential for merging since this operation is inherently sequential
-            using var enum1 = first?.AsSequential().GetEnumerator();
-            using var enum2 = second?.AsSequential().GetEnumerator();
+            using var enum1 = first?.GetEnumerator();
+            using var enum2 = second?.GetEnumerator();
 
             bool hasNext1 = enum1?.MoveNext() ?? false;
             bool hasNext2 = enum2?.MoveNext() ?? false;
@@ -44,53 +44,8 @@ namespace DataFlow.Extensions.ParallelQueryExtensions
         public static ParallelQuery<T> Take<T>(this ParallelQuery<T> sequence, int start, int count)
             => sequence.Skip(start).Take(count);
 
-        /// <summary>
-        /// Takes elements until a condition is met. Note: This breaks parallelism.
-        /// </summary>
-        public static IEnumerable<T> Until<T>(this ParallelQuery<T> items, Func<bool> stopCondition)
-        {
-            if (stopCondition == null)
-                throw new ArgumentNullException(nameof(stopCondition));
 
-            foreach (var item in items.AsSequential())
-            {
-                if (stopCondition())
-                    break;
-                yield return item;
-            }
-        }
-
-        public static IEnumerable<T> Until<T>(this ParallelQuery<T> items, Func<T, bool> stopCondition)
-        {
-            if (stopCondition == null)
-                throw new ArgumentNullException(nameof(stopCondition));
-
-            foreach (var item in items.AsSequential())
-            {
-                if (stopCondition(item))
-                    break;
-                yield return item;
-            }
-        }
-
-        public static IEnumerable<T> Until<T>(this ParallelQuery<T> items, Func<T, int, bool> stopCondition)
-        {
-            if (stopCondition == null)
-                throw new ArgumentNullException(nameof(stopCondition));
-
-            int index = 0;
-            foreach (var item in items.AsSequential())
-            {
-                if (stopCondition(item, index++))
-                    break;
-                yield return item;
-            }
-        }
-
-        public static IEnumerable<T> Until<T>(this ParallelQuery<T> items, int lastItemIdx)
-        {
-            return items.AsSequential().Take(lastItemIdx + 1);
-        }
+      
 
         // Fixed ForEach methods - these maintain parallelism
         public static ParallelQuery<T> ForEach<T>(this ParallelQuery<T> items, Action<T, int> action)
@@ -114,37 +69,15 @@ namespace DataFlow.Extensions.ParallelQueryExtensions
         // Fixed Do methods
         public static void Do<T>(this ParallelQuery<T> items, Action action)
         {
-            items.ForAll(_ => action());
+            items.ForEach(_ => action());
         }
 
         public static void Do<T>(this ParallelQuery<T> items)
         {
-            items.ForAll(_ => { });
+            items.ForEach(_ => { });
         }
 
-        // Fixed Cumul - this is inherently sequential
-        public static T? Cumul<T>(this ParallelQuery<T> sequence, Func<T?, T, T> cumulate)
-        {
-            var sequentialItems = sequence.AsSequential();
-            if (!sequentialItems.Any()) return default;
-
-            T? cumul = sequentialItems.First();
-            foreach (var item in sequentialItems.Skip(1))
-            {
-                cumul = cumulate(cumul, item);
-            }
-            return cumul;
-        }
-
-        public static TResult? Cumul<T, TResult>(this ParallelQuery<T> sequence, Func<TResult?, T, TResult> cumulate, TResult? initial)
-        {
-            TResult? cumul = initial;
-            foreach (var item in sequence.AsSequential())
-            {
-                cumul = cumulate(cumul, item);
-            }
-            return cumul;
-        }
+       
 
         // Fixed BuildString - this is inherently sequential due to StringBuilder
         public static StringBuilder BuildString(this ParallelQuery<string> items, StringBuilder? str = null, string separator = ", ", string before = "{", string after = "}")
@@ -246,23 +179,7 @@ namespace DataFlow.Extensions.ParallelQueryExtensions
             => filter ? items.Select(x => x.newItem).Where(x => x != null && !x.Equals(default(R)))
                      : items.Select(x => x.newItem);
 
-        // ToLines - inherently sequential
-        public static IEnumerable<string> ToLines(this ParallelQuery<string> slices, string separator)
-        {
-            var sum = new StringBuilder();
-            foreach (var slice in slices.AsSequential())
-            {
-                if (slice != separator)
-                    sum.Append(slice);
-                else
-                {
-                    yield return sum.ToString();
-                    sum.Clear();
-                }
-            }
-            if (sum.Length > 0)
-                yield return sum.ToString();
-        }
+       
     }
 
     public static class Spy_ParallelQueryExtension
@@ -291,7 +208,7 @@ namespace DataFlow.Extensions.ParallelQueryExtensions
             var results = new ConcurrentBag<(int index, T item, string display)>();
             var itemsWithIndex = items.Select((item, index) => new { item, index });
 
-            itemsWithIndex.ForAll(x =>
+            itemsWithIndex.ForEach(x =>
             {
                 var display = customDisplay(x.item);
                 results.Add((x.index, x.item, display));

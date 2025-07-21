@@ -1,4 +1,8 @@
 ﻿namespace DataFlow.Framework.DataFlowTest;
+public record LogEntry(DateTime Timestamp, string Level, string Source, string Message, string? Exception = null);
+public record MetricEntry(DateTime Timestamp, string Name, double Value, Dictionary<string, string> Tags);
+public record OrderEvent(DateTime Timestamp, string OrderId, string EventType, decimal Amount, string Status);
+public record SensorReading(DateTime Timestamp, string SensorId, string Type, double Value, string Unit);
 
 public static class TestDataGenerators
 {

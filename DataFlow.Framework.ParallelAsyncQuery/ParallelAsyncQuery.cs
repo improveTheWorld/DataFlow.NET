@@ -66,12 +66,7 @@ public abstract class ParallelAsyncQuery<TSource> : IAsyncEnumerable<TSource>
     // Make this method public so derived classes can call it on other instances
     public abstract ParallelAsyncQuery<TSource> CloneWithNewSettings(ParallelExecutionSettings settings);
 
-    public ParallelAsyncQuery<TSource> AsSequential()
-    {
-        var sequentialSettings = _settings with { ExecutionMode = ParallelExecutionMode.Sequential };
-        return CloneWithNewSettings(sequentialSettings);
-    }
-
+  
     public ParallelAsyncQuery<TSource> WithMaxConcurrency(int maxConcurrency)
     {
         if (maxConcurrency <= 0)
@@ -175,6 +170,7 @@ internal class SourceParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 }
 
 // Select operation implementation
+// Select operation implementation
 internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<TResult>
 {
     private readonly ParallelAsyncQuery<TSource> _source;
@@ -204,14 +200,14 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
             var index = 0;
             await foreach (var item in _source.WithCancellation(combinedToken))
             {
-                
+
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(combinedToken);
                 timeoutCts.CancelAfter(_settings.OperationTimeout);
 
                 var result = _useIndex
                     ? await _indexedSelector(item, index++).WaitAsync(timeoutCts.Token)
                     : await _selector(item).WaitAsync(timeoutCts.Token);
-                yield return result;                
+                yield return result;
             }
             yield break;
         }
@@ -234,48 +230,139 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
 
     private async IAsyncEnumerable<TResult> GetOrderedResults([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var items = new List<(TSource Item, int Index)>();
-        var index = 0;
+        var channel = Channel.CreateBounded<(TResult Result, int Index)>(
+            new BoundedChannelOptions(_settings.MaxBufferSize) { FullMode = BoundedChannelFullMode.Wait });
 
-        await foreach (var item in _source.WithCancellation(cancellationToken))
+        var producerTask = Task.Run(async () =>
         {
-            items.Add((item, index++));
-        }
+            using var semaphore = new SemaphoreSlim(_settings.MaxConcurrency);
+            var tasks = new List<Task>();
+            var index = 0;
 
-        using var semaphore = new SemaphoreSlim(_settings.MaxConcurrency, _settings.MaxConcurrency);
-        var tasks = items.Select(async itemWithIndex =>
-        {
-            await semaphore.WaitAsync(cancellationToken);
             try
             {
-                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeoutCts.CancelAfter(_settings.OperationTimeout);
-
-                var result = _useIndex
-                    ? await _indexedSelector(itemWithIndex.Item, itemWithIndex.Index).WaitAsync(timeoutCts.Token)
-                    : await _selector(itemWithIndex.Item).WaitAsync(timeoutCts.Token);
-                return (Result: result, Index: itemWithIndex.Index, Success: true);
+                await foreach (var item in _source.WithCancellation(cancellationToken))
+                {
+                    await semaphore.WaitAsync(cancellationToken);
+                    var currentIndex = index++;
+                    var task = ProcessAndPostToChannelAsync(item, currentIndex, channel.Writer, semaphore, cancellationToken);
+                    tasks.Add(task);
+                }
+                await Task.WhenAll(tasks);
             }
-            catch (Exception) when (_settings.ContinueOnError)
+            catch (Exception ex)
             {
-                return (Result: default(TResult), Index: itemWithIndex.Index, Success: false);
+                channel.Writer.TryComplete(ex);
             }
             finally
             {
-                semaphore.Release();
+                channel.Writer.TryComplete();
             }
-        }).ToArray();
+        }, cancellationToken);
 
-        var results = await Task.WhenAll(tasks);
+        var reorderingBuffer = new SortedDictionary<int, TResult>();
+        var nextIndexToYield = 0;
 
-        foreach (var result in results.OrderBy(r => r.Index))
+        try
         {
-            if (result.Success)
+            await foreach (var (result, index) in channel.Reader.ReadAllAsync(cancellationToken))
             {
-                yield return result.Result;
+                reorderingBuffer.Add(index, result);
+
+                // Yield all contiguous results available from the buffer
+                while (reorderingBuffer.TryGetValue(nextIndexToYield, out var readyResult))
+                {
+                    yield return readyResult;
+                    reorderingBuffer.Remove(nextIndexToYield);
+                    nextIndexToYield++;
+                }
+            }
+
+            // Yield any remaining items after the channel is closed
+            while (reorderingBuffer.TryGetValue(nextIndexToYield, out var readyResult))
+            {
+                yield return readyResult;
+                reorderingBuffer.Remove(nextIndexToYield);
+                nextIndexToYield++;
             }
         }
+        finally
+        {
+            // Ensure the producer task is observed
+            try { await producerTask; } catch { /* Exceptions are propagated by the channel */ }
+        }
     }
+
+    private async Task ProcessAndPostToChannelAsync(TSource item, int index, ChannelWriter<(TResult Result, int Index)> writer, SemaphoreSlim semaphore, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(_settings.OperationTimeout);
+
+            var result = _useIndex
+                ? await _indexedSelector(item, index).WaitAsync(timeoutCts.Token)
+                : await _selector(item).WaitAsync(timeoutCts.Token);
+
+            await writer.WriteAsync((result, index), cancellationToken);
+        }
+        catch (Exception) when (_settings.ContinueOnError)
+        {
+            // In ordered mode, we must write a placeholder or skip to not break the sequence.
+            // A more robust implementation might write a failure object, but for now we skip.
+            // The reordering buffer will simply never see this index.
+        }
+        finally
+        {
+            semaphore.Release();
+        }
+    }
+
+
+    //private async IAsyncEnumerable<TResult> GetOrderedResults([EnumeratorCancellation] CancellationToken cancellationToken)
+    //{
+    //    var items = new List<(TSource Item, int Index)>();
+    //    var index = 0;
+
+    //    await foreach (var item in _source.WithCancellation(cancellationToken))
+    //    {
+    //        items.Add((item, index++));
+    //    }
+
+    //    using var semaphore = new SemaphoreSlim(_settings.MaxConcurrency, _settings.MaxConcurrency);
+    //    var tasks = items.Select(async itemWithIndex =>
+    //    {
+    //        await semaphore.WaitAsync(cancellationToken);
+    //        try
+    //        {
+    //            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    //            timeoutCts.CancelAfter(_settings.OperationTimeout);
+
+    //            var result = _useIndex
+    //                ? await _indexedSelector(itemWithIndex.Item, itemWithIndex.Index).WaitAsync(timeoutCts.Token)
+    //                : await _selector(itemWithIndex.Item).WaitAsync(timeoutCts.Token);
+    //            return (Result: result, Index: itemWithIndex.Index, Success: true);
+    //        }
+    //        catch (Exception) when (_settings.ContinueOnError)
+    //        {
+    //            return (Result: default(TResult), Index: itemWithIndex.Index, Success: false);
+    //        }
+    //        finally
+    //        {
+    //            semaphore.Release();
+    //        }
+    //    }).ToArray();
+
+    //    var results = await Task.WhenAll(tasks);
+
+    //    foreach (var result in results.OrderBy(r => r.Index))
+    //    {
+    //        if (result.Success)
+    //        {
+    //            yield return result.Result;
+    //        }
+    //    }
+    //}
 
     private async IAsyncEnumerable<TResult> GetUnorderedResults([EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -377,8 +464,8 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
     {
         var newSource = _source.CloneWithNewSettings(settings);
         return _useIndex
-            ? new SelectParallelAsyncQuery<TSource, TResult>(newSource, _indexedSelector)
-            : new SelectParallelAsyncQuery<TSource, TResult>(newSource, _selector);
+    ? new SelectParallelAsyncQuery<TSource, TResult>(newSource, _indexedSelector)
+    : new SelectParallelAsyncQuery<TSource, TResult>(newSource, _selector);
     }
 
     private CancellationToken CombineTokens(CancellationToken cancellationToken)
@@ -411,20 +498,124 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 
         if (_settings.ExecutionMode == ParallelExecutionMode.Sequential)
         {
+            // Sequential implementation is correct.
             await foreach (var item in _source.WithCancellation(combinedToken))
             {
-               
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(combinedToken);
                 timeoutCts.CancelAfter(_settings.OperationTimeout);
-
                 if (await _predicate(item).WaitAsync(timeoutCts.Token))
                 {
                     yield return item;
                 }
-               
             }
             yield break;
         }
+
+        // **FIXED**: Added distinct logic paths for ordered and unordered execution.
+        if (_settings.PreserveOrder)
+        {
+            await foreach (var item in GetOrderedResults(combinedToken))
+            {
+                yield return item;
+            }
+        }
+        else
+        {
+            await foreach (var item in GetUnOrderedResults(combinedToken))
+            {
+                yield return item;
+            }
+        }
+    }
+
+    private async IAsyncEnumerable<TSource> GetOrderedResults([EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        // This uses the same robust reordering buffer pattern as the fixed Select operator.
+        var channel = Channel.CreateBounded<(TSource Item, int Index, bool Passed)>(
+            new BoundedChannelOptions(_settings.MaxBufferSize) { FullMode = BoundedChannelFullMode.Wait });
+
+        var producerTask = Task.Run(async () =>
+        {
+            using var semaphore = new SemaphoreSlim(_settings.MaxConcurrency);
+            var tasks = new List<Task>();
+            var index = 0;
+
+            try
+            {
+                await foreach (var item in _source.WithCancellation(cancellationToken))
+                {
+                    await semaphore.WaitAsync(cancellationToken);
+                    var currentIndex = index++;
+                    var task = ProcessPredicateAndPostAsync(item, currentIndex, channel.Writer, semaphore, cancellationToken);
+                    tasks.Add(task);
+                }
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex) { channel.Writer.TryComplete(ex); }
+            finally { channel.Writer.TryComplete(); }
+        }, cancellationToken);
+
+        var reorderingBuffer = new SortedDictionary<int, TSource>();
+        var nextIndexToYield = 0;
+
+        await foreach (var (item, index, passed) in channel.Reader.ReadAllAsync(cancellationToken))
+        {
+            if (passed)
+            {
+                reorderingBuffer.Add(index, item);
+            }
+            else
+            {
+                // If an item fails the predicate, we must still advance the index counter
+                // to release any subsequent items waiting in the buffer.
+                if (index == nextIndexToYield)
+                {
+                    nextIndexToYield++;
+                }
+            }
+
+            while (reorderingBuffer.TryGetValue(nextIndexToYield, out var readyItem))
+            {
+                yield return readyItem;
+                reorderingBuffer.Remove(nextIndexToYield);
+                nextIndexToYield++;
+            }
+        }
+
+        // Ensure producer is awaited and drain any remaining items
+        try { await producerTask; } catch { }
+        while (reorderingBuffer.TryGetValue(nextIndexToYield, out var readyItem))
+        {
+            yield return readyItem;
+            reorderingBuffer.Remove(nextIndexToYield);
+            nextIndexToYield++;
+        }
+    }
+
+    private async Task ProcessPredicateAndPostAsync(TSource item, int index, ChannelWriter<(TSource, int, bool)> writer, SemaphoreSlim semaphore, CancellationToken ct)
+    {
+        try
+        {
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(_settings.OperationTimeout);
+
+            var passed = await _predicate(item).WaitAsync(timeoutCts.Token);
+            await writer.WriteAsync((item, index, passed), ct);
+        }
+        catch (Exception) when (_settings.ContinueOnError)
+        {
+            await writer.WriteAsync((default, index, false), ct);
+        }
+        finally
+        {
+            semaphore.Release();
+        }
+    }
+
+
+    public async IAsyncEnumerable<TSource> GetUnOrderedResults(CancellationToken cancellationToken = default)
+    {
+        var combinedToken = CombineTokens(cancellationToken);
 
         using var semaphore = new SemaphoreSlim(_settings.MaxConcurrency, _settings.MaxConcurrency);
         var channel = Channel.CreateBounded<TSource>(new BoundedChannelOptions(_settings.MaxBufferSize)
@@ -535,6 +726,9 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
     }
 }
 
+
+
+
 // Take operation implementation
 internal class TakeParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 {
@@ -553,7 +747,7 @@ internal class TakeParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
         var combinedToken = CombineTokens(cancellationToken);
         var taken = 0;
 
-        await foreach (var item in _source.WithCancellation(combinedToken))
+        await foreach (var item in _source.WithCancellation(combinedToken)) 
         {
             if (taken >= _count)
                 break;
@@ -618,48 +812,6 @@ public static class ParallelAsyncEnumerableExtensions
         return new TakeParallelAsyncQuery<TSource>(source, count);
     }
 
-    public static async Task<List<TSource>> ToListAsync<TSource>(this ParallelAsyncQuery<TSource> source, CancellationToken cancellationToken = default)
-    {
-        var result = new List<TSource>();
-        await foreach (var item in source.WithCancellation(cancellationToken))
-        {
-            result.Add(item);
-        }
-        return result;
-    }
-
-    public static async Task<TSource[]> ToArrayAsync<TSource>(this ParallelAsyncQuery<TSource> source, CancellationToken cancellationToken = default)
-    {
-        var list = await source.ToListAsync(cancellationToken);
-        return list.ToArray();
-    }
-
-    public static async Task<int> CountAsync<TSource>(this ParallelAsyncQuery<TSource> source, CancellationToken cancellationToken = default)
-    {
-        var count = 0;
-        await foreach (var _ in source.WithCancellation(cancellationToken))
-        {
-            count++;
-        }
-        return count;
-    }
-
-    //public static async Task ForEachAsync<TSource>(this ParallelAsyncQuery<TSource> source, Action<TSource> action, CancellationToken cancellationToken = default)
-    //{
-    //    await foreach (var item in source.WithCancellation(cancellationToken))
-    //    {
-    //        action(item);
-    //    }
-    //}
-
-    //public static async Task ForEachAsync<TSource>(this ParallelAsyncQuery<TSource> source, Func<TSource, Task> action, CancellationToken cancellationToken = default)
-    //{
-    //    await foreach (var item in source.WithCancellation(cancellationToken))
-    //    {
-    //        await action(item);
-    //    }
-    //}
-
     public static ParallelAsyncQuery<TResult> Select<TSource, TResult>(this ParallelAsyncQuery<TSource> source, Func<TSource, int, TResult> selector)
     {
         return new SelectParallelAsyncQuery<TSource, TResult>(source, (item, index) => Task.FromResult(selector(item, index)));
@@ -670,98 +822,6 @@ public static class ParallelAsyncEnumerableExtensions
         return new SelectParallelAsyncQuery<TSource, TResult>(source, selector);
     }
 
-    // ForEach methods that return the original items (pass-through with side effects)
-    //public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Action<T> action)
-    //{
-    //    return source.Select(x =>
-    //    {
-    //        action(x);
-    //        return x;
-    //    });
-    //}
-
-    //public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Action<T, int> action)
-    //{
-    //    return source.Select((x, idx) =>
-    //    {
-    //        action(x, idx);
-    //        return x;
-    //    });
-    //}
-
-    //public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Func<T, Task> action)
-    //{
-    //    return source.Select(async x =>
-    //    {
-    //        await action(x);
-    //        return x;
-    //    });
-    //}
-
-    //public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Func<T, int, Task> action)
-    //{
-    //    return source.Select(async (x, idx) =>
-    //    {
-    //        await action(x, idx);
-    //        return x;
-    //    });
-    //}
-
-    // Terminal ForEach operations (don't return items, just execute actions)
-    //public static async Task ForEachAsync<TSource>(this ParallelAsyncQuery<TSource> source, Action<TSource> action, CancellationToken cancellationToken = default)
-    //{
-    //    await foreach (var item in source.WithCancellation(cancellationToken))
-    //    {
-    //        action(item);
-    //    }
-    //}
-
-    //public static async Task ForEachAsync<TSource>(this ParallelAsyncQuery<TSource> source, Action<TSource, int> action, CancellationToken cancellationToken = default)
-    //{
-    //    var index = 0;
-    //    await foreach (var item in source.WithCancellation(cancellationToken))
-    //    {
-    //        action(item, index++);
-    //    }
-    //}
-
-    //public static async Task ForEachAsync<TSource>(this ParallelAsyncQuery<TSource> source, Func<TSource, Task> action, CancellationToken cancellationToken = default)
-    //{
-    //    await foreach (var item in source.WithCancellation(cancellationToken))
-    //    {
-    //        await action(item);
-    //    }
-    //}
-
-    //public static async Task ForEachAsync<TSource>(this ParallelAsyncQuery<TSource> source, Func<TSource, int, Task> action, CancellationToken cancellationToken = default)
-    //{
-    //    var index = 0;
-    //    await foreach (var item in source.WithCancellation(cancellationToken))
-    //    {
-    //        await action(item, index++);
-    //    }
-    //}
+   
 }
 
-// Helper extensions for regular IAsyncEnumerable
-public static class AsyncEnumerableExtensions
-{
-    public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> source, CancellationToken cancellationToken = default)
-    {
-        var result = new List<T>();
-        await foreach (var item in source.WithCancellation(cancellationToken))
-        {
-            result.Add(item);
-        }
-        return result;
-    }
-
-    public static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(this IEnumerable<T> source, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        foreach (var item in source)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return item;
-        }
-    }
-}

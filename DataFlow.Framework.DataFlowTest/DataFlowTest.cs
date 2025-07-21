@@ -12,30 +12,29 @@ public class DataFlowPlaygroundExamples
     {
         Console.WriteLine("🚀 Starting Log Processing Pipeline Playground...\n");
 
+        // ✅ Generate realistic test data
+        var webLogs = TestDataGenerators.GenerateLogEntries(25);
+        var dbLogs = TestDataGenerators.GenerateLogEntries(15);
+        var cacheLogsList = TestDataGenerators.GenerateLogEntries(10);
+
         // ✅ Create test data sources
-        var webServerLogs = new TestDataSource<LogEntry>("WebServer");
-        var databaseLogs = new TestDataSource<LogEntry>("Database");
-        var cacheLogs = new TestDataSource<LogEntry>("Cache");
+        var webServerLogs = webLogs.Throttle(80).ToDataSource();
+        var databaseLogs = webLogs.Throttle(120).ToDataSource();
+        var cacheLogs = webLogs.Throttle(200).ToDataSource();
 
         var merger = new DataFlow<LogEntry>(null, null,
             webServerLogs, databaseLogs, cacheLogs
         );
 
-        // ✅ Generate realistic test data
-        var webLogs = TestDataGenerators.GenerateLogEntries(25);
-        var dbLogs = TestDataGenerators.GenerateLogEntries(15);
-        var cacheLogsList = TestDataGenerators.GenerateLogEntries(10);
+
 
         Console.WriteLine("📊 Generated test data:");
         Console.WriteLine($"   • WebServer: {webLogs.Count()} logs");
         Console.WriteLine($"   • Database: {dbLogs.Count()} logs");
         Console.WriteLine($"   • Cache: {cacheLogsList.Count()} logs\n");
 
-        // Start streaming with different intervals to simulate real-world timing
-        await webServerLogs.StartStreamingAsync(webLogs, TimeSpan.FromMilliseconds(80));
-        await databaseLogs.StartStreamingAsync(dbLogs, TimeSpan.FromMilliseconds(120));
-        await cacheLogs.StartStreamingAsync(cacheLogsList, TimeSpan.FromMilliseconds(200));
-
+       
+      
         Console.WriteLine("🔄 Streaming started with different intervals...\n");
 
         // ✅ Process with comprehensive monitoring using Spy
@@ -56,9 +55,6 @@ public class DataFlowPlaygroundExamples
         Console.WriteLine("\n\n✅ Log Processing Pipeline completed!\n");
 
         // Clean up
-        webServerLogs.Stop();
-        databaseLogs.Stop();
-        cacheLogs.Stop();
         merger.Dispose();
     }
 
@@ -69,29 +65,28 @@ public class DataFlowPlaygroundExamples
     {
         Console.WriteLine("📊 Starting Real-time Metrics Monitoring Playground...\n");
 
+        // ✅ Generate realistic metrics with some high values to trigger alerts
+        var cpuData = TestDataGenerators.GenerateMetrics(20);
+        var memoryData = TestDataGenerators.GenerateMetrics(15);
+        var networkData = TestDataGenerators.GenerateMetrics(12);
+
         // ✅ Create metrics sources
-        var cpuMetrics = new TestDataSource<MetricEntry>("CPU-Monitor");
-        var memoryMetrics = new TestDataSource<MetricEntry>("Memory-Monitor");
-        var networkMetrics = new TestDataSource<MetricEntry>("Network-Monitor");
+        var cpuMetrics = cpuData.Throttle(100).ToDataSource();
+        var memoryMetrics = memoryData.Throttle(150).ToDataSource();
+        var networkMetrics = networkData.Throttle(200).ToDataSource();
 
         var merger = new DataFlow<MetricEntry>(null, null,
             cpuMetrics, memoryMetrics, networkMetrics
         );
 
-        // ✅ Generate realistic metrics with some high values to trigger alerts
-        var cpuData = TestDataGenerators.GenerateMetrics(20);
-        var memoryData = TestDataGenerators.GenerateMetrics(15);
-        var networkData = TestDataGenerators.GenerateMetrics(12);
+       
 
         Console.WriteLine("📈 Generated metrics data:");
         Console.WriteLine($"   • CPU metrics: {cpuData.Count()} readings");
         Console.WriteLine($"   • Memory metrics: {memoryData.Count()} readings");
         Console.WriteLine($"   • Network metrics: {networkData.Count()} readings\n");
 
-        // Start streaming at different rates
-        await cpuMetrics.StartStreamingAsync(cpuData, TimeSpan.FromMilliseconds(100));
-        await memoryMetrics.StartStreamingAsync(memoryData, TimeSpan.FromMilliseconds(150));
-        await networkMetrics.StartStreamingAsync(networkData, TimeSpan.FromMilliseconds(200));
+        
 
         Console.WriteLine("🔄 Metrics streaming started...\n");
 
@@ -113,9 +108,6 @@ public class DataFlowPlaygroundExamples
         Console.WriteLine("\n\n✅ Metrics Monitoring completed!\n");
 
         // Clean up
-        cpuMetrics.Stop();
-        memoryMetrics.Stop();
-        networkMetrics.Stop();
         merger.Dispose();
     }
 
@@ -126,23 +118,24 @@ public class DataFlowPlaygroundExamples
     {
         Console.WriteLine("🔄 Starting Mixed Data Types Processing Playground...\n");
 
-        // ✅ Different data sources
-        var orderSource = new TestDataSource<OrderEvent>("Order-System");
-        var sensorSource = new TestDataSource<SensorReading>("IoT-Sensors");
-
-        var orderMerger = new DataFlow<OrderEvent>(orderSource);
-        var sensorMerger = new DataFlow<SensorReading>(sensorSource);
+       
 
         // Generate test data
         var orders = TestDataGenerators.GenerateOrderEvents(15);
         var sensors = TestDataGenerators.GenerateSensorReadings(12);
 
+        // ✅ Different data sources
+        var orderSource = orders.Throttle(120).ToDataSource();
+        var sensorSource = sensors.Throttle(120).ToDataSource();
+
+        var orderMerger = new DataFlow<OrderEvent>(orderSource);
+        var sensorMerger = new DataFlow<SensorReading>(sensorSource);
+
         Console.WriteLine("📦 Generated mixed data:");
         Console.WriteLine($"   • Orders: {orders.Count()} events");
         Console.WriteLine($"   • Sensor readings: {sensors.Count()} readings\n");
 
-        await orderSource.StartStreamingAsync(orders, TimeSpan.FromMilliseconds(120));
-        await sensorSource.StartStreamingAsync(sensors, TimeSpan.FromMilliseconds(180));
+        
 
         Console.WriteLine("🔄 Multi-stream processing started...\n");
 
@@ -183,8 +176,6 @@ public class DataFlowPlaygroundExamples
         Console.WriteLine("\n\n✅ Mixed Data Types Processing completed!\n");
 
         // Clean up
-        orderSource.Stop();
-        sensorSource.Stop();
         orderMerger.Dispose();
         sensorMerger.Dispose();
     }

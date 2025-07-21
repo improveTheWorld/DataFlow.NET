@@ -203,7 +203,7 @@ namespace DataFlow.Extensions
         {
             TResult? cumul = initial;
 
-             await sequence.ForEach(x => cumul = cumulate(cumul, x)).Do();
+            await sequence.ForEach(x => cumul = cumulate(cumul, x)).Do();
 
             return cumul;
         }
@@ -416,7 +416,7 @@ namespace DataFlow.Extensions
             {
                 if (skipped >= count)
                     yield return item;
-                else  
+                else
                     skipped++;
             }
         }
@@ -493,10 +493,61 @@ namespace DataFlow.Extensions
             }
         }
     }
-
-
-    public static class IAsyncEnumerable_DeepLoopExtensions
+    public static class IAsyncEnumerable_dataSource
     {
+
+        /// <summary>
+        /// Throttles an asynchronous sequence, emitting items at a specified interval.
+        /// </summary>
+        /// <returns>An IAsyncEnumerable that yields items from the source sequence with a delay between each item.</returns>
+        public static async IAsyncEnumerable<T> Throttle<T>(
+            this IAsyncEnumerable<T> source,
+            TimeSpan interval,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach (var item in source.WithCancellation(cancellationToken))
+            {
+                yield return item;
+                try
+                {
+                    await Task.Delay(interval, cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
+                }
+            }
+        }
+
+        public static async IAsyncEnumerable<T> Throttle<T>(
+            this IAsyncEnumerable<T> source,
+            double intervalInMs,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var interval = TimeSpan.FromMilliseconds(intervalInMs);
+            await foreach (var item in source.WithCancellation(cancellationToken))
+            {
+                yield return item;
+                try
+                {
+                    await Task.Delay(interval, cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
+                }
+            }
+        }
+
+    }
+
+        public static class IAsyncEnumerable_DeepLoopExtensions
+    {
+        /// <summary>
+        /// Throttles a synchronous sequence, converting it to an asynchronous one that emits items at a specified interval.
+        /// </summary>
+        /// <returns>An IAsyncEnumerable that yields items from the source sequence with a delay between each item.</returns>
+       
 
         //--------------------------------------  IAsyncEnumerable<IAsyncEnumerable<T>> 
         //public static IAsyncEnumerable<IAsyncEnumerable<T>> ForEach<T>(this IAsyncEnumerable<IAsyncEnumerable<T>> items, Action<T> action)
@@ -791,7 +842,7 @@ namespace DataFlow.Extensions
             }
             Console.Write(after);
         }
-        
+
 
 
         //------------------------------------------- WHERE
@@ -840,7 +891,7 @@ namespace DataFlow.Extensions
         public static async IAsyncEnumerable<T> Where<T>(
             this IAsyncEnumerable<T> source,
             Func<T, int, bool> predicate)
-            
+
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -871,7 +922,8 @@ namespace DataFlow.Extensions
                 yield break;
 
             int taken = 0;
-            await foreach (var item in source)            {
+            await foreach (var item in source)
+            {
                 if (taken >= count)
                     break;
 
@@ -906,7 +958,7 @@ namespace DataFlow.Extensions
         /// </summary>
         public static async IAsyncEnumerable<T> TakeWhile<T>(
             this IAsyncEnumerable<T> source,
-            Func<T, Task<bool>> predicate            )
+            Func<T, Task<bool>> predicate)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -1227,22 +1279,6 @@ namespace DataFlow.Extensions
             return result;
         }
 
-        //------------------------------------------- CONVERSION FROM SYNC
-
-        /// <summary>
-        /// Converts IEnumerable to IAsyncEnumerable
-        /// </summary>
-        public static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(
-            this IEnumerable<T> source)
-        {
-            if (source == null)
-                throw new ArgumentNullException(nameof(source));
-
-            foreach (var item in source)
-            {
-                yield return item;
-            }
-        }
 
         //------------------------------------------- BUFFER/BATCH
 
@@ -1278,9 +1314,182 @@ namespace DataFlow.Extensions
         }
     }
 
+    public static class IAsyncEnumeratorExtensions
+    {
+        public static async Task<(bool, T?)> TryGetNext<T>(this IAsyncEnumerator<T> enumerator)
+        {
+            if (await enumerator.MoveNextAsync())
+            {
+                return (true, enumerator.Current);
+            }
+            return (false, default(T));
+        }
+        public static async Task<T?> GetNext<T>(this IAsyncEnumerator<T> enumerator)
+        {
+            if (await enumerator.MoveNextAsync())
+            {
+                return enumerator.Current;
 
+            }
+            else
 
+                return default(T);
+        }
+    }
+
+    public static class AsyncEnumerableFromPollingExtensions
+    {
+        public static IAsyncEnumerable<T> Poll<T>(
+      this Func<T> pollAction,
+      TimeSpan pollingInterval,
+      CancellationToken cancellationToken = default)
+        {
+            // Call the main overload with a stop condition that never triggers.
+            return pollAction.Poll(pollingInterval, (item, elapsed) => false, cancellationToken);
+        }
+        /// <summary>
+        /// Represents a method that attempts to retrieve an item.
+        /// This is the standard "TryGet" pattern.
+        /// </summary>
+        /// <typeparam name="T">The type of the item to retrieve.</typeparam>
+        /// <param name="item">When this method returns, contains the retrieved item if the
+        /// retrieval succeeded, or the default value for T if it failed.</param>
+        /// <returns>true if an item was successfully retrieved; otherwise, false.</returns>
+        public delegate bool TryPollAction<T>(out T item);
+
+        /// <summary>
+        /// Creates an IAsyncEnumerable<T> by polling a function that uses the "TryGet" pattern.
+        /// </summary>
+        /// <typeparam name="T">The type of item to poll for.</typeparam>
+        /// <param name="tryPollAction">
+        /// The source function to be called periodically, following the TryGet pattern.
+        /// </param>
+        /// <param name="pollingInterval">
+        /// The time to wait between calls to the tryPollAction.
+        /// </param>
+        /// <param name="stopCondition">x²x²x²x 
+        /// A function evaluated after each poll. It receives the success status, the polled 
+        /// item (which may be default), and the total elapsed time. Polling stops when it 
+        /// returns true.
+        /// </param>
+        /// <param name="cancellationToken">
+        /// A cancellation token to stop the polling process externally.
+        /// </param>
+        /// <returns>
+        /// An IAsyncEnumerable<T> that yields items as they are discovered by the tryPollAction.
+        /// </returns>
+        public static async IAsyncEnumerable<T> Poll<T>(
+            this TryPollAction<T> tryPollAction,
+            TimeSpan pollingInterval,
+            Func<T, TimeSpan, bool> stopCondition,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var stopwatch = Stopwatch.StartNew();
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                // 1. Poll for the next element using the TryGet pattern
+                bool success = tryPollAction(out T item);
+
+                // 2. Check the master stop condition
+                if (!success || stopCondition(item, stopwatch.Elapsed))
+                {
+                    yield break;
+                }
+
+                // 3. If the poll was successful, yield the item.
+                //    No need for a default check; the 'success' bool is the source of truth.
+                else
+                {
+                    yield return item;
+                }
+
+                // 4. Wait for the specified polling period
+                try
+                {
+                    await Task.Delay(pollingInterval, cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
+                }
+            }
+
+        }
+
+        /// <summary>
+        /// Creates an IAsyncEnumerable<T> by treating the source function as a polling action.
+        /// </summary>
+        /// <remarks>
+        /// This creates a fluent API allowing you to write: myPollFunc.Poll(...)
+        /// </remarks>
+        /// <typeparam name="T">The type of item to poll for.</typeparam>
+        /// <param name="pollAction">
+        /// The source function to be called periodically. It will be extended by this method.
+        /// </param>
+        /// <param name="pollingInterval">
+        /// The time to wait between calls to the pollAction.
+        /// </param>
+        /// <param name="stopCondition">
+        /// A function that is evaluated after each poll. Polling stops when it returns true.
+        /// </param>
+        /// <param name="cancellationToken">
+        /// A cancellation token to stop the polling process externally.
+        /// </param>
+        /// <returns>
+        /// An IAsyncEnumerable<T> that yields items as they are discovered by the pollAction.
+        /// </returns>
+        public static async IAsyncEnumerable<T> Poll<T>(
+            this Func<T> pollAction,
+            TimeSpan pollingInterval,
+            Func<T, TimeSpan, bool> stopCondition,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var stopwatch = Stopwatch.StartNew();
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                T item = pollAction();
+
+                if (stopCondition(item, stopwatch.Elapsed))
+                {
+                    yield break;
+                }
+
+                if (!EqualityComparer<T>.Default.Equals(item, default(T)))
+                {
+                    yield return item;
+                }
+
+                try
+                {
+                    await Task.Delay(pollingInterval, cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates an IAsyncEnumerable<T> by polling a "TryGet" function indefinitely until cancelled or no more elements.
+        /// </summary>
+        public static IAsyncEnumerable<T> Poll<T>(
+            this TryPollAction<T> tryPollAction,
+            TimeSpan pollingInterval,
+            CancellationToken cancellationToken = default)
+        {
+            // Call the main overload with a stop condition that never triggers.
+            return tryPollAction.Poll(pollingInterval, (item, elapsed) => false, cancellationToken);
+        }
+
+    }
 }
+
+
+
+
 
 
 
