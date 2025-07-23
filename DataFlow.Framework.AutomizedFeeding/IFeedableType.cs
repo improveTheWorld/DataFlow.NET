@@ -1,8 +1,7 @@
-﻿namespace DataFlow.Framework
+﻿namespace DataFlow.Framework;
+
+public interface IWithIntenalSchema
 {
-    public interface IWithIntenalSchema
-    {
-        Dictionary<string,int> GetSchema();
-    }        
-      
-}
+    Dictionary<string,int> GetSchema();
+}        
+  

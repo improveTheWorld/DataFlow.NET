@@ -1,12 +1,11 @@
-﻿namespace DataFlow.Extensions
+﻿namespace DataFlow.Extensions;
+
+public static class IntExtensions
 {
-    public static class IntExtensions
+
+    public static bool IsMultiple(this int value, int x)
     {
-
-        public static bool IsMultiple(this int value, int x)
-        {
-            return value % x == 0;
-        }
-
+        return value % x == 0;
     }
+
 }

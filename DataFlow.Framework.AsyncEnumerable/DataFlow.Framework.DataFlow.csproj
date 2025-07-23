@@ -7,10 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="DataFlowDynamicBufferExpansioncs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\DataFlow.Framework\DataFlow.Framework.csproj" />
     <ProjectReference Include="..\DataFlow.Logger\DataFlow.Logger.csproj" />
   </ItemGroup>

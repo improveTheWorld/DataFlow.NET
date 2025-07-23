@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DataFlow.Framework\DataFlow.Framework.csproj" />
+  </ItemGroup>
+
 </Project>

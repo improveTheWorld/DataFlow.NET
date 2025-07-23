@@ -1,48 +1,45 @@
-﻿using DataFlow.Log;
+﻿
+namespace DataFlow.Framework;
 
-
-namespace DataFlow.Framework
+public class ControlledTask : IDisposable
 {
-    public class ControlledTask : IDisposable
+    public Task? AwaiterTask { get; private set; } = null;
+    AutoResetEvent autoResetEvent;
+    public ControlledTask()
     {
-        public Task? AwaiterTask { get; private set; } = null;
-        AutoResetEvent autoResetEvent;
-        public ControlledTask()
-        {
-            autoResetEvent = new AutoResetEvent(false);
-        }
+        autoResetEvent = new AutoResetEvent(false);
+    }
 
-        public void StartNew()
+    public void StartNew()
+    {
+        if (AwaiterTask != null)
         {
-            if (AwaiterTask != null)
+            if (!AwaiterTask.IsCompleted)
             {
-                if (!AwaiterTask.IsCompleted)
-                {
-                    CompleteTask();
-                }
-                else
-                {
-                    AwaiterTask.Dispose(); //DON'T dispose running tasks - let them complete naturally
-                }
+                CompleteTask();
             }
-            autoResetEvent.Reset();
-            AwaiterTask = Task.Run(() => autoResetEvent?.WaitOne() ?? false);
+            else
+            {
+                AwaiterTask.Dispose(); //DON'T dispose running tasks - let them complete naturally
+            }
         }
-        public void CompleteTask()
-        {
-            autoResetEvent?.Set();
-        }
+        autoResetEvent.Reset();
+        AwaiterTask = Task.Run(() => autoResetEvent?.WaitOne() ?? false);
+    }
+    public void CompleteTask()
+    {
+        autoResetEvent?.Set();
+    }
 
-        public void Dispose()
+    public void Dispose()
+    {
+        CompleteTask();
+        if (AwaiterTask != null && !AwaiterTask.IsCompleted)
         {
-            CompleteTask();
-            if (AwaiterTask != null && !AwaiterTask.IsCompleted)
-            {
-                AwaiterTask.Wait(TimeSpan.FromMilliseconds(200));
-            }
-            autoResetEvent?.Dispose();
-            autoResetEvent = null;
+            AwaiterTask.Wait(TimeSpan.FromMilliseconds(200));
         }
+        autoResetEvent?.Dispose();
+        autoResetEvent = null;
     }
 }
 
