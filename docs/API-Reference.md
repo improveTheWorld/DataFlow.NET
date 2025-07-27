@@ -692,7 +692,7 @@ public static IEnumerable<T> Minus<T, P>(this EnumerableWithNote<T, P> items, Ac
 - `close`: Cleanup action to execute  
 **Returns:** `IEnumerable<T>` - Underlying enumerable  
 
-### Regx Class
+### RegexWrap Class
 
 Provides simplified regular expression pattern building.
 
@@ -775,7 +775,7 @@ public static string Many(this string input, int limitInf, int limitSup)
 - `limitSup`: Maximum occurrences  
 **Returns:** `string` - Bounded quantifier pattern  
 
-### Regxs Class
+### Regxes Class
 
 Provides advanced pattern matching with multiple regex support.
 
@@ -792,36 +792,36 @@ public static class UNMATCHED
 #### Constructors
 
 ```csharp
-public Regxs(params Regex[] regs)
+public Regxes(params Regex[] regs)
 ```
-**Description:** Creates Regxs instance with compiled regex patterns  
+**Description:** Creates Regxes instance with compiled regex patterns  
 **Parameters:**
 - `regs`: Array of compiled Regex instances  
 
 ```csharp
-public Regxs(params string[] patterns)
+public Regxes(params string[] patterns)
 ```
-**Description:** Creates Regxs instance with string patterns  
+**Description:** Creates Regxes instance with string patterns  
 **Parameters:**
 - `patterns`: Array of regex pattern strings  
 
 #### Methods
 
 ```csharp
-public Regxs Add(Regex regex)
+public Regxes Add(Regex regex)
 ```
 **Description:** Adds additional regex pattern  
 **Parameters:**
 - `regex`: Compiled Regex to add  
-**Returns:** `Regxs` - Self for method chaining  
+**Returns:** `Regxes` - Self for method chaining  
 
 ```csharp
-public Regxs Add(string pattern)
+public Regxes Add(string pattern)
 ```
 **Description:** Adds additional string pattern  
 **Parameters:**
 - `pattern`: Regex pattern string to add  
-**Returns:** `Regxs` - Self for method chaining  
+**Returns:** `Regxes` - Self for method chaining  
 
 ```csharp
 public IEnumerable<(string groupName, string subpart)> Map(string line)

@@ -314,9 +314,9 @@ var result = dataWithContext
 
 ### Regular Expression Utilities
 
-#### Regx Class
+#### Regex Class
 
-The `Regx` class provides simplified regular expression pattern building with intuitive constants and methods.
+The `Regex` class provides simplified regular expression pattern building with intuitive constants and methods.
 
 ##### Constants
 ```csharp
@@ -371,9 +371,9 @@ string pattern = NUMS.Many(2, 4); // 2 to 4 digits
 // Result: "\d{2,4}"
 ```
 
-#### Regxs Class
+#### Regxes Class
 
-The `Regxs` class provides advanced pattern matching with multiple regex support and automatic slice extraction.
+The `Regxes` class provides advanced pattern matching with multiple regex support and automatic slice extraction.
 
 ##### Key Features
 - Multiple regex pattern support
@@ -383,8 +383,8 @@ The `Regxs` class provides advanced pattern matching with multiple regex support
 
 ##### Constructors
 ```csharp
-public Regxs(params Regex[] regs)
-public Regxs(params string[] patterns)
+public Regxes(params Regex[] regs)
+public Regxes(params string[] patterns)
 ```
 
 ##### Methods
@@ -406,12 +406,12 @@ Returns position information for matched groups.
 
 ##### Basic Pattern Matching
 ```csharp
-using static DataFlow.Framework.Regx;
+using static DataFlow.Framework.Regex;
 
 // Simple email pattern
 string emailPattern = ALPHNUMS.As("user") + "@" + ALPHNUMS.As("domain") + "." + ALPHAS.As("tld");
 
-var regxs = new Regxs(emailPattern);
+var regxs = new Regxes(emailPattern);
 var result = regxs.Map("contact: john@example.com");
 
 foreach (var (groupName, value) in result)
@@ -424,10 +424,10 @@ foreach (var (groupName, value) in result)
 // tld: com
 ```
 
-##### Log Processing with Regxs
+##### Log Processing with Regxes
 ```csharp
 var logPattern = $"{NUMS.As("timestamp")} {OneOf("ERROR", "WARNING", "INFO").As("level")} {ANY_CHARS.As("message")}";
-var regxs = new Regxs(logPattern);
+var regxs = new Regxes(logPattern);
 
 Read.text("application.log")
     .SelectMany(line => regxs.Map(line))
@@ -444,7 +444,7 @@ Read.text("application.log")
 
 ##### Advanced Pattern with Multiple Formats
 ```csharp
-var patterns = new Regxs(
+var patterns = new Regxes(
     $"HTTP {NUMS.As("status")} {ANY_CHARS.As("url")}",
     $"User {ALPHNUMS.As("username")} logged {OneOf("in", "out").As("action")}",
     $"Error: {ANY_CHARS.As("error_message")}"
@@ -452,7 +452,7 @@ var patterns = new Regxs(
 
 Read.text("mixed.log")
     .SelectMany(line => patterns.Map(line))
-    .Cases("status", "username", "error_message", Regxs.UNMATCHED.LINE)
+    .Cases("status", "username", "error_message", Regxes.UNMATCHED.LINE)
     .SelectCase(
         status => $"HTTP Status: {status}",
         user => $"User Activity: {user}",
@@ -544,7 +544,7 @@ var combinedLogs = new DataFlow<LogEntry>(
     dataSources: filePublisher, networkPublisher);
 
 // Process data asynchronously with regex patterns
-var logPattern = new Regxs($"{NUMS.As("timestamp")} {ALPHAS.As("level")} {ANY_CHARS.As("message")}");
+var logPattern = new Regxes($"{NUMS.As("timestamp")} {ALPHAS.As("level")} {ANY_CHARS.As("message")}");
 
 await foreach (var logEntry in combinedLogs)
 {
@@ -614,12 +614,12 @@ public class DataProcessor
 ```csharp
 public class LogAnalyzer
 {
-    private readonly Regxs _logPatterns;
+    private readonly Regxes _logPatterns;
     private readonly DataPublisher<AnalyzedLog> _publisher;
     
     public LogAnalyzer()
     {
-        _logPatterns = new Regxs(
+        _logPatterns = new Regxes(
             // Apache access log format
             $"{ALPHNUMS.As("ip")} - - \\[{ANY_CHARS.As("timestamp")}\\] \"{ALPHAS.As("method")} {ANY_CHARS.As("url")} HTTP/{NUMS}.{NUMS}\" {NUMS.As("status")} {NUMS.As("size")}",
             
@@ -639,7 +639,7 @@ public class LogAnalyzer
         
         await Read.text(logFilePath)
             .SelectMany(line => _logPatterns.Map(line).Plus(line)) // Add original line as context
-            .Cases("ip", "level", "error_code", Regxs.UNMATCHED.LINE)
+            .Cases("ip", "level", "error_code", Regxes.UNMATCHED.LINE)
             .SelectCase(
                 ip => new AccessLogEntry { ClientIP = ip },
                 level => new ApplicationLogEntry { Level = level },
@@ -773,14 +773,14 @@ public class SystemMonitor
 {
     private readonly DataPublisher<SystemMetric> _metricsPublisher;
     private readonly DataPublisher<Alert> _alertPublisher;
-    private readonly Regxs _metricPatterns;
+    private readonly Regxes _metricPatterns;
     
     public SystemMonitor()
     {
         _metricsPublisher = new DataPublisher<SystemMetric>();
         _alertPublisher = new DataPublisher<Alert>();
         
-        _metricPatterns = new Regxs(
+        _metricPatterns = new Regxes(
             $"CPU: {NUMS.As("cpu_percent")}%",
             $"Memory: {NUMS.As("memory_mb")}MB \\({NUMS.As("memory_percent")}%\\)",
             $"Disk: {NUMS.As("disk_percent")}% full",
@@ -853,7 +853,7 @@ public class SystemMonitor
 - **Channel Cleanup**: `DataPublisher<T>` automatically completes channels on disposal
 - **Async Enumeration**: `DataFlow<T>` properly disposes resources
 - **Guard Validation**: Minimal overhead with compile-time optimizations
-- **Regex Compilation**: `Regxs` uses compiled regex for better performance
+- **Regex Compilation**: `Regxes` uses compiled regex for better performance
 
 ### Threading and Concurrency
 - **Thread-Safe Publishers**: `DataPublisher<T>` handles concurrent access safely
@@ -918,7 +918,7 @@ public async Task DataPublisher_PublishesToAllSubscribers()
 [Test]
 public void Regxs_ParsesLogEntryCorrectly()
 {
-    var pattern = new Regxs($"{NUMS.As("timestamp")} {ALPHAS.As("level")} {ANY_CHARS.As("message")}");
+    var pattern = new Regxes($"{NUMS.As("timestamp")} {ALPHAS.As("level")} {ANY_CHARS.As("message")}");
     var result = pattern.Map("1234567890 ERROR Something went wrong").ToList();
     
     Assert.AreEqual("1234567890", result.First(x => x.groupName == "timestamp").subpart);

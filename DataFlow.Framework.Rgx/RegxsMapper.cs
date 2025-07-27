@@ -1,11 +1,6 @@
 ﻿using DataFlow.Extensions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace DataFlow.Framework
 {
@@ -13,7 +8,7 @@ namespace DataFlow.Framework
     using RgxRequests = Dictionary<string /*groupName*/, Func<string, string> /*transformation*/>;
     using static DataFlow.Framework.RegxsExt;
 
-    public class Regxs
+    public class Regxes
     {
 
         public struct UNMATCHED
@@ -24,15 +19,15 @@ namespace DataFlow.Framework
         }
 
         HashSet<Regex> regexs = new HashSet<Regex>();
-      
-        public Regxs(params Regex[] Regs)
+
+        public Regxes(params Regex[] Regs)
         {
             Regs
                 .ForEach(r => regexs.Add(r))
                 .Do();
         }
 
-        public Regxs(params string[] patterns)
+        public Regxes(params string[] patterns)
         {
             patterns
                 .ForEach(p => regexs.Add(new Regex(p)))
@@ -40,12 +35,12 @@ namespace DataFlow.Framework
         }
 
        
-        public Regxs Add(Regex regex)
+        public Regxes Add(Regex regex)
         {
             regexs.Add(regex);
             return this;
         }
-        public Regxs Add(string pattern)
+        public Regxes Add(string pattern)
         {
             regexs.Add(new Regex(pattern));
             return this;
@@ -116,7 +111,7 @@ namespace DataFlow.Framework
     {        
 
 
-        public static IEnumerable<(string groupName, string subpart)> Map(this string line, Regxs regxs)
+        public static IEnumerable<(string groupName, string subpart)> Map(this string line, Regxes regxs)
         => regxs.Map(line);
         public static IEnumerable<(string groupName, R subpart)> SelectCase<R>(this IEnumerable<(string groupName, string subpart)> lineSubparts, params (string groupName, Func<string, R> transformation)[] transformations)
         {
@@ -155,7 +150,7 @@ namespace DataFlow.Framework
             return lineSubparts.ForEach(part => grpActions[part.groupName]());
         }
 
-        public static IEnumerable<(string groupName, (int startIndex, int Length) slice)> Slices(this string line, Regxs regxs)
+        public static IEnumerable<(string groupName, (int startIndex, int Length) slice)> Slices(this string line, Regxes regxs)
        => regxs.Slices(line);
 
         public static string toString(this IEnumerable<(string groupName, (int startIndex, int Length) slice)> slices, string line, params (string groupName, Func<string, string> transformation)[] transformations)
@@ -173,12 +168,12 @@ namespace DataFlow.Framework
                 Func<string, string> map;
                 if (transformations.TryGetValue(x.groupName, out map))
                 {
-                    if (x.groupName == Regxs.UNMATCHED.LINE) builder.Append(map(line));
+                    if (x.groupName == Regxes.UNMATCHED.LINE) builder.Append(map(line));
                     else builder.Append(map(line.Substring(x.slice.startIndex, x.slice.Length)));
                 }
                 else 
                 {
-                    if (x.groupName == Regxs.UNMATCHED.LINE) builder.Append(line);
+                    if (x.groupName == Regxes.UNMATCHED.LINE) builder.Append(line);
                     else builder.Append(builder.Append(line.AsSpan().Slice(x.slice.startIndex, x.slice.Length)));
                 }
             })

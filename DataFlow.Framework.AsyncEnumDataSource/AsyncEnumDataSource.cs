@@ -11,6 +11,8 @@ namespace DataFlow.Framework
     /// </summary>
     public class AsyncEnumDataSource<T> : IDataSource<T>
     {
+        public string Name { get; }
+
         private readonly IAsyncEnumerable<T> _sourceEnumerable;
         private readonly ConcurrentDictionary<ChannelWriter<T>, Func<T, bool>?> _writers = new();
         private Task? _processingTask;
@@ -21,9 +23,16 @@ namespace DataFlow.Framework
         /// Initializes a new instance of the AsyncEnumerableDataSource class.
         /// </summary>
         /// <param name="sourceEnumerable">The asynchronous enumerable to use as the data source.</param>
-        public AsyncEnumDataSource(IAsyncEnumerable<T> sourceEnumerable)
+        /// <param name="name">The unique name for this data source, used for logging and identification.</param>
+        public AsyncEnumDataSource(IAsyncEnumerable<T> sourceEnumerable, string name)
         {
-            _sourceEnumerable = sourceEnumerable ?? throw new ArgumentNullException(nameof(sourceEnumerable));          
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                throw new ArgumentException("Data source name cannot be null or whitespace.", nameof(name));
+            }
+
+            Name = name;
+            _sourceEnumerable = sourceEnumerable ?? throw new ArgumentNullException(nameof(sourceEnumerable));
         }
 
         /// <summary>
@@ -31,7 +40,6 @@ namespace DataFlow.Framework
         /// </summary>
         private async Task ProcessEnumerableAsync()
         {
-
             try
             {
                 // Asynchronously iterate over the source data
@@ -44,7 +52,9 @@ namespace DataFlow.Framework
             catch (Exception ex)
             {
                 // If the source enumerable throws an error, propagate it to the writers.
-                CompleteAllWriters(ex);
+                // Include the source name in the exception for better diagnostics.
+                var newEx = new Exception($"An error occurred in data source '{Name}'. See inner exception for details.", ex);
+                CompleteAllWriters(newEx);
             }
             finally
             {
@@ -61,6 +71,7 @@ namespace DataFlow.Framework
             _writers.TryAdd(channelWriter, condition);
             lock (_startLock)
             {
+                // Start the processing task only when the first writer is added.
                 if (_processingTask == null)
                 {
                     _processingTask = ProcessEnumerableAsync();
@@ -105,20 +116,15 @@ namespace DataFlow.Framework
                 writer.TryComplete(ex);
             }
         }
-    }
-}
 
-namespace DataFlow.Extensions
-{
-    public static class IAsyncEnumerable_DataSourceExtension
-    {
-        /// <summary>
-        /// Wraps any IAsyncEnumerable in a data source, allowing it to be used by a DataFlow.
-        /// The sequence will be consumed as fast as possible.
-        /// </summary>
-        public static IDataSource<T> ToDataSource<T>(this IAsyncEnumerable<T> sourceEnumerable)
+        public void Dispose()
         {
-            return new AsyncEnumDataSource<T>(sourceEnumerable);
+            // Cleanly complete all writers on disposal.
+            CompleteAllWriters();
+            // We can also consider waiting for the processing task to finish,
+            // but that might block the disposing thread.
+            // _processingTask?.Wait();
         }
     }
 }
+

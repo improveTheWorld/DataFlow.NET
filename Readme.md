@@ -138,12 +138,12 @@ This unique capability allows you to choose the best execution model for your ne
 
 DataFlow.NET provides a fluent, efficient, and deeply integrated API for regular expression processing. It allows you to deconstruct structured text within a data pipeline, transforming raw strings into structured data in a single, readable pass.
 
-### 1. The `Regx` Builder: Composable & Readable Patterns
+### 1. The `Regex` Builder: Composable & Readable Patterns
 
 Instead of writing cryptic, hard-to-maintain regex strings, you can compose them using a declarative, fluent builder.
 
 ```csharp
-using static DataFlow.Framework.Regx;
+using static DataFlow.Framework.Regex;
 
 // Instead of this:
 var webLogPattern_Old = @"INFO: \[WebServer\] Request ""(GET|POST) ([^""]+)"" completed in (\d+)ms with status (\d{3})";
@@ -185,7 +185,7 @@ WARN: [Cache] Key 'user:123' not found. Falling back to source.
 using DataFlow.Data;
 using DataFlow.Extensions;
 using DataFlow.Framework;
-using static DataFlow.Framework.Regx;
+using static DataFlow.Framework.Regex;
 
 // 1. Define composable regex patterns for each log type
 var webLogPattern = "INFO: [WebServer] Request " +
@@ -198,8 +198,8 @@ var dbErrorPattern = "ERROR: [Database] Query failed on table " +
 var cacheWarnPattern = "WARN: [Cache] Key " +
                        $"'{ANY_CHARS.As("CacheKey")}' not found.";
 
-// 2. Combine patterns into a single Regxs object
-var logPatterns = new Regxs(webLogPattern, dbErrorPattern, cacheWarnPattern);
+// 2. Combine patterns into a single Regxes object
+var logPatterns = new Regxes(webLogPattern, dbErrorPattern, cacheWarnPattern);
 
 // 3. Build the full, declarative processing pipeline
 Read.text("system.log")
@@ -340,7 +340,7 @@ var streamResults = await liveLogStream
 ```
 
 This demonstrates the power of writing your logic once and deploying it anywhere, from simple batch jobs to complex, real-time streaming applications.
-```
+
 > **🚀 The Vision**: *Process CSV files during development, deploy the same code to handle live data streams in production*
 
 

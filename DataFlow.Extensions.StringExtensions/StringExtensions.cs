@@ -139,16 +139,14 @@ public class Subpart
 
     public Subpart TrimStart(int steps)
     {
-        EndIndex -= steps;
+        StartIndex += steps;
         return this;
     }
 
-
-public Subpart TrimEnd(int steps)
+    public Subpart TrimEnd(int steps)
     {
-        StartIndex += steps;
+        EndIndex -= steps;
         return this;
-
     }
 
 

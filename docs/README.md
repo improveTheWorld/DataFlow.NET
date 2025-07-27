@@ -691,16 +691,16 @@ public static void AgainstNullArgumentProperty<T>(string parameterName, string p
 public static async Task AgainstNullArgumentAsync<T>(string parameterName, Task<T> argumentTask) where T : class
 ```
 
-#### Regx and Regxs Classes - Stream-Aware Regex
+#### Regex and Regxes Classes - Stream-Aware Regex
 Simplified regular expression utilities with **streaming support** and fluent syntax.
 
-**Regx Constants:**
+**Regex Constants:**
 ```csharp
-public static readonly Regx NUMS = new(@"\d+");
-public static readonly Regx ALPHAS = new(@"[a-zA-Z]+");
-public static readonly Regx WORDS = new(@"\w+");
-public static readonly Regx SPACES = new(@"\s+");
-public static readonly Regx MAYBE_SPACES = new(@"\s*");
+public static readonly Regex NUMS = new(@"\d+");
+public static readonly Regex ALPHAS = new(@"[a-zA-Z]+");
+public static readonly Regex WORDS = new(@"\w+");
+public static readonly Regex SPACES = new(@"\s+");
+public static readonly Regex MAYBE_SPACES = new(@"\s*");
 ```
 
 **Streaming Regex Example:**

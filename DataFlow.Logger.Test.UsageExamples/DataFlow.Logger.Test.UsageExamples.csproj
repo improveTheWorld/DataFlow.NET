@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="AcceptanceCriterias.cs" />
+    <Compile Remove="ArrayExtentions.cs" />
+    <Compile Remove="ColoredConsoleWriter.cs" />
+    <Compile Remove="Config.cs" />
+    <Compile Remove="CriteriaList.cs" />
+    <Compile Remove="ILogger.cs" />
+    <Compile Remove="ILoggerTarget.cs" />
+    <Compile Remove="ListWatcher.cs" />
+    <Compile Remove="LogFilter.cs" />
+    <Compile Remove="Logger.cs" />
+    <Compile Remove="NameSpace.cs" />
+    <Compile Remove="NameSpaceListWatcher.cs" />
+    <Compile Remove="ObjectExtentions.cs" />
+    <Compile Remove="WriteLineLogger.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="7.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataFlow.Logger\DataFlow.Logger.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
