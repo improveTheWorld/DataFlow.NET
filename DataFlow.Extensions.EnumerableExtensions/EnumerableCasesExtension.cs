@@ -11,7 +11,7 @@ public static class EnumerableCasesExtension
 
 
 
-    static int getFilterIndex<T>(this Func<T, bool>[] filters, T item)
+    private static int getFilterIndex<T>(this Func<T, bool>[] filters, T item)
     {
 
         int CategoryIndex = 0;
@@ -73,47 +73,16 @@ public static class EnumerableCasesExtension
 
 
 
-    //------------------------------------AllCases
+    //------------------------------------UnCase
     public static IEnumerable<T> UnCase<T>(this IEnumerable<(int category, T item)> items)
     => items.Select(x => x.item);
 
-    //------------------------------------AllCases
     public static IEnumerable<T> UnCase<T, Y>(this IEnumerable<(int category, T item, Y newItem)> items)
     => items.Select(x => x.item);
 
+    //------------------------------------AllCases
     public static IEnumerable<R> AllCases<T, R>(this IEnumerable<(int category, T item, R newItem)> items, bool filter = true)
     => filter ? items.Select(x => x.newItem).Where(x => x is not null && !x.Equals(default)) : items.Select(x => x.newItem);
-
-    public static IEnumerable<string> ToLines(this IEnumerable<string> slices, string separator)
-    {
-        string sum = "";
-        foreach (var slice in slices)
-        {
-            if (slice != separator)
-                sum += slice;
-            else
-            {
-                yield return sum;
-                sum = "";
-            }
-
-        }
-    }
-    public static IEnumerable<string> AllCases(this IEnumerable<(int category, string item)> items, string separator)
-    {
-        string sum = "";
-        foreach (var (_, item) in items)
-        {
-            if (item != separator)
-                sum += item;
-            else
-            {
-                yield return sum;
-                sum = "";
-            }
-
-        }
-    }
 
 }
 

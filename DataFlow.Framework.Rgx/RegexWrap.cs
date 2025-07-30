@@ -62,8 +62,8 @@ namespace DataFlow.Framework
         public static string Many(this string input) => $"{input.Group()}+"; //one or plus
         public static string MayBe(this string input) => $"{input.Group()}?";  //zero or one
         public static string As(this string input, string groupName = "") => groupName.IsNullOrEmpty() ? $"({input})" : $"(?<{groupName}>{input})";
-        public static string OneOf(params string[] parameters) => parameters.Cumul((a, b) => $"{a}|{b}");
-        public static string OneOf(params char[] parameters) => $"[{parameters.Select(x => x.ToString()).Cumul((a, b) => a + b)}]";
+        public static string OneOf(params string[] parameters) => parameters.Aggregate((a, b) => $"{a}|{b}");
+        public static string OneOf(params char[] parameters) => $"[{parameters.Select(x => x.ToString()).Aggregate((a, b) => a + b)}]";
         public static string Many(this string input, int Limit_inf, int limit_sup) => $"{input.Group()}{{{Limit_inf},{limit_sup}}}"; // between limit_inf and limit_sup times
         public static string InSpaces(this string input) => SPACES + input + SPACES;
         public static string Words(int nbrWords)

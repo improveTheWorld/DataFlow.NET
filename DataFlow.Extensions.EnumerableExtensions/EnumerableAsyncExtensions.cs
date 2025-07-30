@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace DataFlow.Extensions;
 
-public static class EnumerableDataSourceExtensions
+public static class EnumerableAsyncExtensions
 {
     /// <summary>
     /// Wraps a synchronous IEnumerable<T> in a cooperative IAsyncEnumerable<T>.

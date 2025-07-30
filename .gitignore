@@ -2,3 +2,12 @@ obj/
 bin/
 .vs/
 script*/
+data/file_hashes.json
+DataFlow.Extensions.SparkQueryExtensions/DataFlow.Extensions.SparkQueryExtensions.csproj
+DataFlow.Extensions.SparkQueryExtensions/SparkQueryCasesExtensions.cs
+DataFlow.Extensions.SparkQueryExtensions/SparkQueryExtensions.cs
+DataFlow.Framework.SparkQuery/DataFlow.Framework.SparkQuery.csproj
+DataFlow.Framework.SparkQuery/SparkQuery.cs
+DataFlow.Framework.SparkQuery/WindowContext.cs
+DataFlow.Framework.SparkQuery/WindowExtensions.cs
+DataFlow.Framework.SparkQuery/WindowSpecBuilder.cs

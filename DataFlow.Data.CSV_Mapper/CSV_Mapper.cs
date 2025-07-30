@@ -9,12 +9,11 @@ public static class CSV_Mapper
                          => typeof(T)
                            .GetFields()?
                            .Select(f => f?.GetValue(csvRecord)?.ToString() ?? String.Empty)
-                           .Cumul((a, b) => a + separator + b) ?? String.Empty;
-
+                           .Aggregate((a, b) => a + separator + b) ?? String.Empty;
 
     public static string csv<T>(string separator = ";") where T : struct
                          => typeof(T)
                            .GetFields()?
                            .Select(f => f?.Name ?? String.Empty)
-                           .Cumul((a, b) => a + separator + b) ?? String.Empty;
-}       
+                           .Aggregate((a, b) => a + separator + b) ?? String.Empty;
+}

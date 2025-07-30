@@ -11,7 +11,7 @@ public static class ParallelAsyncQueryCasesExtension
         return items.Select(x => (Dict.ContainsKey(x.category) ? Dict[x.category] : Dict.Count, x.item));
     }
 
-    static int getFilterIndex<T>(this Func<T, bool>[] filters, T item)
+    private static int getFilterIndex<T>(this Func<T, bool>[] filters, T item)
     {
 
         int CategoryIndex = 0;
@@ -77,10 +77,10 @@ public static class ParallelAsyncQueryCasesExtension
     public static ParallelAsyncQuery<T> UnCase<T>(this ParallelAsyncQuery<(int category, T item)> items)
     => items.Select(x => x.item);
 
-    //------------------------------------AllCases
     public static ParallelAsyncQuery<T> UnCase<T, Y>(this ParallelAsyncQuery<(int category, T item, Y newItem)> items)
     => items.Select(x => x.item);
 
+    //------------------------------------AllCases
     public static ParallelAsyncQuery<R> AllCases<T, R>(this ParallelAsyncQuery<(int category, T item, R newItem)> items, bool filter = true) where T : class
     => filter ? items.Select(x => x.newItem).Where(x => x is not null && !x.Equals(default)) : items.Select(x => x.newItem);
 }

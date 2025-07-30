@@ -5,6 +5,22 @@ namespace DataFlow.Extensions;
 public static class EnumerableDebuggingExtension
 {
 
+    public static IEnumerable<string> ToLines(this IEnumerable<string> slices, string separator)
+    {
+        string sum = "";
+        foreach (var slice in slices)
+        {
+            if (slice != separator)
+                sum += slice;
+            else
+            {
+                yield return sum;
+                sum = "";
+            }
+
+        }
+    }
+
     public const string BEFORE = "---------{\n";
     public const string AFTER = "\n-------}";
     public const string SEPARATOR = "\n";

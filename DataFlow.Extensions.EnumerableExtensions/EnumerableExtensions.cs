@@ -150,25 +150,6 @@ public static class EnumerableExtensions
         foreach (var item in items) ;
     }
 
-
-    public static T? Cumul<T>(this IEnumerable<T> sequence, Func<T?, T, T> cumulate)
-    {
-        T? cumul = sequence.IsNullOrEmpty() ? default : sequence.First();
-
-        sequence.Skip(1).ForEach(x => cumul = cumulate(cumul, x)).Do();
-
-        return cumul;
-    }
-
-    public static TResult? Cumul<T, TResult>(this IEnumerable<T> sequence, Func<TResult?, T, TResult> cumulate, TResult? initial)
-    {
-        TResult? cumul = initial;
-
-        sequence.ForEach(x => cumul = cumulate(cumul, x)).Do();
-
-        return cumul;
-    }
-
     public static StringBuilder BuildString(this IEnumerable<string> items, StringBuilder? str = null, string separator = ", ", string before = "{", string after = "}")
     {
         if (str is null) str = new StringBuilder();
