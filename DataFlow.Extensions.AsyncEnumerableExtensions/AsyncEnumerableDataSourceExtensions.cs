@@ -52,7 +52,7 @@ public static class AsyncEnumerableDataSourceExtensions
 
     public static IDataSource<T> ToDataSource<T>(this IAsyncEnumerable<T> sourceEnumerable, string name)
     {
-        return new AsyncEnumDataSource<T>(sourceEnumerable, name);
+        return new DataSource<T>(sourceEnumerable, name);
     }
 
 }

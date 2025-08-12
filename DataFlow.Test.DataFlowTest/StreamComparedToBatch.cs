@@ -79,9 +79,9 @@ public class StreamVSBArchPlaygroundExamples
         var streamStopwatch = Stopwatch.StartNew();
 
         // UPDATED: Added names to each data source.
-        var webServerLogs = webLogs.Throttle(1).ToDataSource("WebServerLogs");
-        var databaseLogs = dbLogs.Throttle(1).ToDataSource("DatabaseLogs");
-        var cacheLogsSource = cacheLogs.Throttle(1).ToDataSource("CacheLogs");
+        var webServerLogs = webLogs.Async().ToDataSource("WebServerLogs");
+        var databaseLogs = dbLogs.Async().ToDataSource("DatabaseLogs");
+        var cacheLogsSource = cacheLogs.Async().ToDataSource("CacheLogs");
 
         var merger = new DataFlow<LogEntry>(null, null,
             webServerLogs, databaseLogs, cacheLogsSource
@@ -154,9 +154,9 @@ public class StreamVSBArchPlaygroundExamples
         var streamStopwatch = Stopwatch.StartNew();
 
         // UPDATED: Added names to each data source.
-        var cpuSource = cpuMetrics.Throttle(1).ToDataSource("CpuMetrics");
-        var memorySource = memoryMetrics.Throttle(1).ToDataSource("MemoryMetrics");
-        var networkSource = networkMetrics.Throttle(1).ToDataSource("NetworkMetrics");
+        var cpuSource = cpuMetrics.Async().ToDataSource("CpuMetrics");
+        var memorySource = memoryMetrics.Async().ToDataSource("MemoryMetrics");
+        var networkSource = networkMetrics.Async().ToDataSource("NetworkMetrics");
 
         var merger = new DataFlow<MetricEntry>(null, null,
             cpuSource, memorySource, networkSource
@@ -249,8 +249,8 @@ public class StreamVSBArchPlaygroundExamples
         var streamStopwatch = Stopwatch.StartNew();
 
         // UPDATED: Added names to each data source.
-        var orderSource = orders.Throttle(1).ToDataSource("OrderEvents");
-        var sensorSource = sensors.Throttle(1).ToDataSource("SensorReadings");
+        var orderSource = orders.Async().ToDataSource("OrderEvents");
+        var sensorSource = sensors.Async().ToDataSource("SensorReadings");
 
         var orderMerger = new DataFlow<OrderEvent>(orderSource);
         var sensorMerger = new DataFlow<SensorReading>(sensorSource);
@@ -346,10 +346,10 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("Simulating real-time logs from multiple sources (WebServer, Database, Cache)...");
         Console.WriteLine(new string('-', 70));
 
-        // Setup throttled data sources to simulate real-time streams
-        var webServerLogs = TestDataGenerators.GenerateLogEntries(15).Throttle(150).ToDataSource("WebServerLogs");
-        var databaseLogs = TestDataGenerators.GenerateLogEntries(10).Throttle(250).ToDataSource("DatabaseLogs");
-        var cacheLogs = TestDataGenerators.GenerateLogEntries(8).Throttle(300).ToDataSource("CacheLogs");
+        // Setup Async data sources to simulate real-time streams
+        var webServerLogs = TestDataGenerators.GenerateLogEntries(15).Async().ToDataSource("WebServerLogs");
+        var databaseLogs = TestDataGenerators.GenerateLogEntries(10).Async().ToDataSource("DatabaseLogs");
+        var cacheLogs = TestDataGenerators.GenerateLogEntries(8).Async().ToDataSource("CacheLogs");
 
         // Create a DataFlow merger to process all log entries
         var merger = new DataFlow<LogEntry>(null, null, webServerLogs, databaseLogs, cacheLogs);
@@ -388,10 +388,10 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("Simulating a stream of metrics to generate real-time alerts...");
         Console.WriteLine(new string('-', 70));
 
-        // Setup throttled data sources
-        var cpuSource = TestDataGenerators.GenerateMetrics().Throttle(200).ToDataSource("CpuMetrics");
-        var memorySource = TestDataGenerators.GenerateMetrics().Throttle(300).ToDataSource("MemoryMetrics");
-        var networkSource = TestDataGenerators.GenerateMetrics().Throttle(400).ToDataSource("NetworkMetrics");
+        // Setup Async data sources
+        var cpuSource = TestDataGenerators.GenerateMetrics().Async().ToDataSource("CpuMetrics");
+        var memorySource = TestDataGenerators.GenerateMetrics().Async().ToDataSource("MemoryMetrics");
+        var networkSource = TestDataGenerators.GenerateMetrics().Async().ToDataSource("NetworkMetrics");
 
         var merger = new DataFlow<MetricEntry>(null, null, cpuSource, memorySource, networkSource);
 
@@ -430,8 +430,8 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine(new string('-', 70));
 
         // Setup sources for two different data types
-        var orderSource = TestDataGenerators.GenerateOrderEvents(15).Throttle(150).ToDataSource("OrderEvents");
-        var sensorSource = TestDataGenerators.GenerateSensorReadings(20).Throttle(100).ToDataSource("SensorReadings");
+        var orderSource = TestDataGenerators.GenerateOrderEvents(15).Async().ToDataSource("OrderEvents");
+        var sensorSource = TestDataGenerators.GenerateSensorReadings(20).Async().ToDataSource("SensorReadings");
 
         // Create a separate DataFlow instance for each data type
         var orderMerger = new DataFlow<OrderEvent>(orderSource);
@@ -498,11 +498,9 @@ public class StreamVSBArchPlaygroundExamples
             // ✅ Optionally run individual playgrounds
             Console.WriteLine("🎯 Running individual playground examples...\n");
 
-            await LogProcessingPlayground();
-            await Task.Delay(500);
+            await LogProcessingPlayground();;
 
             await MetricsMonitoringPlayground();
-            await Task.Delay(500);
 
             await MixedDataTypesPlayground();
 

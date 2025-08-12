@@ -20,9 +20,9 @@ public class DataFlowPlaygroundExamples
 
         // ✅ Create and name test data sources
         // CORRECTED: Ensured each source uses its corresponding data list.
-        var webServerLogs = webLogs.Throttle(80).ToDataSource("WebServerLogs");
-        var databaseLogs = dbLogs.Throttle(120).ToDataSource("DatabaseLogs");
-        var cacheLogs = cacheLogsList.Throttle(200).ToDataSource("CacheLogs");
+        var webServerLogs = webLogs.Async().ToDataSource("WebServerLogs");
+        var databaseLogs = dbLogs.Async().ToDataSource("DatabaseLogs");
+        var cacheLogs = cacheLogsList.Async().ToDataSource("CacheLogs");
 
         Console.WriteLine("📊 Generated test data:");
         Console.WriteLine($"   • WebServer: {webLogs.Count} logs");
@@ -71,9 +71,9 @@ public class DataFlowPlaygroundExamples
 
         // ✅ Create and name metrics sources
         // UPDATED: Added names to each data source.
-        var cpuMetrics = cpuData.Throttle(100).ToDataSource("CpuMetrics");
-        var memoryMetrics = memoryData.Throttle(150).ToDataSource("MemoryMetrics");
-        var networkMetrics = networkData.Throttle(200).ToDataSource("NetworkMetrics");
+        var cpuMetrics = cpuData.Async().ToDataSource("CpuMetrics");
+        var memoryMetrics = memoryData.Async().ToDataSource("MemoryMetrics");
+        var networkMetrics = networkData.Async().ToDataSource("NetworkMetrics");
 
         var merger = new DataFlow<MetricEntry>(null, null,
             cpuMetrics, memoryMetrics, networkMetrics
@@ -120,8 +120,8 @@ public class DataFlowPlaygroundExamples
 
         // ✅ Create and name different data sources
         // UPDATED: Added names to each data source.
-        var orderSource = orders.Throttle(120).ToDataSource("OrderEvents");
-        var sensorSource = sensors.Throttle(120).ToDataSource("SensorReadings");
+        var orderSource = orders.Async().ToDataSource("OrderEvents");
+        var sensorSource = sensors.Async().ToDataSource("SensorReadings");
 
         var orderMerger = new DataFlow<OrderEvent>(orderSource);
         var sensorMerger = new DataFlow<SensorReading>(sensorSource);
@@ -184,13 +184,11 @@ public class DataFlowPlaygroundExamples
             await LogProcessingPlayground();
 
             // ✅ Add small delay for visual separation
-            await Task.Delay(500);
             Console.WriteLine("\n" + new string('=', 50) + "\n");
 
             // Run Metrics Monitoring
             await MetricsMonitoringPlayground();
 
-            await Task.Delay(500);
             Console.WriteLine("\n" + new string('=', 50) + "\n");
 
             // Run Mixed Data Types

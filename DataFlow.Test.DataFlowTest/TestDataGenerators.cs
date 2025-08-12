@@ -10,7 +10,7 @@ public static class TestDataGenerators
         // Log data generator
     public static IEnumerable<LogEntry> GenerateLogEntries(int count = 100)
     {
-        
+        count = count * 10000;
         var levels = new[] { "DEBUG", "INFO", "WARN", "ERROR", "FATAL" };
         var sources = new[] { "WebServer", "Database", "Cache", "Queue", "Auth" };
         var messages = new[]
@@ -57,6 +57,7 @@ public static class TestDataGenerators
     // Metrics data generator
     public static IEnumerable<MetricEntry> GenerateMetrics(int count = 100)
     {
+        count = count * 10000;
         var metricNames = new[] { "cpu_usage", "memory_usage", "disk_io", "network_latency", "request_count" };
         var services = new[] { "web-server", "database", "cache", "queue" };
         var environments = new[] { "prod", "staging", "dev" };
@@ -93,6 +94,7 @@ public static class TestDataGenerators
     // Order events generator
     public static IEnumerable<OrderEvent> GenerateOrderEvents(int count = 100)
     {
+        count = count * 10000;
         var eventTypes = new[] { "created", "paid", "shipped", "delivered", "cancelled", "refunded" };
         var statuses = new[] { "pending", "processing", "completed", "failed", "cancelled" };
 
@@ -116,6 +118,7 @@ public static class TestDataGenerators
     // Sensor readings generator
     public static IEnumerable<SensorReading> GenerateSensorReadings(int count = 100)
     {
+        count = count * 10000;
         var sensorTypes = new[] { "temperature", "humidity", "pressure", "vibration", "light" };
         var units = new Dictionary<string, string>
         {

@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DataFlow.Extensions.AsyncEnumerableExtensions\DataFlow.Extensions.AsyncEnumerableExtensions.csproj" />
-    <ProjectReference Include="..\DataFlow.Framework.AsyncEnumDataSource\DataFlow.Framework.AsyncEnumDataSource.csproj" />
   </ItemGroup>
 
 </Project>

@@ -7,8 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DataFlow.Data.CSV_Mapper\DataFlow.Data.CSV_Mapper.csproj" />
+    <ProjectReference Include="..\DataFlow.Data.CSV_Mapper\DataFlow.Data.CSV.csproj" />
     <ProjectReference Include="..\DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
 </Project>

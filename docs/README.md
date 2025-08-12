@@ -691,7 +691,7 @@ public static void AgainstNullArgumentProperty<T>(string parameterName, string p
 public static async Task AgainstNullArgumentAsync<T>(string parameterName, Task<T> argumentTask) where T : class
 ```
 
-#### Regex and Regxes Classes - Stream-Aware Regex
+#### Regex and RegexTokenizer Classes - Stream-Aware Regex
 Simplified regular expression utilities with **streaming support** and fluent syntax.
 
 **Regex Constants:**

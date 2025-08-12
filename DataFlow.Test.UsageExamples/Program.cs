@@ -93,7 +93,7 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
             StreamWriter InfoLogs = new("others.txt");
 
             // Read lines and categorize by log level
-            Read.text("log.txt")
+            Read.textSync("log.txt")
                 .Until(line => line.StartsWith("STOP:"))
                 .Cases(
                     line => line.ToUpper().Contains("ERROR"),
@@ -144,9 +144,9 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
 
 
             // Read the log file and analyze each line
-            Read.text(log)
+            Read.textSync(log)
                 // Define regex patterns for different log entry types
-                .Map($"Received Response : {NUMS.As("ErrorCode")} {WORDS.As("errorMessage")}")
+                .TokenAndFlatten($"Received Response : {NUMS.As("ErrorCode")} {WORDS.As("errorMessage")}")
                 .Cases(
                     "ErrorCode",
                     "errorMessage"
@@ -178,7 +178,7 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
 
 
         //    Data.Read.text(textFile)
-        //        .Map(OneOf(NUMS.As("numgroup"), ALPHAS.As("wordgroup")))
+        //        .TokenAndFlatten(OneOf(NUMS.As("numgroup"), ALPHAS.As("wordgroup")))
         //        .Cases(
         //            "numgroup",
         //            "wordgroup",
@@ -219,7 +219,7 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
 
 
         //    Data.Read.text("log.txt")
-        //            .Map(reg, (group1, v => v.ToUpper()), (group2, _ => "++++++"))
+        //            .TokenAndFlatten(reg, (group1, v => v.ToUpper()), (group2, _ => "++++++"))
         //            .Enumerate()
         //            .WriteInFile(path + "\\log_test_oussama.txt");
         //}

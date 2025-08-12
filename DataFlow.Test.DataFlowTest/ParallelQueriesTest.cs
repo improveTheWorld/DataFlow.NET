@@ -1,4 +1,5 @@
-﻿using DataFlow.Extensions;
+﻿using DataFlow.Data;
+using DataFlow.Extensions;
 using DataFlow.Framework;
 using System.Diagnostics;
 
@@ -36,6 +37,7 @@ public class ParallelQueriesPlaygroundExamples
 
         var orders = TestDataGenerators.GenerateOrderEvents(15).ToList();
         var sensors = TestDataGenerators.GenerateSensorReadings(12).ToList();
+        webLogs.WriteCSV("LogEntry.csv");
 
         Console.WriteLine("📊 Generated identical test data for all execution paths:");
         Console.WriteLine($"   • Logs: {webLogs.Count + dbLogs.Count + cacheLogs.Count} entries");
@@ -119,9 +121,9 @@ public class ParallelQueriesPlaygroundExamples
         var asyncSequentialStopwatch = Stopwatch.StartNew();
 
         // UPDATED: Data sources are now named directly upon creation.
-        var webServerLogs = webLogs.Throttle(1).ToDataSource("WebServerLogs");
-        var databaseLogs = dbLogs.Throttle(1).ToDataSource("DatabaseLogs");
-        var cacheLogsSource = cacheLogs.Throttle(1).ToDataSource("CacheLogs");
+        var webServerLogs = webLogs.Async().ToDataSource("WebServerLogs");
+        var databaseLogs = dbLogs.Async().ToDataSource("DatabaseLogs");
+        var cacheLogsSource = cacheLogs.Async().ToDataSource("CacheLogs");
 
         var merger = new DataFlow<LogEntry>(null, null,
             webServerLogs, databaseLogs, cacheLogsSource
@@ -243,9 +245,9 @@ public class ParallelQueriesPlaygroundExamples
         var asyncSequentialStopwatch = Stopwatch.StartNew();
 
         // UPDATED: Data sources are now named directly upon creation.
-        var cpuSource = cpuMetrics.Throttle(1).ToDataSource("CpuMetrics");
-        var memorySource = memoryMetrics.Throttle(1).ToDataSource("MemoryMetrics");
-        var networkSource = networkMetrics.Throttle(1).ToDataSource("NetworkMetrics");
+        var cpuSource = cpuMetrics.Async().ToDataSource("CpuMetrics");
+        var memorySource = memoryMetrics.Async().ToDataSource("MemoryMetrics");
+        var networkSource = networkMetrics.Async().ToDataSource("NetworkMetrics");
 
         var merger = new DataFlow<MetricEntry>(null, null,
             cpuSource, memorySource, networkSource
@@ -362,7 +364,7 @@ public class ParallelQueriesPlaygroundExamples
         var orderAsyncSequentialStopwatch = Stopwatch.StartNew();
         // UPDATED: Data source is now named directly upon creation.
 
-        var orderSource = orders.Throttle(1).ToDataSource("OrderEvents");
+        var orderSource = orders.Async().ToDataSource("OrderEvents");
         var orderMerger = new DataFlow<OrderEvent>(null, null, orderSource);
 
 
@@ -448,7 +450,7 @@ public class ParallelQueriesPlaygroundExamples
         // PATH 3: Async Sequential Sensors
         var sensorAsyncSequentialStopwatch = Stopwatch.StartNew();
         // UPDATED: Data source is now named directly upon creation.
-        var sensorSource = sensors.Throttle(1).ToDataSource("SensorReadings");
+        var sensorSource = sensors.Async().ToDataSource("SensorReadings");
         var sensorMerger = new DataFlow<SensorReading>(sensorSource);
 
         var sensorAsyncSequentialResults = await sensorMerger
@@ -698,10 +700,8 @@ public class ParallelQueriesPlaygroundExamples
             Console.WriteLine("🎯 Running individual playground examples...\n");
 
             await LogProcessingPlayground();
-            await Task.Delay(500);
 
             await MetricsMonitoringPlayground();
-            await Task.Delay(500);
 
             await MixedDataTypesPlayground();
 

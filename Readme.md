@@ -198,8 +198,8 @@ var dbErrorPattern = "ERROR: [Database] Query failed on table " +
 var cacheWarnPattern = "WARN: [Cache] Key " +
                        $"'{ANY_CHARS.As("CacheKey")}' not found.";
 
-// 2. Combine patterns into a single Regxes object
-var logPatterns = new Regxes(webLogPattern, dbErrorPattern, cacheWarnPattern);
+// 2. Combine patterns into a single RegexTokenizer object
+var logPatterns = new RegexTokenizer(webLogPattern, dbErrorPattern, cacheWarnPattern);
 
 // 3. Build the full, declarative processing pipeline
 Read.text("system.log")

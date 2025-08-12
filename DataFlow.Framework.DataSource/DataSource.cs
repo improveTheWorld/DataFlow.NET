@@ -9,7 +9,7 @@ namespace DataFlow.Framework
     /// An IDataSource<T> implementation that wraps an IAsyncEnumerable<T>.
     /// It reads from the enumerable in the background and publishes items to all subscribed writers.
     /// </summary>
-    public class AsyncEnumDataSource<T> : IDataSource<T>
+    public class DataSource<T> : IDataSource<T>
     {
         public string Name { get; }
 
@@ -24,7 +24,7 @@ namespace DataFlow.Framework
         /// </summary>
         /// <param name="sourceEnumerable">The asynchronous enumerable to use as the data source.</param>
         /// <param name="name">The unique name for this data source, used for logging and identification.</param>
-        public AsyncEnumDataSource(IAsyncEnumerable<T> sourceEnumerable, string name)
+        public DataSource(IAsyncEnumerable<T> sourceEnumerable, string name)
         {
             if (string.IsNullOrWhiteSpace(name))
             {

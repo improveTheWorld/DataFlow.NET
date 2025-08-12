@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -7,9 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DataFlow.Data.StringMapper\DataFlow.Data.String_Mapper.csproj" />
+    <ProjectReference Include="..\DataFlow.Data.StringMapper\DataFlow.Data.StringMapper.csproj" />
     <ProjectReference Include="..\DataFlow.Framework.EnumerablePlus\DataFlow.Framework.EnumerableWithNote.csproj" />
-    <ProjectReference Include="..\DataFlow.Framework.Rgx\DataFlow.Framework.Rgx.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.RegexTokenizer\DataFlow.Framework.RegexTokenizer.csproj" />
   </ItemGroup>
 
 </Project>

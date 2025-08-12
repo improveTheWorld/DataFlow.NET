@@ -775,7 +775,7 @@ public static string Many(this string input, int limitInf, int limitSup)
 - `limitSup`: Maximum occurrences  
 **Returns:** `string` - Bounded quantifier pattern  
 
-### Regxes Class
+### RegexTokenizer Class
 
 Provides advanced pattern matching with multiple regex support.
 
@@ -792,36 +792,36 @@ public static class UNMATCHED
 #### Constructors
 
 ```csharp
-public Regxes(params Regex[] regs)
+public RegexTokenizer(params Regex[] regs)
 ```
-**Description:** Creates Regxes instance with compiled regex patterns  
+**Description:** Creates RegexTokenizer instance with compiled regex patterns  
 **Parameters:**
 - `regs`: Array of compiled Regex instances  
 
 ```csharp
-public Regxes(params string[] patterns)
+public RegexTokenizer(params string[] patterns)
 ```
-**Description:** Creates Regxes instance with string patterns  
+**Description:** Creates RegexTokenizer instance with string patterns  
 **Parameters:**
 - `patterns`: Array of regex pattern strings  
 
 #### Methods
 
 ```csharp
-public Regxes Add(Regex regex)
+public RegexTokenizer Add(Regex regex)
 ```
 **Description:** Adds additional regex pattern  
 **Parameters:**
 - `regex`: Compiled Regex to add  
-**Returns:** `Regxes` - Self for method chaining  
+**Returns:** `RegexTokenizer` - Self for method chaining  
 
 ```csharp
-public Regxes Add(string pattern)
+public RegexTokenizer Add(string pattern)
 ```
 **Description:** Adds additional string pattern  
 **Parameters:**
 - `pattern`: Regex pattern string to add  
-**Returns:** `Regxes` - Self for method chaining  
+**Returns:** `RegexTokenizer` - Self for method chaining  
 
 ```csharp
 public IEnumerable<(string groupName, string subpart)> Map(string line)
