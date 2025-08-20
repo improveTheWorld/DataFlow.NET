@@ -11,7 +11,7 @@ public static class EnumerableCasesExtension
 
 
 
-    private static int getFilterIndex<T>(this Func<T, bool>[] filters, T item)
+    private static int GetFilterIndex<T>(this Func<T, bool>[] filters, T item)
     {
 
         int CategoryIndex = 0;
@@ -27,7 +27,7 @@ public static class EnumerableCasesExtension
     }
 
     public static IEnumerable<(int category, T item)> Cases<T>(this IEnumerable<T> items, params Func<T, bool>[] filters)
-    => items.Select(item => (filters.getFilterIndex(item), item));
+    => items.Select(item => (filters.GetFilterIndex(item), item));
 
 
 

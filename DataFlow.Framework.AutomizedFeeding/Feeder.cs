@@ -22,21 +22,21 @@ public static class Feeder
     }
 
 
-    public static T Feed_InternalOrder<T>( T objectToFill,  params object[] parameters)
+    public static T FeedUsingInternalOrder<T>( T objectToFill,  params object[] parameters)
     {
         if (objectToFill is IWithIntenalSchema)
         {
-            Feed_InternalSchema((IWithIntenalSchema)objectToFill,parameters);
+            FeedUsingInternalSchema((IWithIntenalSchema)objectToFill,parameters);
             return objectToFill;
         }
-        else //suppose FeedOredere ( definition of attribute with [order] tag
+        else //suppose FeedOredered ( definition of attribute with [order] tag
         {
-            return Feed_OrderAttributes(objectToFill, parameters);
+            return FeedOrderedAttributes(objectToFill, parameters);
         }
 
     }
    
-    public static T Feed_WithSchema<T>(T objectToFill, Dictionary<string, int> schemaDictionay, params object[] parameters)
+    public static T FeedUsingSchema<T>(T objectToFill, Dictionary<string, int> schemaDictionay, params object[] parameters)
     {
         if(objectToFill == null)
         {
@@ -54,14 +54,14 @@ public static class Feeder
         return objectToFill;
     }
 
-    public static IWithIntenalSchema Feed_InternalSchema(IWithIntenalSchema objectToFill, params object[] valuesStore) 
+    public static IWithIntenalSchema FeedUsingInternalSchema(IWithIntenalSchema objectToFill, params object[] valuesStore) 
     {
-        return Feed_WithSchema(objectToFill, objectToFill.GetSchema(), valuesStore);
+        return FeedUsingSchema(objectToFill, objectToFill.GetSchema(), valuesStore);
     }
                    
         
 
-    public static T Feed_OrderAttributes<T>(T objectToFill, params object[] valuesStore)
+    public static T FeedOrderedAttributes<T>(T objectToFill, params object[] valuesStore)
     {
         if (objectToFill == null)
         {

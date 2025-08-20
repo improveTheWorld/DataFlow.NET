@@ -112,7 +112,7 @@ namespace DataFlow.Tests
         [MemberData(nameof(GetToFeedAndFood))]
         void FeedObjectTests(object objectTofeed, object expectedFeededObject, params object[] food)
         {
-            Feeder.Feed_InternalOrder(objectTofeed, food);
+            Feeder.FeedUsingInternalOrder(objectTofeed, food);
             DeepAssert.Equal(expectedFeededObject, objectTofeed);
         }
 

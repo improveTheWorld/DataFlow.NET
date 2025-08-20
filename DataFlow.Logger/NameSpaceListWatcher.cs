@@ -2,14 +2,14 @@
 {
     public class NameSpaceListWatcher : ListWatcher<NameSpaceComparer>
     {
-        override public bool isWatched(NameSpaceComparer nameSpaceToCheck)
+        override public bool IsWatched(NameSpaceComparer nameSpaceToCheck)
         {
-            return (watchedList == null) || (watchedList.FirstOrDefault(x => x.isMatching(nameSpaceToCheck)) != default);
+            return (watchedList == null) || (watchedList.FirstOrDefault(x => x.IsMatching(nameSpaceToCheck)) != default);
         }
 
-        public bool isWatchedObject(object instance)
+        public bool IsWatchedObject(object instance)
         {
-            return isWatched(new NameSpaceComparer(instance.GetType().ToString()).ParentNameSpace(1));
+            return IsWatched(new NameSpaceComparer(instance.GetType().ToString()).ParentNameSpace(1));
         }
 
     }

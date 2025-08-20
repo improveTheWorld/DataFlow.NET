@@ -1,11 +1,11 @@
 ﻿using DataFlow.Data.StringMapper;
 using DataFlow.Extensions;
+using System.Buffers;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using YamlDotNet.Core;
-using YamlDotNet.Core.Events;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
 
 namespace DataFlow.Data;
 
@@ -13,15 +13,13 @@ namespace DataFlow.Data;
 /// Provides static methods for lazily reading data from various file formats,
 /// with full support for both synchronous (IEnumerable) and asynchronous (IAsyncEnumerable) streaming.
 /// The method sync/async suffixes convention is inverted (default is asynchronous) to encourage the asynchronous file reading reflex.
+/// Simple API for nominal cases + Option-based APIs: Csv / CsvSync, Json, Yaml.
 /// </summary>
 public static class Read
 {
     // --- TEXT ---
 
-    /// <summary>
-    /// Lazily reads lines from an existing StreamReader synchronously.
-    /// </summary>
-    public static IEnumerable<string> textSync(StreamReader file)
+    public static IEnumerable<string> TextSync(StreamReader file)
     {
         while (!file.EndOfStream)
         {
@@ -29,10 +27,7 @@ public static class Read
         }
     }
 
-    /// <summary>
-    /// Lazily reads all lines from a file synchronously.
-    /// </summary>
-    public static IEnumerable<string> textSync(string path)
+    public static IEnumerable<string> TextSync(string path)
     {
         using var file = new StreamReader(path);
         while (!file.EndOfStream)
@@ -41,10 +36,7 @@ public static class Read
         }
     }
 
-    /// <summary>
-    /// Lazily reads lines from an existing StreamReader asynchronously.
-    /// </summary>
-    public static async IAsyncEnumerable<string> text(StreamReader file, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public static async IAsyncEnumerable<string> Text(StreamReader file, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         while (!file.EndOfStream)
         {
@@ -53,10 +45,7 @@ public static class Read
         }
     }
 
-    /// <summary>
-    /// Lazily reads all lines from a file asynchronously. This is the recommended default for text files.
-    /// </summary>
-    public static async IAsyncEnumerable<string> text(string path, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public static async IAsyncEnumerable<string> Text(string path, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         using var file = new StreamReader(path);
         while (!file.EndOfStream)
@@ -66,229 +55,1465 @@ public static class Read
         }
     }
 
+    // ---  RFC 4180 CSV (options-based) ---
 
-    // --- CSV ---
-    private static IEnumerable<T> CsvInternalSync<T>(IEnumerable<string> lines, string separator, Action<string, Exception> onError, string[] schema)
+    public static async IAsyncEnumerable<T> Csv<T>(string path, CsvReadOptions options, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var schemaToUse = schema;
-        using var enumerator = lines.GetEnumerator();
+        if (options == null) throw new ArgumentNullException(nameof(options));
+        options.FilePath = path;
+        await using var fs = File.OpenRead(path);
+        using var reader = new StreamReader(fs, leaveOpen: false);
+        string[]? schema = options.Schema;
+        bool headerConsumed = false;
 
-        if (schema.IsNullOrEmpty())
+        await foreach (var rawFields in CsvRfc4180Parser.ParseAsync(reader, options, cancellationToken))
         {
-            if (enumerator.MoveNext())
-            {
-                schemaToUse = enumerator.Current.Split(separator, StringSplitOptions.TrimEntries);
-            }
-            else
-            {
-                yield break; // Empty file
-            }
-        }
+            if (options.Metrics.TerminatedEarly) yield break;
 
-        while (enumerator.MoveNext())
-        {
-            var line = enumerator.Current;
-            if (line.IsNullOrWhiteSpace()) continue;
-
-            T item = default;
-            bool success = false;
-            try
+            if (schema == null && options.HasHeader && !headerConsumed)
             {
-                item = line.AsCSV<T>(schemaToUse, separator);
-                success = true;
-            }
-            catch (Exception ex)
-            {
-                if (onError == null) throw;
-                onError(line, new InvalidDataException($"Failed to parse CSV line: \"{line}\". See inner exception for details.", ex));
+                schema = rawFields;
+                headerConsumed = true;
+                continue;
             }
 
-            if (success)
+            if (schema == null)
             {
-                yield return item;
-            }
-        }
-    }
-
-
-
-    /// <summary>
-    /// Lazily reads and deserializes a CSV file into objects of type T synchronously.
-    /// </summary>
-    /// <param name="path">The path to the CSV file.</param>
-    /// <param name="separator">The character used to separate fields.</param>
-    /// <param name="onError">An optional action to handle parsing errors for individual lines without stopping the process.</param>
-    /// <param name="schema">An optional explicit schema. If not provided, the first line of the file is used as the header.</param>
-    public static IEnumerable<T> csvSync<T>(string path, string separator = ";", Action<string, Exception> onError = null, params string[] schema)
-    {
-        var lines = textSync(path).SkipWhile(line => line.IsNullOrWhiteSpace());
-        return CsvInternalSync<T>(lines, separator, onError, schema);
-    }
-
-    private static async IAsyncEnumerable<T> CsvInternal<T>(IAsyncEnumerable<string> lines, string separator, Action<string, Exception> onError, string[] schema, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        var schemaToUse = schema;
-        await using var enumerator = lines.GetAsyncEnumerator(cancellationToken);
-
-        if (schema.IsNullOrEmpty())
-        {
-            if (await enumerator.MoveNextAsync())
-            {
-                schemaToUse = enumerator.Current.Split(separator, StringSplitOptions.TrimEntries);
-            }
-            else
-            {
-                yield break; // Empty file
-            }
-        }
-
-        while (await enumerator.MoveNextAsync())
-        {
-            var line = enumerator.Current;
-            if (line.IsNullOrWhiteSpace()) continue;
-
-            T item = default;
-            bool success = false;
-            try
-            {
-                item = line.AsCSV<T>(schemaToUse, separator);
-                success = true;
-            }
-            catch (Exception ex)
-            {
-                if (onError == null) throw;
-                onError(line, new InvalidDataException($"Failed to parse CSV line: \"{line}\". See inner exception for details.", ex));
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead, path,
+                    "SchemaError", "Schema is null (no header and none supplied).", string.Join(",", rawFields)))
+                    yield break;
+                continue;
             }
 
-            if (success)
+            if (rawFields.Length > schema.Length && !options.AllowExtraFields)
             {
-                yield return item;
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead, path,
+                    "SchemaError", $"Row has {rawFields.Length} fields but schema has {schema.Length}.", string.Join(",", rawFields.Take(8))))
+                    yield break;
+                continue;
             }
-        }
-    }
 
-    /// <summary>
-    /// Lazily reads and deserializes a CSV file into objects of type T asynchronously.
-    /// </summary>
-    /// <param name="path">The path to the CSV file.</param>
-    /// <param name="separator">The character used to separate fields.</param>
-    /// <param name="onError">An optional action to handle parsing errors for individual lines without stopping the process.</param>
-    /// <param name="schema">An optional explicit schema. If not provided, the first line of the file is used as the header.</param>
-    public static IAsyncEnumerable<T> csv<T>(string path, string separator = ";", Action<string, Exception> onError = null, params string[] schema)
-    {
-        var lines = text(path).SkipWhile(line => line.IsNullOrWhiteSpace());
-        return CsvInternal<T>(lines, separator, onError, schema);
-    }
-
-    // --- JSON ---
-
-    /// <summary>
-    /// Asynchronously streams and deserializes a JSON file containing a root-level array into objects of type T.
-    /// </summary>
-    /// <param name="path">The path to the JSON file.</param>
-    /// <param name="options">Optional custom JSON serializer options.</param>
-    /// <param name="onError">An optional action to handle deserialization errors for individual objects without stopping the stream.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    public static async IAsyncEnumerable<T> json<T>(string path, JsonSerializerOptions options = null, Action<Exception> onError = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        options ??= new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        await using var stream = File.OpenRead(path);
-
-        await foreach (var element in JsonSerializer.DeserializeAsyncEnumerable<JsonElement>(stream, options, cancellationToken))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            T item = default;
-            bool success = false;
-            try
+            var values = new object?[schema.Length];
+            int upTo = Math.Min(schema.Length, rawFields.Length);
+            for (int i = 0; i < upTo; i++)
             {
-                item = element.Deserialize<T>(options);
-                if (item != null)
+                values[i] = StringMapper.StringMapper.GetObject(rawFields[i]);
+            }
+            for (int i = upTo; i < schema.Length; i++)
+            {
+                if (!options.AllowMissingTrailingFields)
                 {
-                    success = true;
+                    if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead, path,
+                        "SchemaError", $"Missing field '{schema[i]}'", ""))
+                        yield break;
+                    goto SkipRecord;
+                }
+                values[i] = default;
+            }
+
+            T instance = default;
+            bool ok = false;
+            try
+            {
+                instance = DataFlow.Framework.NEW.GetNew<T>(schema, values);
+                ok = instance != null;
+            }
+            catch (Exception ex)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead, path,
+                    ex.GetType().Name, ex.Message, string.Join(",", rawFields.Take(8))))
+                    yield break;
+            }
+
+            if (ok)
+            {
+                yield return instance;
+            }
+
+        SkipRecord:
+            if (options.ShouldEmitProgress()) options.EmitProgress();
+        }
+
+        options.Complete();
+    }
+
+    public static IEnumerable<T> CsvSync<T>(string path, CsvReadOptions options)
+    {
+        if (options == null) throw new ArgumentNullException(nameof(options));
+        options.FilePath = path;
+        using var reader = new StreamReader(File.OpenRead(path));
+        string[]? schema = options.Schema;
+        bool headerConsumed = false;
+
+        foreach (var rawFields in CsvRfc4180Parser.Parse(reader, options))
+        {
+            if (options.Metrics.TerminatedEarly) yield break;
+
+            if (schema == null && options.HasHeader && !headerConsumed)
+            {
+                schema = rawFields;
+                headerConsumed = true;
+                continue;
+            }
+
+            if (schema == null)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead, path,
+                    "SchemaError", "Schema is null (no header and none supplied).", string.Join(",", rawFields)))
+                    yield break;
+                continue;
+            }
+
+            if (rawFields.Length > schema.Length && !options.AllowExtraFields)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead, path,
+                    "SchemaError", $"Row has {rawFields.Length} fields but schema has {schema.Length}.", string.Join(",", rawFields.Take(8))))
+                    yield break;
+                continue;
+            }
+
+            var values = new object?[schema.Length];
+            int upTo = Math.Min(schema.Length, rawFields.Length);
+            for (int i = 0; i < upTo; i++)
+            {
+                values[i] = StringMapper.StringMapper.GetObject(rawFields[i]);
+            }
+            for (int i = upTo; i < schema.Length; i++)
+            {
+                if (!options.AllowMissingTrailingFields)
+                {
+                    if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead, path,
+                        "SchemaError", $"Missing field '{schema[i]}'", ""))
+                        yield break;
+                    goto SkipRecord;
+                }
+                values[i] = default;
+            }
+
+            T instance = default;
+            bool ok = false;
+            try
+            {
+                instance = DataFlow.Framework.NEW.GetNew<T>(schema, values);
+                ok = instance != null;
+            }
+            catch (Exception ex)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead, path,
+                    ex.GetType().Name, ex.Message, string.Join(",", rawFields.Take(8))))
+                    yield break;
+            }
+
+            if (ok)
+            {
+                yield return instance;
+            }
+
+        SkipRecord:
+            if (options.ShouldEmitProgress()) options.EmitProgress();
+        }
+
+        options.Complete();
+    }
+
+    // Backward-compatible simple CSV APIs
+    public static IAsyncEnumerable<T> Csv<T>(string path, string separator = ",", Action<string, Exception>? onError = null, params string[] schema)
+    {
+        var options = new CsvReadOptions
+        {
+            Separator = separator.FirstOrDefault(','),
+            Schema = schema == null || schema.Length == 0 ? null : schema,
+            ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+            ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, path)
+        };
+        return Csv<T>(path, options);
+    }
+
+    public static IEnumerable<T> CsvSync<T>(string path, string separator = ",", Action<string, Exception>? onError = null, params string[] schema)
+    {
+        var options = new CsvReadOptions
+        {
+            Separator = separator.FirstOrDefault(','),
+            Schema = schema == null || schema.Length == 0 ? null : schema,
+            ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+            ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, path)
+        };
+        return CsvSync<T>(path, options);
+    }
+
+    // --- JSON (options-based) ---
+    // true streaming JSON reader (no full file load)
+    public static async IAsyncEnumerable<T> Json<T>(
+        string path,
+        JsonReadOptions<T> options,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (options == null) throw new ArgumentNullException(nameof(options));
+        options.FilePath = path;
+
+        if (options.ValidateElements && options.ElementValidator == null)
+            throw new ArgumentException("ValidateElements is true but ElementValidator is null. Provide ElementValidator or disable ValidateElements.", nameof(options));
+
+        var fileInfo = new FileInfo(path);
+        long totalBytes = fileInfo.Exists ? fileInfo.Length : 0;
+
+        var readerOptions = options.MaxDepth > 0
+            ? new JsonReaderOptions { MaxDepth = options.MaxDepth, CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }
+            : new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
+
+        const int BufferSize = 64 * 1024;
+        byte[] buffer = new byte[BufferSize];
+        int bytesRead;
+        bool isFinalBlock;
+        var state = new JsonReaderState(readerOptions);
+
+        await using var fs = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            BufferSize,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+        bytesRead = await fs.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false);
+        isFinalBlock = bytesRead == 0;
+        if (isFinalBlock)
+        {
+            options.Complete();
+            yield break; // empty file
+        }
+
+        bool rootDetermined = false;
+        bool rootIsArray = false;
+        bool rootFinished = false;
+        long elementIndex = 0;
+
+        bool fastPath = !(options.ValidateElements && options.ElementValidator != null);
+
+        // Validation slow path tools
+        ArrayBufferWriter<byte>? elementBuffer = null;
+        Utf8JsonWriter? elementWriter = null;
+
+        // Capture state
+        bool capturing = false;
+        int openContainers = 0;
+        bool elementIsPrimitive = false;
+
+        // Pending items to yield after releasing the reader (avoid ref struct across yield)
+        List<T> pending = new List<T>(1);
+
+        while (!rootFinished)
+        {
+            // Build a reader for current buffer slice
+            var span = new ReadOnlySpan<byte>(buffer, 0, bytesRead);
+            var reader = new Utf8JsonReader(span, isFinalBlock, state);
+
+            bool producedThisIteration = false;
+
+            while (reader.Read())
+            {
+                ct.ThrowIfCancellationRequested();
+                options.CancellationToken.ThrowIfCancellationRequested();
+
+                if (!rootDetermined)
+                {
+                    switch (reader.TokenType)
+                    {
+                        case JsonTokenType.StartArray:
+                            rootIsArray = true;
+                            rootDetermined = true;
+                            continue;
+
+                        case JsonTokenType.StartObject:
+                        case JsonTokenType.String:
+                        case JsonTokenType.Number:
+                        case JsonTokenType.True:
+                        case JsonTokenType.False:
+                        case JsonTokenType.Null:
+                            rootIsArray = false;
+                            rootDetermined = true;
+
+                            if (options.RequireArrayRoot && !options.AllowSingleObject)
+                            {
+                                options.HandleError("JSON", -1, -1, path,
+                                    "JsonFormatError", "Root element is not an array.", "");
+                                rootFinished = true;
+                                break;
+                            }
+
+                            elementIndex = 1;
+
+                            if (fastPath)
+                            {
+                                var valueReader = reader;
+                                bool success = false;
+                                T item = default;
+                                try
+                                {
+                                    item = JsonSerializer.Deserialize<T>(ref valueReader, options.SerializerOptions)!;
+                                    success = true;
+                                    reader = valueReader;
+                                }
+                                catch (Exception ex)
+                                {
+                                    string excerpt = BuildExcerptAndSkip(ref reader, 128);
+                                    if (!options.HandleError("JSON", -1, 1, path,
+                                            ex.GetType().Name, ex.Message, excerpt))
+                                    {
+                                        rootFinished = true;
+                                    }
+                                }
+
+                                if (success)
+                                {
+                                    options.Metrics.RecordsRead = 1;
+                                    if (options.ShouldEmitProgress())
+                                        options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+                                    pending.Add(item);
+                                    producedThisIteration = true;
+                                }
+
+                                rootFinished = true;
+                            }
+                            else
+                            {
+                                // Capture single non-array root
+                                elementBuffer ??= new ArrayBufferWriter<byte>(8 * 1024);
+                                elementWriter ??= new Utf8JsonWriter(elementBuffer);
+                                elementBuffer.Clear();
+                                capturing = true;
+                                openContainers = 0;
+                                elementIsPrimitive = false;
+
+                                WriteTokenToElement(ref reader, elementWriter, ref openContainers, ref elementIsPrimitive);
+
+                                while (capturing && reader.Read())
+                                {
+                                    WriteTokenToElement(ref reader, elementWriter, ref openContainers, ref elementIsPrimitive);
+                                    if (elementIsPrimitive || openContainers == 0)
+                                    {
+                                        capturing = false;
+                                        elementWriter.Flush();
+                                    }
+                                }
+
+                                if (!capturing)
+                                {
+                                    if (TryFinalizeCapturedElement(elementBuffer, options, path, elementIndex, out var item))
+                                    {
+                                        pending.Add(item);
+                                        producedThisIteration = true;
+                                    }
+                                }
+
+                                rootFinished = true;
+                            }
+                            break;
+
+                        default:
+                            continue;
+                    }
+
+                    if (rootFinished || producedThisIteration) break;
+                    if (!rootIsArray) break;
+                    continue;
+                }
+
+                if (!rootIsArray)
+                {
+                    // Single value already processed
+                    break;
+                }
+
+                if (reader.TokenType == JsonTokenType.EndArray)
+                {
+                    rootFinished = true;
+                    break;
+                }
+
+                // Start of array element
+                elementIndex++;
+
+                if (fastPath)
+                {
+                    var valueReader = reader;
+                    bool success = false;
+                    T item = default;
+                    try
+                    {
+                        item = JsonSerializer.Deserialize<T>(ref valueReader, options.SerializerOptions)!;
+                        success = true;
+                        reader = valueReader;
+                    }
+                    catch (Exception exElem)
+                    {
+                        string excerpt = BuildExcerptAndSkip(ref reader, 128);
+                        if (!options.HandleError("JSON", -1, elementIndex, path,
+                                exElem.GetType().Name, exElem.Message, excerpt))
+                        {
+                            rootFinished = true;
+                            break;
+                        }
+                        continue; // skip malformed element
+                    }
+
+                    if (success)
+                    {
+                        options.Metrics.RecordsRead = elementIndex;
+                        if (options.ShouldEmitProgress())
+                            options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+                        pending.Add(item);
+                        producedThisIteration = true;
+                        if (options.Metrics.TerminatedEarly)
+                            rootFinished = true;
+                    }
+                }
+                else
+                {
+                    // Validation path capture
+                    capturing = true;
+                    openContainers = 0;
+                    elementIsPrimitive = false;
+
+                    elementBuffer ??= new ArrayBufferWriter<byte>(8 * 1024);
+                    elementBuffer.Clear();
+                    elementWriter ??= new Utf8JsonWriter(elementBuffer);
+
+                    WriteTokenToElement(ref reader, elementWriter, ref openContainers, ref elementIsPrimitive);
+
+                    if (elementIsPrimitive)
+                    {
+                        capturing = false;
+                        elementWriter.Flush();
+                    }
+                    else
+                    {
+                        while (capturing && reader.Read())
+                        {
+                            WriteTokenToElement(ref reader, elementWriter, ref openContainers, ref elementIsPrimitive);
+                            if (openContainers == 0)
+                            {
+                                capturing = false;
+                                elementWriter.Flush();
+                            }
+                        }
+                    }
+
+                    if (!capturing)
+                    {
+                        if (TryFinalizeCapturedElement(elementBuffer, options, path, elementIndex, out var item))
+                        {
+                            pending.Add(item);
+                            producedThisIteration = true;
+                            if (options.Metrics.TerminatedEarly)
+                                rootFinished = true;
+                        }
+                    }
+                }
+
+                if (producedThisIteration) break; // yield ASAP (after state persistence below)
+            }
+
+            // Persist reader state (even if inner loop ended early)
+            state = reader.CurrentState;
+            int consumedBytes = (int)reader.BytesConsumed;
+
+            // Shift remaining bytes to start of buffer
+            int remaining = bytesRead - consumedBytes;
+            if (remaining > 0)
+            {
+                Buffer.BlockCopy(buffer, consumedBytes, buffer, 0, remaining);
+            }
+
+            if (!rootFinished)
+            {
+                int read = await fs.ReadAsync(buffer.AsMemory(remaining, buffer.Length - remaining), ct).ConfigureAwait(false);
+                bytesRead = remaining + read;
+                isFinalBlock = read == 0;
+                if (bytesRead == 0)
+                    rootFinished = true;
+            }
+
+            // Now it's safe to yield (reader no longer in use)
+            if (pending.Count > 0)
+            {
+                foreach (var itm in pending)
+                    yield return itm;
+                pending.Clear();
+            }
+        }
+
+        options.Complete();
+    }
+
+    /// <summary>
+    /// Finalize a captured element: validate (if required) and deserialize.
+    /// Returns true + item when successful; false otherwise.
+    /// </summary>
+    private static bool TryFinalizeCapturedElement<T>(
+        ArrayBufferWriter<byte> elementBuffer,
+        JsonReadOptions<T> options,
+        string path,
+        long elementIndex,
+        out T item)
+    {
+        item = default;
+        bool success = false;
+
+        try
+        {
+            // Existing local variables: elementBuffer (ArrayBufferWriter<byte>)
+            ReadOnlyMemory<byte> mem = elementBuffer.WrittenMemory;
+
+            // Build a ReadOnlySequence<byte> that (ideally) wraps the existing backing array without copying.
+            ReadOnlySequence<byte> seq;
+            if (MemoryMarshal.TryGetArray(mem, out ArraySegment<byte> segment) && segment.Array != null)
+            {
+                // Zero-copy single segment sequence over the written region.
+                seq = new ReadOnlySequence<byte>(segment.Array, segment.Offset, segment.Count);
+            }
+            else
+            {
+                // Fallback (should almost never happen for ArrayBufferWriter): make one copy.
+                seq = new ReadOnlySequence<byte>(mem.ToArray());
+            }
+
+            using var doc = JsonDocument.Parse(seq);  // Uses the sequence overload you actually have.
+            var root = doc.RootElement;
+
+            if (options.ValidateElements && options.ElementValidator != null)
+            {
+                bool valid;
+                try
+                {
+                    valid = options.ElementValidator(root);
+                }
+                catch (Exception exVal)
+                {
+                    if (!options.HandleError("JSON", -1, elementIndex, path,
+                            exVal.GetType().Name, exVal.Message,
+                            Truncate(SafeGetRawText(root), 128)))
+                        return false;
+                    return false;
+                }
+
+                if (!valid)
+                {
+                    if (!options.HandleError("JSON", -1, elementIndex, path,
+                            "ValidationFailed", "Element validator returned false.",
+                            Truncate(SafeGetRawText(root), 128)))
+                        return false;
+                    return false;
                 }
             }
-            catch (Exception ex)
-            {
-                if (onError == null) throw;
-                onError(new JsonException($"Failed to deserialize JSON element: {element}. See inner exception for details.", ex));
-            }
 
-            if (success)
+            try
             {
-                yield return item;
+                item = root.Deserialize<T>(options.SerializerOptions)!;
+                success = true;
+            }
+            catch (Exception exDeser)
+            {
+                options.HandleError("JSON", -1, elementIndex, path,
+                    exDeser.GetType().Name, exDeser.Message,
+                    Truncate(SafeGetRawText(root), 128));
+            }
+        }
+        catch (Exception exOuter)
+        {
+            options.HandleError("JSON", -1, elementIndex, path,
+                exOuter.GetType().Name, exOuter.Message, "");
+        }
+
+        elementBuffer.Clear();
+        return success;
+    }
+
+
+    /* Helper: build a small excerpt while skipping a value (starting with reader on first token of the value).
+     * Returns truncated JSON-like text (best effort). Advances reader past the entire value. */
+    private static string BuildExcerptAndSkip(ref Utf8JsonReader reader, int maxChars)
+    {
+        var sb = new StringBuilder(Math.Min(maxChars, 256));
+        int startDepth = 0;
+        bool firstToken = true;
+
+        void Append(string s)
+        {
+            if (sb.Length >= maxChars) return;
+            int space = maxChars - sb.Length;
+            if (s.Length <= space) sb.Append(s);
+            else sb.Append(s.AsSpan(0, space));
+        }
+
+        if (reader.TokenType == JsonTokenType.StartObject || reader.TokenType == JsonTokenType.StartArray)
+            startDepth = 1;
+
+        AppendToken(ref reader, Append, firstToken);
+        firstToken = false;
+
+        if (startDepth == 0)
+            return sb.ToString();
+
+        while (startDepth > 0 && reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.StartObject || reader.TokenType == JsonTokenType.StartArray)
+                startDepth++;
+            else if (reader.TokenType == JsonTokenType.EndObject || reader.TokenType == JsonTokenType.EndArray)
+                startDepth--;
+
+            AppendToken(ref reader, Append, firstToken);
+            firstToken = false;
+        }
+
+        return sb.ToString();
+
+        static void AppendToken(ref Utf8JsonReader r, Action<string> add, bool first)
+        {
+            switch (r.TokenType)
+            {
+                case JsonTokenType.StartObject: add("{"); break;
+                case JsonTokenType.EndObject: add("}"); break;
+                case JsonTokenType.StartArray: add("["); break;
+                case JsonTokenType.EndArray: add("]"); break;
+                case JsonTokenType.PropertyName:
+                    if (!first) add(",");
+                    add("\"" + JsonEscape(r.GetString()!) + "\":");
+                    break;
+                case JsonTokenType.String:
+                    add("\"" + JsonEscape(r.GetString()!) + "\"");
+                    break;
+                case JsonTokenType.Number:
+                    add(r.GetRawString());
+                    break;
+                case JsonTokenType.True: add("true"); break;
+                case JsonTokenType.False: add("false"); break;
+                case JsonTokenType.Null: add("null"); break;
             }
         }
     }
 
-    // --- YAML ---
-
-    /// <summary>
-    /// Asynchronously streams and deserializes a YAML file into objects of type T.
-    /// Supports both a sequence of documents (`[...]`) and a stream of documents separated by `---`.
-    /// </summary>
-    /// <param name="path">The path to the YAML file.</param>
-    /// <param name="deserializer">Optional custom YAML deserializer. If not provided, a default one is created.</param>
-    /// <param name="onError">An optional action to handle deserialization errors for individual documents without stopping the stream.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    public static async IAsyncEnumerable<T> yaml<T>(string path, IDeserializer deserializer = null, Action<Exception> onError = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    private static string Truncate(string? s, int max)
     {
-        deserializer ??= new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .Build();
+        if (string.IsNullOrEmpty(s)) return "";
+        return s.Length <= max ? s : s.Substring(0, max);
+    }
+
+        private static string SafeGetRawText(JsonElement e)
+    {
+        try { return e.GetRawText(); }
+        catch { return ""; }
+    }
+
+    //public static async IAsyncEnumerable<T> Json<T>(string path, JsonReadOptions<T> options, [EnumeratorCancellation] CancellationToken ct = default)
+    //{
+    //    if (options == null) throw new ArgumentNullException(nameof(options));
+    //    options.FilePath = path;
+
+    //    var fileInfo = new FileInfo(path);
+    //    long totalBytes = fileInfo.Exists ? fileInfo.Length : 0;
+
+    //    // Prepare serializer options with MaxDepth if requested
+    //    JsonSerializerOptions serializerOptions = options.SerializerOptions;
+    //    if (options.MaxDepth > 0 && serializerOptions.MaxDepth != options.MaxDepth)
+    //    {
+    //        // Clone to avoid mutating a shared instance
+    //        serializerOptions = new JsonSerializerOptions(serializerOptions)
+    //        {
+    //            MaxDepth = options.MaxDepth
+    //        };
+    //    }
+
+    //    // Open stream in async sequential mode
+    //    await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+    //                                        bufferSize: 64 * 1024,
+    //                                        FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+    //    // Peek first non-whitespace char to decide array vs single object
+    //    int firstByte;
+    //    do
+    //    {
+    //        firstByte = fs.ReadByte();
+    //    } while (firstByte != -1 && char.IsWhiteSpace((char)firstByte));
+
+    //    if (firstByte == -1)
+    //    {
+    //        // Empty file: just complete
+    //        options.Complete();
+    //        yield break;
+    //    }
+
+    //    // Rewind one byte (we consumed one lookahead)
+    //    fs.Position -= 1;
+
+    //    if ((char)firstByte == '[')
+    //    {
+    //        // Root is an array => streaming elements
+    //        long elementIndex = 0;
+
+    //        // NOTE: DeserializeAsyncEnumerable<T> only works when T is known.
+    //        // We use JsonElement first for validation & custom handling, then deserialize to T.
+    //        IAsyncEnumerable<JsonElement> elementStream =
+    //            JsonSerializer.DeserializeAsyncEnumerable<JsonElement>(fs, serializerOptions, ct);
+
+    //        await foreach (var element in elementStream.WithCancellation(ct))
+    //        {
+    //            ct.ThrowIfCancellationRequested();
+    //            options.CancellationToken.ThrowIfCancellationRequested();
+
+    //            elementIndex++;
+
+    //            bool success = false;
+    //            T item = default;
+
+    //            try
+    //            {
+    //                // Validation (optional)
+    //                if (options.ValidateElements && options.ElementValidator != null)
+    //                {
+    //                    bool valid;
+    //                    try
+    //                    {
+    //                        valid = options.ElementValidator(element);
+    //                    }
+    //                    catch (Exception exVal)
+    //                    {
+    //                        if (!options.HandleError("JSON", -1, elementIndex, path,
+    //                                exVal.GetType().Name, exVal.Message, Truncate(element.GetRawText(), 128)))
+    //                            break;
+    //                        continue;
+    //                    }
+
+    //                    if (!valid)
+    //                    {
+    //                        if (!options.HandleError("JSON", -1, elementIndex, path,
+    //                                "ValidationFailed", "Element validator returned false.",
+    //                                Truncate(element.GetRawText(), 128)))
+    //                            break;
+    //                        continue;
+    //                    }
+    //                }
+
+    //                // Deserialize into target type T
+    //                try
+    //                {
+    //                    item = element.Deserialize<T>(serializerOptions)!;
+    //                    success = true;
+    //                }
+    //                catch (Exception exDeser)
+    //                {
+    //                    if (!options.HandleError("JSON", -1, elementIndex, path,
+    //                            exDeser.GetType().Name, exDeser.Message,
+    //                            Truncate(element.GetRawText(), 128)))
+    //                        break;
+    //                }
+    //            }
+    //            catch (Exception exOuter)
+    //            {
+    //                if (!options.HandleError("JSON", -1, elementIndex, path,
+    //                        exOuter.GetType().Name, exOuter.Message, ""))
+    //                    break;
+    //            }
+
+    //            if (success)
+    //            {
+    //                options.Metrics.RecordsRead = elementIndex;
+    //                if (options.ShouldEmitProgress())
+    //                {
+    //                    // fs.Position is approximate progress
+    //                    options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+    //                }
+    //                yield return item;
+    //                if (options.Metrics.TerminatedEarly) break;
+    //            }
+    //        }
+    //    }
+    //    else
+    //    {
+    //        // Single object scenario
+    //        if (options.RequireArrayRoot && !options.AllowSingleObject)
+    //        {
+    //            options.HandleError("JSON", -1, -1, path,
+    //                "JsonFormatError", "Root element is not an array.", "");
+    //            options.Complete();
+    //            yield break;
+    //        }
+
+    //        bool success = false;
+    //        T item = default;
+
+    //        try
+    //        {
+    //            using var doc = await JsonDocument.ParseAsync(fs, new JsonDocumentOptions
+    //            {
+    //                MaxDepth = options.MaxDepth > 0 ? options.MaxDepth : 64
+    //            }, ct);
+
+    //            var root = doc.RootElement;
+
+    //            if (options.ValidateElements && options.ElementValidator != null)
+    //            {
+    //                bool valid;
+    //                try
+    //                {
+    //                    valid = options.ElementValidator(root);
+    //                }
+    //                catch (Exception exVal)
+    //                {
+    //                    options.HandleError("JSON", -1, 1, path,
+    //                        exVal.GetType().Name, exVal.Message, "");
+    //                    options.Complete();
+    //                    yield break;
+    //                }
+
+    //                if (!valid)
+    //                {
+    //                    options.HandleError("JSON", -1, 1, path,
+    //                        "ValidationFailed", "Single object failed validation.", "");
+    //                    options.Complete();
+    //                    yield break;
+    //                }
+    //            }
+
+    //            try
+    //            {
+    //                item = root.Deserialize<T>(serializerOptions)!;
+    //                success = true;
+    //            }
+    //            catch (Exception exDeser)
+    //            {
+    //                options.HandleError("JSON", -1, 1, path,
+    //                    exDeser.GetType().Name, exDeser.Message, "");
+    //            }
+    //        }
+    //        catch (Exception exOuter)
+    //        {
+    //            options.HandleError("JSON", -1, 1, path,
+    //                exOuter.GetType().Name, exOuter.Message, "");
+    //        }
+
+    //        if (success)
+    //        {
+    //            options.Metrics.RecordsRead = 1;
+    //            if (options.ShouldEmitProgress())
+    //                options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+    //            yield return item;
+    //        }
+    //    }
+
+    //    options.Complete();
+    //}
+
+
+    // Synchronous streaming JSON (incremental Utf8JsonReader)
+    public static IEnumerable<T> JsonSync<T>(
+        string path,
+        JsonReadOptions<T> options,
+        CancellationToken cancellationToken = default)
+    {
+        if (options == null) throw new ArgumentNullException(nameof(options));
+        options.FilePath = path;
+
+        if (options.ValidateElements && options.ElementValidator == null)
+            throw new ArgumentException("ValidateElements is true but ElementValidator is null. Provide ElementValidator or disable ValidateElements.", nameof(options));
+
+        var fileInfo = new FileInfo(path);
+        long totalBytes = fileInfo.Exists ? fileInfo.Length : 0;
+
+        var readerOptions = options.MaxDepth > 0
+            ? new JsonReaderOptions { MaxDepth = options.MaxDepth, CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }
+            : new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
+
+        const int BufferSize = 64 * 1024;
+        byte[] buffer = new byte[BufferSize];
+        int bytesRead;
+        bool isFinalBlock;
+        var state = new JsonReaderState(readerOptions);
+
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                                      BufferSize, FileOptions.SequentialScan);
+
+        bytesRead = fs.Read(buffer, 0, buffer.Length);
+        isFinalBlock = bytesRead == 0;
+        if (isFinalBlock)
+        {
+            options.Complete();
+            yield break; // empty file
+        }
+
+        bool rootDetermined = false;
+        bool rootIsArray = false;
+        bool rootFinished = false;
+        long elementIndex = 0;
+
+        bool fastPath = !(options.ValidateElements && options.ElementValidator != null);
+
+        // Validation (slow) path capture tools
+        ArrayBufferWriter<byte>? elementBuffer = null;
+        Utf8JsonWriter? elementWriter = null;
+
+        // Capture state
+        bool capturing = false;
+        int openContainers = 0;
+        bool elementIsPrimitive = false;
+
+        // Pending items to yield once reader is out of scope
+        List<T> pending = new List<T>(1);
+
+        while (!rootFinished)
+        {
+            var span = new ReadOnlySpan<byte>(buffer, 0, bytesRead);
+            var reader = new Utf8JsonReader(span, isFinalBlock, state);
+
+            bool producedThisIteration = false;
+
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                options.CancellationToken.ThrowIfCancellationRequested();
+
+                if (!rootDetermined)
+                {
+                    switch (reader.TokenType)
+                    {
+                        case JsonTokenType.StartArray:
+                            rootIsArray = true;
+                            rootDetermined = true;
+                            continue;
+
+                        case JsonTokenType.StartObject:
+                        case JsonTokenType.String:
+                        case JsonTokenType.Number:
+                        case JsonTokenType.True:
+                        case JsonTokenType.False:
+                        case JsonTokenType.Null:
+                            rootIsArray = false;
+                            rootDetermined = true;
+
+                            if (options.RequireArrayRoot && !options.AllowSingleObject)
+                            {
+                                options.HandleError("JSON", -1, -1, path,
+                                    "JsonFormatError", "Root element is not an array.", "");
+                                rootFinished = true;
+                                break;
+                            }
+
+                            elementIndex = 1;
+
+                            if (fastPath)
+                            {
+                                var valueReader = reader; // copy
+                                bool success = false;
+                                T item = default;
+                                try
+                                {
+                                    item = JsonSerializer.Deserialize<T>(ref valueReader, options.SerializerOptions)!;
+                                    success = true;
+                                    reader = valueReader; // advance original
+                                }
+                                catch (Exception ex)
+                                {
+                                    string excerpt = BuildExcerptAndSkip(ref reader, 128);
+                                    if (!options.HandleError("JSON", -1, 1, path,
+                                            ex.GetType().Name, ex.Message, excerpt))
+                                    {
+                                        rootFinished = true;
+                                    }
+                                }
+
+                                if (success)
+                                {
+                                    options.Metrics.RecordsRead = 1;
+                                    if (options.ShouldEmitProgress())
+                                        options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+                                    pending.Add(item);
+                                    producedThisIteration = true;
+                                }
+
+                                rootFinished = true;
+                            }
+                            else
+                            {
+                                // Capture entire single root value
+                                elementBuffer ??= new ArrayBufferWriter<byte>(8 * 1024);
+                                elementWriter ??= new Utf8JsonWriter(elementBuffer);
+                                elementBuffer.Clear();
+                                capturing = true;
+                                openContainers = 0;
+                                elementIsPrimitive = false;
+
+                                WriteTokenToElement(ref reader, elementWriter, ref openContainers, ref elementIsPrimitive);
+
+                                while (capturing && reader.Read())
+                                {
+                                    WriteTokenToElement(ref reader, elementWriter, ref openContainers, ref elementIsPrimitive);
+                                    if (elementIsPrimitive || openContainers == 0)
+                                    {
+                                        capturing = false;
+                                        elementWriter.Flush();
+                                    }
+                                }
+
+                                if (!capturing)
+                                {
+                                    if (TryFinalizeCapturedElement(elementBuffer, options, path, elementIndex, out var item))
+                                    {
+                                        options.Metrics.RecordsRead = 1;
+                                        if (options.ShouldEmitProgress())
+                                            options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+                                        pending.Add(item);
+                                        producedThisIteration = true;
+                                    }
+                                }
+
+                                rootFinished = true;
+                            }
+                            break;
+
+                        default:
+                            continue;
+                    }
+
+                    if (rootFinished || producedThisIteration) break;
+                    if (!rootIsArray) break;
+                    continue;
+                }
+
+                if (!rootIsArray)
+                {
+                    break; // single value case already handled
+                }
+
+                if (reader.TokenType == JsonTokenType.EndArray)
+                {
+                    rootFinished = true;
+                    break;
+                }
+
+                // Start of an array element
+                elementIndex++;
+
+                if (fastPath)
+                {
+                    var valueReader = reader; // copy
+                    bool success = false;
+                    T item = default;
+                    try
+                    {
+                        item = JsonSerializer.Deserialize<T>(ref valueReader, options.SerializerOptions)!;
+                        success = true;
+                        reader = valueReader;
+                    }
+                    catch (Exception exElem)
+                    {
+                        string excerpt = BuildExcerptAndSkip(ref reader, 128);
+                        if (!options.HandleError("JSON", -1, elementIndex, path,
+                                exElem.GetType().Name, exElem.Message, excerpt))
+                        {
+                            rootFinished = true;
+                            break;
+                        }
+                        continue; // skip malformed element
+                    }
+
+                    if (success)
+                    {
+                        options.Metrics.RecordsRead = elementIndex;
+                        if (options.ShouldEmitProgress())
+                            options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+                        pending.Add(item);
+                        producedThisIteration = true;
+                        if (options.Metrics.TerminatedEarly)
+                            rootFinished = true;
+                    }
+                }
+                else
+                {
+                    // Validation path: capture the element
+                    capturing = true;
+                    openContainers = 0;
+                    elementIsPrimitive = false;
+
+                    elementBuffer ??= new ArrayBufferWriter<byte>(8 * 1024);
+                    elementBuffer.Clear();
+                    elementWriter ??= new Utf8JsonWriter(elementBuffer);
+
+                    WriteTokenToElement(ref reader, elementWriter, ref openContainers, ref elementIsPrimitive);
+
+                    if (elementIsPrimitive)
+                    {
+                        capturing = false;
+                        elementWriter.Flush();
+                    }
+                    else
+                    {
+                        while (capturing && reader.Read())
+                        {
+                            WriteTokenToElement(ref reader, elementWriter, ref openContainers, ref elementIsPrimitive);
+                            if (openContainers == 0)
+                            {
+                                capturing = false;
+                                elementWriter.Flush();
+                            }
+                        }
+                    }
+
+                    if (!capturing)
+                    {
+                        if (TryFinalizeCapturedElement(elementBuffer, options, path, elementIndex, out var item))
+                        {
+                            options.Metrics.RecordsRead = elementIndex;
+                            if (options.ShouldEmitProgress())
+                                options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+                            pending.Add(item);
+                            producedThisIteration = true;
+                            if (options.Metrics.TerminatedEarly)
+                                rootFinished = true;
+                        }
+                    }
+                }
+
+                if (producedThisIteration) break; // produce at most one per pass for immediate streaming
+            }
+
+            // Persist state & shift buffer before yielding
+            state = reader.CurrentState;
+            int consumed = (int)reader.BytesConsumed;
+
+            int remaining = bytesRead - consumed;
+            if (remaining > 0)
+            {
+                Buffer.BlockCopy(buffer, consumed, buffer, 0, remaining);
+            }
+
+            if (!rootFinished)
+            {
+                int read = fs.Read(buffer, remaining, buffer.Length - remaining);
+                bytesRead = remaining + read;
+                isFinalBlock = read == 0;
+                if (bytesRead == 0)
+                    rootFinished = true;
+            }
+
+            // Safe to yield pending items (reader out of scope)
+            if (pending.Count > 0)
+            {
+                foreach (var itm in pending)
+                    yield return itm;
+                pending.Clear();
+            }
+        }
+
+        options.Complete();
+    }
+
+
+    //// Writes a single token from reader into element writer (validation path) and updates element state
+    private static void WriteTokenToElement(ref Utf8JsonReader reader,
+                                            Utf8JsonWriter writer,
+                                            ref int openContainers,
+                                            ref bool elementIsPrimitive)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.StartObject:
+                writer.WriteStartObject();
+                openContainers++;
+                break;
+            case JsonTokenType.EndObject:
+                writer.WriteEndObject();
+                openContainers--;
+                break;
+            case JsonTokenType.StartArray:
+                writer.WriteStartArray();
+                openContainers++;
+                break;
+            case JsonTokenType.EndArray:
+                writer.WriteEndArray();
+                openContainers--;
+                break;
+            case JsonTokenType.PropertyName:
+                writer.WritePropertyName(reader.GetString());
+                break;
+            case JsonTokenType.String:
+                writer.WriteStringValue(reader.GetString());
+                elementIsPrimitive = openContainers == 0;
+                break;
+            case JsonTokenType.Number:
+#if NET8_0_OR_GREATER
+                // Preserve exact numeric text
+                writer.WriteRawValue(reader.ValueSpan, skipInputValidation: true);
+#else
+            if (reader.TryGetInt64(out long l))
+                writer.WriteNumberValue(l);
+            else if (reader.TryGetDecimal(out decimal dec))
+                writer.WriteNumberValue(dec);
+            else if (reader.TryGetDouble(out double dbl))
+                writer.WriteNumberValue(dbl);
+            else
+                writer.WriteStringValue(reader.GetString());
+#endif
+                elementIsPrimitive = openContainers == 0;
+                break;
+            case JsonTokenType.True:
+                writer.WriteBooleanValue(true);
+                elementIsPrimitive = openContainers == 0;
+                break;
+            case JsonTokenType.False:
+                writer.WriteBooleanValue(false);
+                elementIsPrimitive = openContainers == 0;
+                break;
+            case JsonTokenType.Null:
+                writer.WriteNullValue();
+                elementIsPrimitive = openContainers == 0;
+                break;
+            default:
+                break;
+        }
+    }
+  
+    private static string JsonEscape(string s)
+    {
+        // Minimal fast-path escape for excerpt (not full JSON spec)
+        if (string.IsNullOrEmpty(s)) return s;
+        var sb = new StringBuilder(s.Length + 4);
+        foreach (char c in s)
+        {
+            switch (c)
+            {
+                case '\\': sb.Append("\\\\"); break;
+                case '"': sb.Append("\\\""); break;
+                case '\r': sb.Append("\\r"); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\t': sb.Append("\\t"); break;
+                default:
+                    if (c < 32)
+                        sb.Append("\\u").Append(((int)c).ToString("x4"));
+                    else
+                        sb.Append(c);
+                    break;
+            }
+        }
+        return sb.ToString();
+    }
+
+    // Extension: get raw numeric text (Utf8JsonReader does not expose a direct method; ValueSpan safe for numbers)
+    private static string GetRawString(this ref Utf8JsonReader reader)
+    {
+        return reader.HasValueSequence
+            ? Encoding.UTF8.GetString(reader.ValueSequence.ToArray())
+            : Encoding.UTF8.GetString(reader.ValueSpan);
+    }
+
+
+    public static async IAsyncEnumerable<T> Json<T>(string path, JsonSerializerOptions? options = null, Action<Exception>? onError = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var readOptions = new JsonReadOptions<T>
+        {
+            SerializerOptions = options ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+            ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+            ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(e => onError(e), path)
+        };
+        await foreach (var item in Json<T>(path, readOptions, cancellationToken))
+            yield return item;
+    }
+
+    public static IEnumerable<T> JsonSync<T>(string path, JsonSerializerOptions? options = null, Action<Exception>? onError = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var readOptions = new JsonReadOptions<T>
+        {
+            SerializerOptions = options ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+            ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+            ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(e => onError(e), path)
+        };
+        foreach (var item in JsonSync<T>(path, readOptions, cancellationToken))
+            yield return item;
+    }
+
+    // --- YAML (options-based) ---
+
+    public static async IAsyncEnumerable<T> Yaml<T>(string path, YamlReadOptions<T> options, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (options == null) throw new ArgumentNullException(nameof(options));
+        options.FilePath = path;
 
         using var reader = new StreamReader(path);
-        var parser = new Parser(reader);
+        var parser = new YamlDotNet.Core.Parser(reader);
+        parser.Consume<YamlDotNet.Core.Events.StreamStart>();
 
-        parser.Consume<StreamStart>();
+        var deserializerBuilder = new YamlDotNet.Serialization.DeserializerBuilder()
+            .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.CamelCaseNamingConvention.Instance);
 
-        if (parser.Accept<SequenceStart>(out _))
+        if (options.DisallowAliases)
         {
-            while (!parser.Accept<SequenceEnd>(out _))
+            deserializerBuilder = deserializerBuilder.IgnoreUnmatchedProperties();
+        }
+
+        var deserializer = deserializerBuilder.Build();
+        long record = 0;
+
+        async IAsyncEnumerable<T> SequenceMode()
+        {
+            if (parser.Accept<YamlDotNet.Core.Events.SequenceStart>(out _))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                T item = default;
-                bool success = false;
-                try
+                parser.Consume<YamlDotNet.Core.Events.SequenceStart>();
+                while (!parser.Accept<YamlDotNet.Core.Events.SequenceEnd>(out _))
                 {
-                    item = deserializer.Deserialize<T>(parser);
-                    success = true;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    options.CancellationToken.ThrowIfCancellationRequested();
+                    record++;
+
+                    bool success = false;
+                    T item = default;
+
+                    try
+                    {
+                        item = deserializer.Deserialize<T>(parser);
+
+                        if (options.RestrictTypes && !IsAllowed(options, item))
+                        {
+                            if (!options.HandleError("YAML", options.Metrics.LinesRead, record, path, "TypeRestriction",
+                                    "Deserialized object type not allowed.", item?.GetType().FullName ?? "null"))
+                                yield break;
+                        }
+                        else
+                        {
+                            success = true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (!options.HandleError("YAML", options.Metrics.LinesRead, record, path, ex.GetType().Name, ex.Message, ""))
+                            yield break;
+                    }
+
+                    if (success)
+                    {
+                        options.Metrics.RecordsRead = record;
+                        yield return item;
+                        if (options.ShouldEmitProgress()) options.EmitProgress();
+                        if (options.Metrics.TerminatedEarly) yield break;
+                    }
                 }
-                catch (Exception ex)
+                parser.Consume<YamlDotNet.Core.Events.SequenceEnd>();
+            }
+            else
+            {
+                while (parser.Accept<YamlDotNet.Core.Events.DocumentStart>(out _))
                 {
-                    if (onError == null) throw;
-                    parser.SkipThisAndNestedEvents();
-                    onError(new YamlException("Failed to deserialize a YAML document in the sequence. See inner exception for details.", ex));
-                }
-                if (success)
-                {
-                    yield return item;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    options.CancellationToken.ThrowIfCancellationRequested();
+                    record++;
+
+                    bool success = false;
+                    T item = default;
+
+                    try
+                    {
+                        parser.Consume<YamlDotNet.Core.Events.DocumentStart>();
+                        item = deserializer.Deserialize<T>(parser);
+
+                        if (options.RestrictTypes && !IsAllowed(options, item))
+                        {
+                            if (!options.HandleError("YAML", options.Metrics.LinesRead, record, path, "TypeRestriction",
+                                    "Deserialized object type not allowed.", item?.GetType().FullName ?? "null"))
+                                yield break;
+                        }
+                        else
+                        {
+                            success = true;
+                        }
+
+                        if (parser.Accept<YamlDotNet.Core.Events.DocumentEnd>(out _))
+                            parser.Consume<YamlDotNet.Core.Events.DocumentEnd>();
+                    }
+                    catch (Exception ex)
+                    {
+                        if (!options.HandleError("YAML", options.Metrics.LinesRead, record, path, ex.GetType().Name, ex.Message, ""))
+                            yield break;
+
+                        // Skip to next document end
+                        while (!parser.Accept<YamlDotNet.Core.Events.DocumentEnd>(out _) &&
+                               !parser.Accept<YamlDotNet.Core.Events.StreamEnd>(out _))
+                        {
+                            if (!parser.MoveNext()) break;
+                        }
+                        if (parser.Accept<YamlDotNet.Core.Events.DocumentEnd>(out _))
+                            parser.Consume<YamlDotNet.Core.Events.DocumentEnd>();
+                    }
+
+                    if (success)
+                    {
+                        options.Metrics.RecordsRead = record;
+                        yield return item;
+                        if (options.ShouldEmitProgress()) options.EmitProgress();
+                        if (options.Metrics.TerminatedEarly) yield break;
+                    }
                 }
             }
-        }
-        else
-        {
-            while (parser.Accept<DocumentStart>(out _))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                T item = default;
-                bool success = false;
-                try
-                {
-                    item = deserializer.Deserialize<T>(parser);
-                    success = true;
-                }
-                catch (Exception ex)
-                {
-                    if (onError == null) throw;
-                    parser.SkipThisAndNestedEvents();
-                    onError(new YamlException("Failed to deserialize a YAML document in the stream. See inner exception for details.", ex));
-                }
 
-                if (success)
-                {
-                    yield return item;
-                }
+            await Task.CompletedTask;
+        }
+
+        await foreach (var item in SequenceMode())
+            yield return item;
+
+        options.Complete();
+    }
+
+    // Simple YAML API
+    public static async IAsyncEnumerable<T> Yaml<T>(string path, YamlDotNet.Serialization.IDeserializer? deserializer = null, Action<Exception>? onError = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var opts = new YamlReadOptions<T>
+        {
+            ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+            ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(e => onError(e), path)
+        };
+        await foreach (var item in Yaml<T>(path, opts, cancellationToken))
+            yield return item;
+    }
+
+    private static bool IsAllowed<T>(YamlReadOptions<T> options, T item)
+    {
+        if (!options.RestrictTypes) return true;
+        if (item == null) return true;
+        var t = item.GetType();
+        if (options.AllowedTypes == null)
+            return t == typeof(T);
+        return options.AllowedTypes.Contains(t);
+    }
+
+
+    // Helper sink wrapping old onError callback
+    private sealed class DelegatingErrorSink : IReaderErrorSink
+    {
+        private readonly Action<string, Exception>? _csvAction;
+        private readonly Action<Exception>? _exAction;
+        private readonly string _file;
+
+        public DelegatingErrorSink(Action<string, Exception> csvAction, string file)
+        {
+            _csvAction = csvAction;
+            _file = file;
+        }
+        public DelegatingErrorSink(Action<Exception> exAction, string file)
+        {
+            _exAction = exAction;
+            _file = file;
+        }
+
+        public void Report(ReaderError error)
+        {
+            if (_csvAction != null)
+            {
+                _csvAction(error.RawExcerpt, new InvalidDataException(error.Message));
+            }
+            else if (_exAction != null)
+            {
+                _exAction(new InvalidDataException(error.Message));
             }
         }
+
+        public void Dispose() { }
     }
 }

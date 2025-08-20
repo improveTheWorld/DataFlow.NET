@@ -75,7 +75,7 @@ namespace iLoggerUsageExamples
                 this.Info($"New value assigned: {StringValue}");
             }
 
-            public bool isCapitalLetter()
+            public bool AreLetterUpper()
             {
                 if (string.IsNullOrEmpty(StringValue)) return false; // Retourne false si la chaîne est vide ou null
 
@@ -143,7 +143,7 @@ namespace iLoggerUsageExamples
 
             iLogger.Out(log); // here is the loggin operation to kafka
 
-            iLogger.getColoredConsoleWriter();
+            iLogger.GetColoredConsoleWriter();
             iLogger.AddFileLogger(settings["fileLogger_Path"]);
             Console.WriteLine("Press any key to continue...", LogLevel.Warn);
             Console.ReadKey();
@@ -238,7 +238,7 @@ namespace iLoggerUsageExamples
 
             firstNumericObject.WatchByLogger("FirstObject");
             firstNumericObject.UpdateAndLogValue(5);
-            secondNumericObject.nameForLog("SecondObject");
+            secondNumericObject.NameForLog("SecondObject");
             secondNumericObject.UpdateAndLogValue(6);
 
             iLogger.Out("=> Only the watched instance, firstObject, generates a log!", LogLevel.Warn);
@@ -308,7 +308,7 @@ namespace iLoggerUsageExamples
 
                 if (x is StringLoggableObject loggableObject)
                 {
-                    return loggableObject.isCapitalLetter();
+                    return loggableObject.AreLetterUpper();
                 }
                 return false;
             });

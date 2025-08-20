@@ -37,7 +37,7 @@ public class ParallelQueriesPlaygroundExamples
 
         var orders = TestDataGenerators.GenerateOrderEvents(15).ToList();
         var sensors = TestDataGenerators.GenerateSensorReadings(12).ToList();
-        webLogs.WriteCSV("LogEntry.csv");
+        webLogs.WriteCsvSync("LogEntry.csv");
 
         Console.WriteLine("📊 Generated identical test data for all execution paths:");
         Console.WriteLine($"   • Logs: {webLogs.Count + dbLogs.Count + cacheLogs.Count} entries");

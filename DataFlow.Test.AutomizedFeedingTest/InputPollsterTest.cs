@@ -20,7 +20,7 @@ namespace DataFlow.Tests
             data = 0;
         }
 
-        public void generate()
+        public void Generate()
         {
             new Task(() =>
             {
@@ -50,7 +50,7 @@ namespace DataFlow.Tests
         public void TestPolling()
         {
             var dataGen = new DataGeneratorThread(_output);
-            dataGen.generate();
+            dataGen.Generate();
             for (int i = 0;i<10; i++)
             {
                 _output.WriteLine($"Polling value {dataGen.data}");

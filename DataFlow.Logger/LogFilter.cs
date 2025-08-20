@@ -63,7 +63,7 @@
         public string? ComputeLog(object? requester, object objectToLog)
         {
             // If the requester is null or is being watched and validated (if necessary), proceed.
-            if ((requester == null) || ( WatchedInstances.isWatched(requester) && RequesterAcceptanceCriterias.IsCompliant(requester) && WatchedNameSpaces.isWatchedObject(requester) ))
+            if ((requester == null) || ( WatchedInstances.IsWatched(requester) && RequesterAcceptanceCriterias.IsCompliant(requester) && WatchedNameSpaces.IsWatchedObject(requester) ))
             {
                 // Get the string representation of the object to log. If it's null, use the predefined nullObjectString.
                 string? message = (objectToLog == null) ? nullObjectString : objectToLog.ToString();

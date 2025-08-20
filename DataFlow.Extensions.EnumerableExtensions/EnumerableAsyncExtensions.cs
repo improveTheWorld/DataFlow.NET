@@ -66,10 +66,10 @@ public static class EnumerableAsyncExtensions
 
     public static async IAsyncEnumerable<T> Throttle<T>(
         this IEnumerable<T> source,
-        double intervalInMS,
+        double intervalInMs,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var interval = TimeSpan.FromMilliseconds(intervalInMS);
+        var interval = TimeSpan.FromMilliseconds(intervalInMs);
         foreach (var item in source)
         {
             cancellationToken.ThrowIfCancellationRequested();

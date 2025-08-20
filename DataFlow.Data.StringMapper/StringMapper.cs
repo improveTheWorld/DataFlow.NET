@@ -1,118 +1,241 @@
 ﻿using DataFlow.Framework;
-using System.Text.Json; // Required for JSON deserialization
-using YamlDotNet.Serialization; // Required for YAML deserialization
+using System.Text.Json;
+using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-namespace DataFlow.Data.StringMapper;
-
-/// <summary>
-/// Provides extension methods for parsing strings into various structured data formats.
-/// </summary>
-public static class StringMapper
+namespace DataFlow.Data.StringMapper
 {
     /// <summary>
-    /// A reusable deserializer for YAML, configured for common use cases.
+    /// Provides extension and helper methods for mapping raw string content into strongly
+    /// typed objects (CSV-like separated values, JSON, YAML, or custom formats).
     /// </summary>
-    private static readonly IDeserializer YamlDeserializer = new DeserializerBuilder()
-        .WithNamingConvention(CamelCaseNamingConvention.Instance) // Handles typical camelCase YAML properties
-        .Build();
-
-    /// <summary>
-    /// A reusable serializer for JSON, with standard web options.
-    /// </summary>
-    private static readonly JsonSerializerOptions JsonSerializerOptions = new JsonSerializerOptions
+    /// <remarks>
+    /// This static utility focuses on lightweight, allocation‑aware parsing for common
+    /// textual representations encountered in data ingestion scenarios.
+    /// 
+    /// General behaviors / design notes:
+    /// - CSV parsing is positional: values are mapped to the provided <paramref name="schema"/> order.
+    /// - Primitive inference (<see cref="GetObject"/>) attempts to coerce strings into common scalar
+    ///   .NET types (bool, Int32, Int64, Double, DateTime) before falling back to <see cref="string"/>.
+    /// - JSON and YAML methods catch format exceptions and return <c>default</c>(T) instead of throwing,
+    ///   enabling resilient streaming pipelines. Failures are written to <see cref="Console"/>; callers may
+    ///   replace this with structured logging if needed.
+    /// - All deserialization methods are culture‑invariant with respect to numeric / boolean parsing
+    ///   because they rely on the BCL default invariant conversions for the underlying TryParse operations.
+    /// </remarks>
+    public static class StringMapper
     {
-        PropertyNameCaseInsensitive = true // Makes JSON deserialization more robust
-    };
+        #region Static Reusable Infrastructure
 
-    public static object GetObject(string objectValue)
-    {
-        bool boolValue;
-        Int32 intValue;
-        Int64 bigintValue;
-        double doubleValue;
-        DateTime dateValue;
+        /// <summary>
+        /// Shared YAML <see cref="IDeserializer"/> configured for camelCase property name matching.
+        /// This instance is thread-safe for concurrent use (YamlDotNet deserializers are stateless after build).
+        /// </summary>
+        private static readonly IDeserializer YamlDeserializer =
+            new DeserializerBuilder()
+                .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                .Build();
 
-        if (bool.TryParse(objectValue, out boolValue))
-            return boolValue;
-        else if (Int32.TryParse(objectValue, out intValue))
-            return intValue;
-        else if (Int64.TryParse(objectValue, out bigintValue))
-            return bigintValue;
-        else if (double.TryParse(objectValue, out doubleValue))
-            return doubleValue;
-        else if (DateTime.TryParse(objectValue, out dateValue))
-            return dateValue;
-        else return objectValue;
-    }
-
-    /// <summary>
-    /// Parses a single line of separated values into an object of type T.
-    /// </summary>
-    /// <typeparam name="T">The target type.</typeparam>
-    /// <param name="line">The string line to parse.</param>
-    /// <param name="schema">The ordered list of property names corresponding to the values in the line.</param>
-    /// <param name="separator">The character separating the values.</param>
-    /// <returns>A new instance of T populated with the parsed values.</returns>
-    public static T? AsCSV<T>(this string line, string[] schema, string separator = ";")
-            => NEW.GetNew<T>(schema,
-                             line.Split(separator, StringSplitOptions.TrimEntries)
-                            .Select(x => GetObject(x))
-                            .ToArray());
-
-    /// <summary>
-    /// Parses a JSON string into an object of type T.
-    /// </summary>
-    /// <typeparam name="T">The target type.</typeparam>
-    /// <param name="jsonString">The JSON string to parse.</param>
-    /// <returns>A new instance of T populated from the JSON string.</returns>
-    public static T? AsJson<T>(this string jsonString)
-    {
-        try
+        /// <summary>
+        /// Shared System.Text.Json serializer options used for JSON deserialization.
+        /// Configured with case-insensitive property name matching to increase robustness
+        /// against casing variations in input payloads.
+        /// </summary>
+        private static readonly JsonSerializerOptions JsonSerializerOptions = new()
         {
-            return JsonSerializer.Deserialize<T>(jsonString, JsonSerializerOptions);
-        }
-        catch (JsonException ex)
-        {
-            // In a real application, consider logging this error.
-            Console.WriteLine($"[DataFlow.Data.StringMapper] JSON Deserialization Error: {ex.Message}");
-            return default;
-        }
-    }
+            PropertyNameCaseInsensitive = true
+        };
 
-    /// <summary>
-    /// Parses a YAML string into an object of type T.
-    /// </summary>
-    /// <typeparam name="T">The target type.</typeparam>
-    /// <param name="ymlString">The YAML string to parse.</param>
-    /// <returns>A new instance of T populated from the YAML string.</returns>
-    public static T? AsYML<T>(this string ymlString)
-    {
-        try
-        {
-            return YamlDeserializer.Deserialize<T>(ymlString);
-        }
-        catch (YamlDotNet.Core.YamlException ex)
-        {
-            // In a real application, consider logging this error.
-            Console.WriteLine($"[DataFlow.Data.StringMapper] YML Deserialization Error: {ex.Message}");
-            return default;
-        }
-    }
+        #endregion
 
-    /// <summary>
-    /// Parses a string into an object of type T using a custom parsing function.
-    /// </summary>
-    /// <typeparam name="T">The target type.</typeparam>
-    /// <param name="line">The raw string line to parse.</param>
-    /// <param name="customParser">The function that defines the custom parsing logic.</param>
-    /// <returns>A new instance of T as returned by the custom parser.</returns>
-    public static T AsCustom<T>(this string line, Func<string, T> customParser)
-    {
-        if (customParser == null)
+        #region Primitive Inference
+
+        /// <summary>
+        /// Attempts to interpret a raw string as one of several primitive .NET types.
+        /// </summary>
+        /// <param name="objectValue">The raw textual representation.</param>
+        /// <returns>
+        /// The parsed value as one of:
+        /// <list type="bullet">
+        ///   <item><description><see cref="bool"/></description></item>
+        ///   <item><description><see cref="int"/></description></item>
+        ///   <item><description><see cref="long"/></description></item>
+        ///   <item><description><see cref="double"/></description></item>
+        ///   <item><description><see cref="DateTime"/></description></item>
+        ///   <item><description><see cref="string"/> (original input if no other type matched)</description></item>
+        /// </list>
+        /// </returns>
+        /// <remarks>
+        /// Parsing order is boolean → Int32 → Int64 → Double → DateTime → string.
+        /// This order is chosen to favor the narrowest integral representations before widening.
+        /// </remarks>
+        public static object GetObject(string objectValue)
         {
-            throw new ArgumentNullException(nameof(customParser));
+            if (bool.TryParse(objectValue, out var boolValue))
+                return boolValue;
+                
+            if (int.TryParse(objectValue, out var intValue))
+                return intValue;
+
+            if (long.TryParse(objectValue, out var bigintValue))
+                return bigintValue;
+
+            if (decimal.TryParse(objectValue, out var decValue))
+                return decValue;
+
+            if (double.TryParse(objectValue, out var doubleValue))
+                return doubleValue;
+
+            if (DateTime.TryParse(objectValue, out var dateValue))
+                return dateValue;
+
+            if (Guid.TryParse(objectValue, out var guidValue))
+                return guidValue;
+
+            return objectValue;
         }
-        return customParser(line);
+
+        #endregion
+
+        #region CSV / Separated Values
+
+        /// <summary>
+        /// Parses a delimited (CSV-like) line into a new instance of <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T">The target materialization type.</typeparam>
+        /// <param name="line">The raw line containing delimited values.</param>
+        /// <param name="schema">
+        /// Ordered property / member names that correspond one-to-one with the delimited values.
+        /// The length of <paramref name="schema"/> must be equal to or greater than the number
+        /// of values obtained after splitting; extra schema entries (if any) will receive default values.
+        /// </param>
+        /// <param name="separator">The delimiter used to split the line. Default is <c>;</c>.</param>
+        /// <returns>
+        /// A new <typeparamref name="T"/> instance with members populated by positional mapping.
+        /// Returns <c>default</c> if instantiation fails in <c>NEW.GetNew&lt;T&gt;</c>.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="line"/> or <paramref name="schema"/> is null.</exception>
+        /// <remarks>
+        /// This method:
+        /// <list type="bullet">
+        ///   <item>Splits using <see cref="string.Split(string?, StringSplitOptions)"/> with <see cref="StringSplitOptions.TrimEntries"/>.</item>
+        ///   <item>Per value, applies <see cref="GetObject"/> for primitive inference.</item>
+        ///   <item>Relies on an external factory <c>NEW.GetNew&lt;T&gt;</c> from <c>DataFlow.Framework</c> to perform reflection-based construction.</item>
+        /// </list>
+        /// Performance considerations: for very wide rows or high-frequency parsing, a Span-based splitter
+        /// could reduce allocations—future optimization possible.
+        /// </remarks>
+        public static T? AsCSV<T>(this string line, string[] schema, string separator = ";")
+        {
+            if (line == null) throw new ArgumentNullException(nameof(line));
+            if (schema == null) throw new ArgumentNullException(nameof(schema));
+
+            var values = line
+                .Split(separator, StringSplitOptions.TrimEntries)
+                .Select(GetObject)
+                .ToArray();
+
+            return NEW.GetNew<T>(schema, values);
+        }
+
+        #endregion
+
+        #region JSON
+
+        /// <summary>
+        /// Deserializes a JSON string into an instance of <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T">Target type for deserialization.</typeparam>
+        /// <param name="jsonString">The JSON payload.</param>
+        /// <returns>
+        /// An instance of <typeparamref name="T"/> if deserialization succeeds; otherwise <c>default</c>.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// Uses <see cref="System.Text.Json.JsonSerializer"/> with case-insensitive property name matching.
+        /// </para>
+        /// <para>
+        /// Exceptions:
+        /// </para>
+        /// <list type="bullet">
+        ///   <item>Any <see cref="JsonException"/> is caught; the method returns <c>default</c> and writes a message to <see cref="Console"/>.</item>
+        ///   <item>Other exceptions (I/O, memory) are not caught and will bubble to the caller.</item>
+        /// </list>
+        /// Consider replacing console logging with a structured logging framework in production.
+        /// </remarks>
+        public static T? AsJson<T>(this string jsonString)
+        {
+            if (jsonString == null) throw new ArgumentNullException(nameof(jsonString));
+
+            try
+            {
+                return JsonSerializer.Deserialize<T>(jsonString, JsonSerializerOptions);
+            }
+            catch (JsonException ex)
+            {
+                Console.WriteLine($"[DataFlow.Data.StringMapper] JSON Deserialization Error: {ex.Message}");
+                return default;
+            }
+        }
+
+        #endregion
+
+        #region YAML
+
+        /// <summary>
+        /// Deserializes a YAML string into an instance of <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T">Target type for deserialization.</typeparam>
+        /// <param name="ymlString">The YAML payload.</param>
+        /// <returns>
+        /// An instance of <typeparamref name="T"/> if deserialization succeeds; otherwise <c>default</c>.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// Uses a shared <see cref="IDeserializer"/> configured with <see cref="CamelCaseNamingConvention"/>.
+        /// </para>
+        /// <para>
+        /// Catches <see cref="YamlDotNet.Core.YamlException"/> and returns <c>default</c>, logging the error
+        /// to <see cref="Console"/>. Other exceptions are not caught.
+        /// </para>
+        /// </remarks>
+        public static T? AsYML<T>(this string ymlString)
+        {
+            if (ymlString == null) throw new ArgumentNullException(nameof(ymlString));
+
+            try
+            {
+                return YamlDeserializer.Deserialize<T>(ymlString);
+            }
+            catch (YamlDotNet.Core.YamlException ex)
+            {
+                Console.WriteLine($"[DataFlow.Data.StringMapper] YML Deserialization Error: {ex.Message}");
+                return default;
+            }
+        }
+
+        #endregion
+
+        #region Custom Parsing
+
+        /// <summary>
+        /// Applies a caller-provided parsing delegate to a raw string.
+        /// </summary>
+        /// <typeparam name="T">Target type produced by the custom parser.</typeparam>
+        /// <param name="line">The input string.</param>
+        /// <param name="customParser">A non-null delegate that transforms <paramref name="line"/> into <typeparamref name="T"/>.</param>
+        /// <returns>The result of invoking <paramref name="customParser"/>.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="customParser"/> is null.</exception>
+        /// <remarks>
+        /// Use when the built-in CSV / JSON / YAML helpers are insufficient and you need specialized logic
+        /// (e.g., regex extraction, hybrid formats, partial parses).
+        /// </remarks>
+        public static T AsCustom<T>(this string line, Func<string, T> customParser)
+        {
+            if (customParser == null) throw new ArgumentNullException(nameof(customParser));
+            return customParser(line);
+        }
+
+        #endregion
     }
 }

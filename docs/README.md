@@ -70,7 +70,7 @@ public static async Task<IEnumerable<ProcessedData>> ProcessBusinessLogic<T>(T d
 
 // BATCH PROCESSING: Use with files
 var batchResults = await ProcessBusinessLogic(
-    Read.csv<RawData>("historical_data.csv").AsAsyncEnumerable()
+    Read.Csv<RawData>("historical_data.csv").AsAsyncEnumerable()
 );
 
 // STREAM PROCESSING: Use with live data (IDENTICAL CODE!)
@@ -112,14 +112,14 @@ await unifiedLogStream
         other => await generalLogger.LogAsync(other)
     )
     .AllCases()
-    .WriteTextAsync("real_time_processed.log");
+    .WriteText("real_time_processed.log");
 ```
 
 ### Migration Path: Zero-Cost Batch-to-Stream Conversion
 
 ```csharp
 // DEVELOPMENT: Start with batch processing using test files
-var developmentPipeline = Read.csv<Transaction>("test_transactions.csv")
+var developmentPipeline = Read.Csv<Transaction>("test_transactions.csv")
     .Cases(IsHighValue, IsSuspicious, IsInternational)
     .SelectCase(
         highValue => ProcessHighValueTransaction(highValue),
@@ -235,7 +235,7 @@ public class RealTimeAnalyticsEngine
                 normal => await dataWarehouse.StoreAsync(normal)
             )
             .AllCases()
-            .WriteCSVAsync($"sensor_analytics_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+            .WriteCsv($"sensor_analytics_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
     }
 }
 ```
@@ -295,7 +295,7 @@ public struct LogEntry
 }
 
 // BATCH PROCESSING: Read from file
-var batchResults = Read.csv<LogEntry>("historical_logs.csv", ",")
+var batchResults = Read.Csv<LogEntry>("historical_logs.csv", ",")
     .Cases(
         log => log.Level == "ERROR",
         log => log.Level == "WARNING"
@@ -324,7 +324,7 @@ var streamResults = await liveLogStream
         info => $"ℹ️ {info.Service}: {info.Message}"
     )
     .AllCases()                        // Same result extraction
-    .WriteTextAsync("processed_stream.log");  // Async version for streaming
+    .WriteText("processed_stream.log");  // Async version for streaming
 ```
 
 ### Advanced Stream Processing Example
@@ -358,7 +358,7 @@ var orderTask = orderProcessor
         standard => await standardQueue.EnqueueAsync(standard)
     )
     .AllCases()
-    .WriteCSVAsync("processed_orders.csv");
+    .WriteCsv("processed_orders.csv");
 
 // Process inventory updates simultaneously
 var inventoryTask = inventoryProcessor
@@ -377,7 +377,7 @@ var inventoryTask = inventoryProcessor
         log => await auditLogger.LogAsync(log)
     )
     .AllCases()
-    .WriteJSONAsync("inventory_updates.json");
+    .WriteJson("inventory_updates.json");
 
 // Run both processors concurrently
 await Task.WhenAll(orderTask, inventoryTask);
@@ -387,41 +387,47 @@ await Task.WhenAll(orderTask, inventoryTask);
 
 ### DataFlow.Data Layer
 
+*Note: Default method names are **ASYNCHRONOUS**. Synchronous variants use the `Sync` suffix.*
 #### Read Class - Unified Data Reading
-The `Read` class provides static methods for reading data from various sources with **lazy evaluation** and **stream compatibility**.
+The `Read` class provides static methods for reading data from various sources with **lazy evaluation** and **stream compatibility**. It offers a unified API for handling different data formats like Text, CSV, JSON, and YAML, with robust error handling and configuration options.
+
+For a comprehensive guide on advanced configuration, error handling strategies, format-specific options, and known limitations, please refer to the detailed documentation:
+- **[Deep Dive: DataFlow.Data Reading Infrastructure](DataFlow-Data-Reading-Infrastructure.md)**
+
 
 **Key Methods:**
 ```csharp
 // Text file reading (works with both files and streams)
-public static IEnumerable<string> text(string path)
-public static IEnumerable<string> text(StreamReader file)
-public static IAsyncEnumerable<string> textAsync(string path)
-public static IAsyncEnumerable<string> textAsync(StreamReader file)
+public static IEnumerable<string> TextSync(string path)
+public static IEnumerable<string> TextSync(StreamReader file)
+public static IAsyncEnumerable<string> Text(string path)
+public static IAsyncEnumerable<string> Text(StreamReader file)
 
 // CSV reading with type mapping
-public static IEnumerable<T> csv<T>(string path, string separator = ",")
-public static IAsyncEnumerable<T> csvAsync<T>(string path, string separator = ",")
+public static IEnumerable<T> CsvSync<T>(string path, string separator = ",")
+public static IAsyncEnumerable<T> Csv<T>(string path, string separator = ",")
 
 // JSON/YAML reading
-public static IEnumerable<T> json<T>(string path)
-public static IAsyncEnumerable<T> jsonAsync<T>(string path)
+public static IEnumerable<T> JsonSync<T>(string path)
+public static IAsyncEnumerable<T> Json<T>(string path)
+
 ```
 
 **Example:**
 ```csharp
 // Batch reading
-var lines = Read.text("data.txt");
-var records = Read.csv<MyRecord>("data.csv", ";");
+var lines = Read.TextSync("data.txt");
+var records = Read.CsvSync<MyRecord>("data.csv", ";");
 
 // Stream reading (async)
-await foreach (var line in Read.textAsync("large_file.txt"))
+await foreach (var line in Read.Text("large_file.txt"))
 {
     await ProcessLineAsync(line);
 }
 
 // Both work with the same processing pipeline!
-var batchResult = Read.csv<Order>("orders.csv").Cases(IsUrgent, IsStandard);
-var streamResult = await Read.csvAsync<Order>("live_orders.csv").Cases(IsUrgent, IsStandard);
+var batchResult = Read.CsvSync<Order>("orders.csv").Cases(IsUrgent, IsStandard)
+var streamResult = await Read.Csv<Order>("live_orders.csv").Cases(IsUrgent, IsStandard);
 ```
 
 #### Writers Class - Unified Data Writing
@@ -430,14 +436,25 @@ Extension methods for writing data to various formats with **async support**.
 **Key Methods:**
 ```csharp
 // Synchronous writing
-public static void WriteText(this IEnumerable<string> lines, string path)
-public static void WriteCSV<T>(this IEnumerable<T> items, string path, bool withTitle = false)
-public static void WriteJSON<T>(this IEnumerable<T> items, string path)
+public static void WriteTextSync(this IEnumerable<string> lines, string path, CancellationToken ct = default);
+public static void WriteCsvSync<T>(this IEnumerable<T> records, string path, bool withTitle = true, string separator = ",", CancellationToken ct = default);
+public static void WriteJsonSync<T>(this IEnumerable<T> items, string path, CancellationToken ct = default);
+public static void WriteYamlSync<T>(this IEnumerable<T> items, string path, CancellationToken ct = default);
+
 
 // Asynchronous writing for streams
-public static Task WriteTextAsync(this IAsyncEnumerable<string> lines, string path)
-public static Task WriteCSVAsync<T>(this IAsyncEnumerable<T> items, string path, bool withTitle = false)
-public static Task WriteJSONAsync<T>(this IAsyncEnumerable<T> items, string path)
+public static Task WriteText(this IEnumerable<string> lines, string path, CancellationToken ct = default);
+public static Task WriteText(this IAsyncEnumerable<string> lines, string path), CancellationToken ct = default;
+
+public static Task WriteCsv<T>(this IEnumerable<T> records, string path, bool withTitle = true, string separator = ",", CancellationToken ct = default);
+public static Task WriteCsv<T>(this IAsyncEnumerable<T> records, string path, bool withTitle = true, string separator = ",", CancellationToken ct = default);
+
+public static Task WriteJson<T>(this IEnumerable<T> items, string path, CancellationToken ct = default);
+public static Task WriteJson<T>(this IAsyncEnumerable<T> items, string path, CancellationToken ct = default);
+
+public static Task WriteYaml<T>(this IEnumerable<T> items, string path, bool writeEmptySequenceWhenNoItems = true, CancellationToken ct = default)
+public static Task WriteYaml<T>(this IAsyncEnumerable<T> items, string path, bool writeEmptySequenceWhenNoItems = true, CancellationToken ct = default)
+
 ```
 
 ### DataFlow.Extensions Layer
@@ -514,7 +531,7 @@ The supra category enables a **"selective processing"** approach:
 ##### Batch Processing Example
 ```csharp
 // Process only ERROR and WARNING logs, ignore everything else
-var processedLogs = Read.text("application.log")
+var processedLogs = Read.Text("application.log")
     .Cases(
         line => line.Contains("ERROR"),   // Category 0
         line => line.Contains("WARNING")  // Category 1
@@ -549,7 +566,7 @@ var processedStream = await liveLogStream
         warning => await alertSystem.QueueAsync(warning)
     )
     .AllCases()
-    .WriteJSONAsync("processed_alerts.json");
+    .WriteJson("processed_alerts.json");
 ```
 
 ##### Advanced Multi-Category Stream Processing
@@ -578,7 +595,7 @@ var transactionAlerts = await liveTransactionStream
         vip => await vipProcessor.FastTrackAsync(vip)
     )
     .AllCases()
-    .WriteCSVAsync("special_transactions.csv");
+    .WriteCsv("special_transactions.csv");
 ```
 
 ### DataFlow.Framework Layer
@@ -622,7 +639,7 @@ await logMerger
     .Cases(IsError, IsWarning)
     .SelectCase(ProcessError, ProcessWarning)
     .AllCases()
-    .WriteTextAsync("merged_logs.txt");
+    .WriteText("merged_logs.txt");
 ```
 
 #### DataPublisher<T> - Real-Time Data Distribution
@@ -667,7 +684,7 @@ var criticalSensorTask = criticalSensorChannel.Reader.ReadAllAsync()
     .SelectCase(temp => $"CRITICAL TEMP: {temp.Value}°C at {temp.Location}")
     .ForEachCase(alert => await emergencySystem.AlertAsync(alert))
     .AllCases()
-    .WriteTextAsync("critical_sensors.log");
+    .WriteText("critical_sensors.log");
 
 // Simulate real-time data
 await sensorPublisher.PublishDataAsync(new SensorReading 
@@ -715,7 +732,7 @@ await liveAccessLogStream
         new SuccessResponse { Code = code, Timestamp = DateTime.Now })
     .ForEachCase(error => await errorTracker.RecordAsync(error))
     .AllCases()
-    .WriteJSONAsync("http_responses.json");
+    .WriteJson("http_responses.json");
 ```
 
 ## Stream Processing Deep Dive
@@ -791,7 +808,7 @@ public class MultiSourceProcessor
                 standard => await standardQueue.EnqueueAsync(standard)
             )
             .AllCases()
-            .WriteJSONAsync($"order_processing_{DateTime.Now:yyyyMMdd}.json");
+            .WriteJson($"order_processing_{DateTime.Now:yyyyMMdd}.json");
     }
     
     private async Task ProcessInventoryEvents(IAsyncEnumerable<InventoryEvent> stream)
@@ -835,7 +852,7 @@ public class MultiSourceProcessor
                 normal => await inventoryDB.UpdateAsync(normal)
             )
             .AllCases()
-            .WriteCSVAsync($"inventory_changes_{DateTime.Now:yyyyMMdd}.csv");
+            .WriteCsv($"inventory_changes_{DateTime.Now:yyyyMMdd}.csv");
     }
 }
 ```
@@ -910,7 +927,7 @@ public class ConditionalStreamProcessor
                 generalAlert => await emergencyResponse.EscalateToOpsAsync(generalAlert)
             )
             .AllCases()
-            .WriteTextAsync($"critical_events_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+            .WriteText($"critical_events_{DateTime.Now:yyyyMMdd_HHmmss}.log");
     }
 }
 ```
@@ -957,7 +974,7 @@ public class OptimizedStreamProcessor
                 low => await lowPriorityProcessor.ProcessAsync(low)
             )
             .AllCases()
-            .WriteCSVAsync("processed_data.csv");
+            .WriteCsv("processed_data.csv");
     }
 }
 ```
@@ -1037,14 +1054,21 @@ public static string BuildString<T>(this IEnumerable<T> items, Func<T, string> s
 public static Task<string> BuildStringAsync<T>(this IAsyncEnumerable<T> items, Func<T, string> selector, string separator = "");
 
 // File operations
-public static void WriteText(this IEnumerable<string> lines, string path);
-public static Task WriteTextAsync(this IAsyncEnumerable<string> lines, string path);
+public static void WriteTextSync(this IEnumerable<string> lines, string path);
+public static Task WriteText(this IEnumerable<string> lines, string path);
+public static Task WriteText(this IAsyncEnumerable<string> lines, string path);
 
-public static void WriteCSV<T>(this IEnumerable<T> items, string path, bool withTitle = false);
-public static Task WriteCSVAsync<T>(this IAsyncEnumerable<T> items, string path, bool withTitle = false);
+public static void WriteCsvSync<T>(this IEnumerable<T> records, string path, bool withTitle = true, string separator = ",");
+public static ValueTask WriteCsv<T>(this IEnumerable<T> records, string path, bool withTitle = true, string separator = ",");
+public static ValueTask WriteCsv<T>(this IAsyncEnumerable<T> records, string path, bool withTitle = true, string separator = ",");
 
-public static void WriteJSON<T>(this IEnumerable<T> items, string path);
-public static Task WriteJSONAsync<T>(this IAsyncEnumerable<T> items, string path);
+public static void WriteJsonSync<T>(this IEnumerable<T> items, string path);
+public static ValueTask WriteJson<T>(this IEnumerable<T> items, string path);
+public static Task WriteJson<T>(this IAsyncEnumerable<T> items, string path);
+
+public static void WriteYamlSync<T>(this IEnumerable<T> items, string path);
+public static Task WriteYaml<T>(this IAsyncEnumerable<T> items, string path);
+
 ```
 
 ## Advanced Topics
@@ -1054,7 +1078,7 @@ DataFlow.NET uses **lazy evaluation** throughout the pipeline for both batch and
 
 ```csharp
 // This pipeline doesn't execute until enumerated
-var pipeline = Read.csv<Order>("orders.csv")
+var pipeline = Read.Csv<Order>("orders.csv")
     .Cases(IsUrgent, IsStandard)
     .SelectCase(ProcessUrgent, ProcessStandard)
     .ForEachCase(LogUrgent, LogStandard);
@@ -1090,7 +1114,7 @@ public async Task ProcessFireAndForget()
                 warning => _ = Task.Run(() => logger.LogAsync(warning))
             )
             .AllCases()
-            .WriteTextAsync("background_processing.log");
+            .WriteText("background_processing.log");
     });
     
     // Continue with main processing while background task runs
@@ -1123,7 +1147,7 @@ public async Task ProcessWithBackpressure()
             low => ProcessQuickly(low)
         )
         .AllCases()
-        .WriteCSVAsync("backpressure_processed.csv");
+        .WriteCsv("backpressure_processed.csv");
 }
 ```
 
@@ -1168,7 +1192,7 @@ public class ResourceAwareProcessor : IAsyncDisposable
                     info => { /* Ignored - supra category */ }
                 )
                 .AllCases()
-                .WriteTextAsync("all_processed.txt");
+                .WriteText("all_processed.txt");
         }
         finally
         {
@@ -1247,7 +1271,7 @@ public async Task ProcessLogStreamWithRegex()
             unknown => await reviewQueue.EnqueueAsync(unknown)
         )
         .AllCases()
-        .WriteJSONAsync("categorized_logs.json");
+        .WriteJson("categorized_logs.json");
 }
 ```
 
@@ -1288,7 +1312,7 @@ public static class OrderProcessingLogic
 
 // Use with batch data
 var batchResults = await OrderProcessingLogic.ProcessOrders(
-    Read.csvAsync<Order>("historical_orders.csv")
+    Read.Csv<Order>("historical_orders.csv")
 );
 
 // Use with streaming data (IDENTICAL LOGIC!)
@@ -1321,7 +1345,7 @@ public async Task ProcessBusinessEvents(IAsyncEnumerable<BusinessEvent> events)
             payment => await accountingSystem.RecordAsync(payment)
         )
         .AllCases()
-        .WriteJSONAsync("processed_business_events.json");
+        .WriteJson("processed_business_events.json");
 }
 ```
 
@@ -1338,7 +1362,7 @@ await criticalEventsMerger
     .Cases(IsError, IsWarning)
     .SelectCase(ProcessError, ProcessWarning)
     .AllCases()
-    .WriteTextAsync("critical_events.log");
+    .WriteText("critical_events.log");
 ```
 
 ### Performance Optimization
@@ -1355,7 +1379,7 @@ await dataStream
         low => await lowPriorityHandler.ProcessAsync(low)
     )
     .AllCases()
-    .WriteCSVAsync("results.csv");  // Streaming write - no buffering
+    .WriteCsv("results.csv");  // Streaming write - no buffering
 
 // ❌ Bad: Don't buffer entire stream in memory
 var allResults = await dataStream.ToListAsync();  // Loads everything into memory
@@ -1386,7 +1410,7 @@ public class HighThroughputProcessor
             .Cases(IsUrgent, IsStandard)
             .SelectCase(ProcessUrgent, ProcessStandard)
             .AllCases()
-            .WriteCSVAsync("high_throughput_results.csv");
+            .WriteCsv("high_throughput_results.csv");
     }
 }
 ```
@@ -1402,7 +1426,7 @@ public static class DataSources
         new DataFlow<Order>(orderPublisher);
     
     public static IAsyncEnumerable<Order> GetHistoricalOrders() => 
-        Read.csvAsync<Order>("orders.csv");
+        Read.Csv<Order>("orders.csv");
 }
 
 // Extensions Layer - Define processing logic
@@ -1431,7 +1455,7 @@ public class OrderProcessingService
                 standard => await standardService.ProcessAsync(standard)
             )
             .AllCases()
-            .WriteJSONAsync("processed_orders.json");
+            .WriteJson("processed_orders.json");
     }
 }
 ```
@@ -1545,26 +1569,26 @@ await dataStream
     .SelectCase(Transform1, Transform2, Transform3)
     .ForEachCase(Action1, Action2, Action3)
     .AllCases()
-    .WriteCSVAsync("results.csv");
+    .WriteCsv("results.csv");
 
 // ❌ Bad: Multiple separate iterations
 var categorized = await dataStream.Cases(IsType1, IsType2).ToListAsync();
 var transformed = categorized.SelectCase(Transform1, Transform2, Transform3);
 var processed = transformed.ForEachCase(Action1, Action2, Action3);
-await processed.AllCases().WriteCSVAsync("results.csv");
+await processed.AllCases().WriteCsv("results.csv");
 ```
 
 #### 2. **Memory Management**
 ```csharp
 // ✅ Good: Use streaming for large datasets
-await Read.csvAsync<LargeRecord>("huge_file.csv")
+await Read.Csv<LargeRecord>("huge_file.csv")
     .Cases(IsImportant, IsUrgent)
     .SelectCase(ProcessImportant, ProcessUrgent, ProcessNormal)
     .AllCases()
-    .WriteCSVAsync("processed.csv");
+    .WriteCsv("processed.csv");
 
 // ❌ Bad: Loading everything into memory
-var allRecords = Read.csv<LargeRecord>("huge_file.csv").ToList();
+var allRecords = Read.Csv<LargeRecord>("huge_file.csv").ToList();
 var processed = allRecords.Cases(IsImportant, IsUrgent)
     .SelectCase(ProcessImportant, ProcessUrgent, ProcessNormal)
     .AllCases()
@@ -1593,7 +1617,7 @@ private async Task ProcessStream1()
             async item => await processor2.ProcessAsync(item)
         )
         .AllCases()
-        .WriteTextAsync("stream1_results.txt");
+        .WriteText("stream1_results.txt");
 }
 ```
 
@@ -1610,7 +1634,7 @@ await dataStream
     .Cases(pred1, pred2)
     .SelectCase(transform1, transform2)
     .AllCases()
-    .WriteCSVAsync("results.csv");
+    .WriteCsv("results.csv");
 ```
 
 #### 2. **Avoid Synchronous Operations in Async Streams**
@@ -1622,7 +1646,7 @@ await asyncStream
         item => anotherSyncProcessor.Process(item)
     )
     .AllCases()
-    .WriteTextAsync("results.txt");
+    .WriteText("results.txt");
 
 // ✅ Good: Use async operations throughout
 await asyncStream
@@ -1631,7 +1655,7 @@ await asyncStream
         async item => await anotherAsyncProcessor.ProcessAsync(item)
     )
     .AllCases()
-    .WriteTextAsync("results.txt");
+    .WriteText("results.txt");
 ```
 
 #### 3. **Avoid Creating Excessive Intermediate Collections**
@@ -1647,7 +1671,7 @@ await dataStream
     .SelectCase(transform1, transform2)
     .ForEachCase(action1, action2)
     .AllCases()
-    .WriteCSVAsync("results.csv");
+    .WriteCsv("results.csv");
 ```
 
 #### 4. **Proper Resource Management**
@@ -1658,7 +1682,7 @@ public async Task ProcessWithoutProperCleanup()
     var publisher = new DataPublisher<Data>();
     var merger = new DataFlow<Data>(publisher);
     
-    await merger.Cases(pred1, pred2).AllCases().WriteTextAsync("output.txt");
+    await merger.Cases(pred1, pred2).AllCases().WriteText("output.txt");
     // Resources not disposed - potential memory leaks
 }
 
@@ -1672,7 +1696,7 @@ public async Task ProcessWithProperCleanup()
         .Cases(pred1, pred2)
         .SelectCase(transform1, transform2)
         .AllCases()
-        .WriteTextAsync("output.txt");
+        .WriteText("output.txt");
     // Resources automatically disposed
 }
 ```
@@ -1706,7 +1730,7 @@ private async Task ProcessPartition(IEnumerator<DataItem> partition)
             async low => await lowPriorityProcessor.ProcessAsync(low)
         )
         .AllCases()
-        .WriteCSVAsync($"partition_results_{Thread.CurrentThread.ManagedThreadId}.csv");
+        .WriteCsv($"partition_results_{Thread.CurrentThread.ManagedThreadId}.csv");
 }
 
 private async IAsyncEnumerable<DataItem> EnumeratePartition(IEnumerator<DataItem> partition)
@@ -1747,7 +1771,7 @@ public async Task ProcessInBatches()
                 .ToListAsync();
         })
         .SelectMany(batch => batch.ToAsyncEnumerable())
-        .WriteCSVAsync("batched_results.csv");
+        .WriteCsv("batched_results.csv");
 }
 ```
 
@@ -1779,7 +1803,7 @@ public class ResilientStreamProcessor
                 async result => await resultProcessor.ProcessAsync(result)
             )
             .AllCases()
-            .WriteJSONAsync("resilient_results.json");
+            .WriteJson("resilient_results.json");
     }
 }
 ```
@@ -1832,7 +1856,7 @@ public async Task ProcessWithMonitoring()
                 });
             }
         })
-        .WriteCSVAsync("monitored_results.csv");
+        .WriteCsv("monitored_results.csv");
     
     Console.WriteLine($"Final Statistics:");
     Console.WriteLine($"Total Processed: {processedCount}");

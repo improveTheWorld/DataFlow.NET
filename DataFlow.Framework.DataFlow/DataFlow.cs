@@ -116,7 +116,7 @@ public class DataFlow<T> : IAsyncEnumerable<T>, IDisposable
     {
         Enumerator = new DataFlowEnumerator<T>(this,Subscriptions.Values.Select(x => x.Reader));
 
-        if(this.isWatched())
+        if(this.IsWatched())
         {
             Enumerator.WatchByLogger();
         }

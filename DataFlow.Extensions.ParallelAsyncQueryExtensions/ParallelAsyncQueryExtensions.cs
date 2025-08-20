@@ -1,219 +1,402 @@
-﻿
-using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
+﻿using System.Collections.Concurrent;
 using System.Text;
 using DataFlow.Framework;
 
-namespace DataFlow.Extensions;
-
-public static class ParallelAsyncQueryExtensions
+namespace DataFlow.Extensions
 {
-
-    //ForEach methods that return the original items(pass-through with side effects)
-    public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Action<T> action)
-    {
-        // This is safe because Select is designed for parallel execution.
-        return source.Select(item =>
-        {
-            action(item);
-            return item;
-        });
-    }
-
-    public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Func<T, Task> action)
-    {
-        // This is safe because Select is designed for parallel execution.
-        return source.Select(async item =>
-        {
-            await action(item);
-            return item;
-        });
-    }
-
-    public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Action<T, int> action)
-    {
-        // This is safe because the indexed Select is designed for parallel execution.
-        return source.Select((item, index) =>
-        {
-            action(item, index);
-            return item;
-        });
-    }
-
-    public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Func<T, int, Task> action)
-    {
-        // This is safe because the indexed Select is designed for parallel execution.
-        return source.Select(async (item, index) =>
-        {
-            await action(item, index);
-            return item;
-        });
-    }
-
-    public static async Task Do<T>(this ParallelAsyncQuery<T> items)
-    {
-        // Asynchronously iterate and discard results to force execution.
-        await foreach (var _ in items) { }
-    }
-
     /// <summary>
-    /// Creates a string from a parallel sequence in a thread-safe manner.
-    /// It collects all items first and then builds the string sequentially.
+    /// Provides extension methods for <see cref="ParallelAsyncQuery{T}"/> that mirror common LINQ
+    /// / streaming patterns (ForEach, aggregation, materialization, etc.) while preserving the
+    /// query's parallel execution model.
     /// </summary>
-    public static async Task<StringBuilder> BuildString(this ParallelAsyncQuery<string> items, StringBuilder? str = null, string separator = ", ", string before = "{", string after = "}")
+    /// <remarks>
+    /// <para>
+    /// All methods in this class are pure extension helpers; the underlying <see cref="ParallelAsyncQuery{T}"/>
+    /// remains an immutable, lazily-evaluated pipeline builder. Methods that return
+    /// <see cref="ParallelAsyncQuery{T}"/> (e.g. the <c>ForEach</c> overloads) are <b>compositional</b>
+    /// and do not force execution; methods returning <see cref="Task"/>, scalar values, or materialized
+    /// collections (<c>ToList</c>, <c>First</c>, <c>Sum</c>, etc.) are <b>terminal operations</b> that
+    /// trigger enumeration of the source query.
+    /// </para>
+    /// <para>
+    /// Unless otherwise stated, these extensions honor the configuration defined in the originating
+    /// query's <see cref="ParallelExecutionSettings"/> (e.g. <c>PreserveOrder</c>, <c>MaxConcurrency</c>,
+    /// <c>ContinueOnError</c>, <c>OperationTimeout</c>). When <c>PreserveOrder</c> is <c>false</c> the
+    /// logical order of items is not guaranteed; callers relying on ordering should enable it explicitly.
+    /// </para>
+    /// <para>
+    /// Thread‑safety: All side effects invoked by <c>ForEach</c> overloads may run concurrently on
+    /// multiple threads. Callers must ensure that provided delegates and any captured state are thread-safe.
+    /// </para>
+    /// </remarks>
+    public static class ParallelAsyncQueryExtensions
     {
-        str ??= new StringBuilder();
+        #region ForEach (Pass-Through Side-Effect) Overloads
 
-        if (!string.IsNullOrEmpty(before))
-            str.Append(before);
-
-        // Materialize the list first to ensure order and thread safety.
-        var allItems = await items.ToList();
-
-        str.Append(string.Join(separator, allItems));
-
-        if (!string.IsNullOrEmpty(after))
-            str.Append(after);
-
-        return str;
-    }
-
-    #region Sum Overloads
-    // The original dynamic implementation was not thread-safe.
-    // These overloads use Interlocked for atomic operations, ensuring correctness in parallel execution.
-
-    public static async Task<int> Sum(this ParallelAsyncQuery<int> source)
-    {
-        long sum = 0;
-        await source.ForEach(item => Interlocked.Add(ref sum, item)).Do();
-        return (int)sum;
-    }
-
-    public static async Task<long> Sum(this ParallelAsyncQuery<long> source)
-    {
-        long sum = 0;
-        await source.ForEach(item => Interlocked.Add(ref sum, item)).Do();
-        return sum;
-    }
-
-   public static async Task<decimal> Sum(this ParallelAsyncQuery<decimal> source)
-    {
-        decimal sum = 0;
-        object lockObj = new object();
-        await source.ForEach(item =>
+        /// <summary>
+        /// Registers a synchronous side-effect to be executed for each element during parallel processing,
+        /// returning a new pass-through query that preserves the original elements.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="source">The source parallel async query.</param>
+        /// <param name="action">A thread-safe action to invoke per element.</param>
+        /// <returns>The original sequence wrapped with the additional side-effect stage.</returns>
+        /// <remarks>
+        /// <para>Lazy: no enumeration occurs until a terminal operation is invoked.</para>
+        /// <para>
+        /// Concurrency: <paramref name="action"/> may be invoked concurrently on multiple items.
+        /// The order of invocation is not guaranteed unless <c>PreserveOrder</c> was configured.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="action"/> is <c>null</c>.</exception>
+        public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Action<T> action)
         {
-            // Interlocked does not support decimal, so a lock is the simplest safe alternative.
-            lock (lockObj)
+            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (action == null) throw new ArgumentNullException(nameof(action));
+
+            return source.Select(item =>
             {
-                sum += item;
-            }
-        }).Do();
-        return sum;
-    }
-    #endregion
-
-    #region ToList / Aggregate
-
-    /// <summary>
-    /// Creates a List from a ParallelAsyncQuery. This method is thread-safe.
-    /// If the source query was configured with .WithOrderPreservation(true), the
-    /// resulting list will maintain that order. Otherwise, for performance, the order
-    /// is not guaranteed.
-    /// </summary>
-    public static async Task<List<T>> ToList<T>(this ParallelAsyncQuery<T> source)
-    {
-        if (source == null) throw new ArgumentNullException(nameof(source));
-
-        // --- THE UNORDERED PATH ---
-        // If order doesn't matter, we use the fastest possible collection method.
-        // ConcurrentBag uses thread-local storage to avoid lock contention,
-        // making it the ideal choice for a high-performance "collect all" operation.
-        if (!source.Settings.PreserveOrder)
-        {
-            var bag = new ConcurrentBag<T>();
-            // ForEach can run fully in parallel, dumping results into the bag.
-            await source.ForEach(item => bag.Add(item)).Do();
-            return bag.ToList(); // A final, fast conversion to a List.
+                action(item);
+                return item;
+            });
         }
 
-        // --- THE ORDERED PATH ---
-        // If order MUST be preserved, we prioritize memory efficiency and correctness.
-        // The `await foreach` loop consumes the stream as it is produced in the correct
-        // order by the query's internal reordering buffer. This avoids the
-        // "double buffering" of the old ConcurrentDictionary approach.
-        else
+        /// <summary>
+        /// Registers an asynchronous side-effect to be executed for each element during parallel processing,
+        /// returning a new pass-through query that preserves the original elements.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="source">The source parallel async query.</param>
+        /// <param name="action">An asynchronous, thread-safe function to invoke per element.</param>
+        /// <returns>The original sequence wrapped with the additional asynchronous side-effect stage.</returns>
+        /// <remarks>
+        /// <para>Lazy: execution of <paramref name="action"/> is deferred until enumeration.</para>
+        /// <para>
+        /// Concurrency: Multiple <paramref name="action"/> invocations may be in-flight concurrently.
+        /// Awaited tasks are incorporated into the stage ordering logic (respecting timeouts / cancellation).
+        /// </para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="action"/> is <c>null</c>.</exception>
+        public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Func<T, Task> action)
         {
-            var list = new List<T>();
-            await foreach (var item in source)
+            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (action == null) throw new ArgumentNullException(nameof(action));
+
+            return source.Select(async item =>
             {
-                list.Add(item);
-            }
-            return list;
+                await action(item).ConfigureAwait(false);
+                return item;
+            });
         }
-    }
 
-
-
-
-    /// <summary>
-    /// Applies an accumulator function over a sequence. This implementation is sequential
-    /// to guarantee correctness for non-associative functions. For parallel aggregation,
-    /// a dedicated ParallelAggregate method should be used.
-    /// </summary>
-    public static async Task<TAccumulate> Aggregate<T, TAccumulate>(
-        this ParallelAsyncQuery<T> source,
-        TAccumulate seed,
-        Func<TAccumulate, T, TAccumulate> func)
-    {
-        if (source == null) throw new ArgumentNullException(nameof(source));
-        if (func == null) throw new ArgumentNullException(nameof(func));
-
-        TAccumulate result = seed;
-        // Awaiting foreach on the parallel query will process it and yield results
-        // which we can then safely aggregate sequentially.
-        await foreach (var item in source)
+        /// <summary>
+        /// Registers a synchronous side-effect with an element index to be executed for each element
+        /// during parallel processing, returning a pass-through query.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="source">The source parallel async query.</param>
+        /// <param name="action">A thread-safe action receiving element value and zero-based index.</param>
+        /// <returns>A wrapped query stage that preserves original elements.</returns>
+        /// <remarks>
+        /// <para>
+        /// Index semantics: The index supplied corresponds to the logical enumeration index. When
+        /// <c>PreserveOrder = false</c> the timing of <paramref name="action"/> invocations may not match ascending index order.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="action"/> is <c>null</c>.</exception>
+        public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Action<T, int> action)
         {
-            result = func(result, item);
+            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (action == null) throw new ArgumentNullException(nameof(action));
+
+            return source.Select((item, index) =>
+            {
+                action(item, index);
+                return item;
+            });
         }
 
-        return result;
-    }
-    #endregion
+        /// <summary>
+        /// Registers an asynchronous side-effect with an element index to be executed for each element
+        /// during parallel processing, returning a pass-through query.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="source">The source parallel async query.</param>
+        /// <param name="action">A thread-safe asynchronous function receiving element value and zero-based index.</param>
+        /// <returns>A wrapped query stage that preserves original elements.</returns>
+        /// <remarks>
+        /// <para>Lazy; enumeration triggers the asynchronous side-effects.</para>
+        /// <para>Index ordering not guaranteed unless <c>PreserveOrder</c> is <c>true</c>.</para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="action"/> is <c>null</c>.</exception>
+        public static ParallelAsyncQuery<T> ForEach<T>(this ParallelAsyncQuery<T> source, Func<T, int, Task> action)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (action == null) throw new ArgumentNullException(nameof(action));
 
-    //------------------------------------------- FIRST
+            return source.Select(async (item, index) =>
+            {
+                await action(item, index).ConfigureAwait(false);
+                return item;
+            });
+        }
 
-    /// <summary>
-    /// Returns the first element of a sequence.
-    /// </summary>
-    public static async Task<T> First<T>(this ParallelAsyncQuery<T> source)
-    {
-        if (source == null)
-            throw new ArgumentNullException(nameof(source));
+        #endregion
 
-        await using var enumerator = source.GetAsyncEnumerator();
-        if (await enumerator.MoveNextAsync())
-            return enumerator.Current;
+        #region Do (Terminal Execution)
 
-        throw new InvalidOperationException("Sequence contains no elements");
-    }
+        /// <summary>
+        /// Forces asynchronous enumeration of a <see cref="ParallelAsyncQuery{T}"/> without
+        /// producing a result, causing all upstream side-effects / transformations to execute.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="items">The query to enumerate.</param>
+        /// <returns>A task that completes when the sequence has been fully consumed.</returns>
+        /// <remarks>
+        /// <para>Equivalent to enumerating with <c>await foreach</c> and discarding all elements.</para>
+        /// <para>Use to force materialization after configuring side-effecting stages (e.g. <c>ForEach</c>).</para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> is <c>null</c>.</exception>
+        public static async Task Do<T>(this ParallelAsyncQuery<T> items)
+        {
+            if (items == null) throw new ArgumentNullException(nameof(items));
+            await foreach (var _ in items.ConfigureAwait(false)) { /* discard */ }
+        }
 
+        #endregion
 
+        #region BuildString
 
-    //------------------------------------------- FIRST OR DEFAULT
+        /// <summary>
+        /// Materializes a parallel string query to a <see cref="StringBuilder"/>, joining items
+        /// with a separator and optional surrounding delimiters.
+        /// </summary>
+        /// <param name="items">The source parallel string query.</param>
+        /// <param name="str">Optional existing <see cref="StringBuilder"/> to append to; a new one is created if <c>null</c>.</param>
+        /// <param name="separator">The separator inserted between items (default: ", ").</param>
+        /// <param name="before">A prefix string appended before the joined content (default: "{").</param>
+        /// <param name="after">A suffix string appended after the joined content (default: "}").</param>
+        /// <returns>
+        /// A task producing the populated <see cref="StringBuilder"/> once the entire sequence is consumed.
+        /// </returns>
+        /// <remarks>
+        /// <para>Terminal operation: forces full enumeration and loads all items into memory.</para>
+        /// <para>
+        /// Order Preservation: If <c>PreserveOrder = true</c> the original logical order is respected;
+        /// otherwise resulting order is unspecified.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> is <c>null</c>.</exception>
+        public static async Task<StringBuilder> BuildString(
+            this ParallelAsyncQuery<string> items,
+            StringBuilder? str = null,
+            string separator = ", ",
+            string before = "{",
+            string after = "}")
+        {
+            if (items == null) throw new ArgumentNullException(nameof(items));
 
-    /// <summary>
-    /// Returns the first element of a sequence, or a default value if no element is found.
-    /// </summary>
-    public static async Task<T?> FirstOrDefault<T>(this ParallelAsyncQuery<T> source)
-    {
-        if (source == null)
-            throw new ArgumentNullException(nameof(source));
+            str ??= new StringBuilder();
 
-        await using var enumerator = source.GetAsyncEnumerator();
-        if (await enumerator.MoveNextAsync())
-            return enumerator.Current;
+            if (!string.IsNullOrEmpty(before))
+                str.Append(before);
 
-        return default(T);
+            var allItems = await items.ToList().ConfigureAwait(false); // Materialize respecting order setting
+            str.Append(string.Join(separator, allItems));
+
+            if (!string.IsNullOrEmpty(after))
+                str.Append(after);
+
+            return str;
+        }
+
+        #endregion
+
+        #region Sum Overloads
+
+        /// <summary>
+        /// Computes the sum of an <see cref="int"/> parallel query using atomic operations.
+        /// </summary>
+        /// <param name="source">The source of integer values.</param>
+        /// <returns>A task producing the summed value.</returns>
+        /// <remarks>
+        /// <para>Associative and commutative operation; safe with unordered parallel aggregation.</para>
+        /// <para>Overflow: Accumulates in <see cref="long"/> to reduce intermediate overflow risk, then casts to <see cref="int"/>.</para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is <c>null</c>.</exception>
+        /// <exception cref="OverflowException">Thrown if the resulting sum is outside the range of <see cref="int"/> (very large sequences).</exception>
+        public static async Task<int> Sum(this ParallelAsyncQuery<int> source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            long sum = 0;
+            await source.ForEach(item => Interlocked.Add(ref sum, item)).Do().ConfigureAwait(false);
+            if (sum > int.MaxValue || sum < int.MinValue)
+                throw new OverflowException("The sum exceeds the range of Int32.");
+            return (int)sum;
+        }
+
+        /// <summary>
+        /// Computes the sum of a <see cref="long"/> parallel query using atomic operations.
+        /// </summary>
+        /// <param name="source">The source of 64-bit integer values.</param>
+        /// <returns>A task producing the summed value.</returns>
+        /// <remarks>Associative and commutative; ordering not required.</remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is <c>null</c>.</exception>
+        public static async Task<long> Sum(this ParallelAsyncQuery<long> source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            long sum = 0;
+            await source.ForEach(item => Interlocked.Add(ref sum, item)).Do().ConfigureAwait(false);
+            return sum;
+        }
+
+        /// <summary>
+        /// Computes the sum of a <see cref="decimal"/> parallel query using a lock for thread-safety.
+        /// </summary>
+        /// <param name="source">The source of decimal values.</param>
+        /// <returns>A task producing the summed value.</returns>
+        /// <remarks>
+        /// <para><see cref="decimal"/> is not supported by <see cref="Interlocked"/>; a simple lock is used.</para>
+        /// <para>For very hot paths with many small decimal additions you may consider batching or scaling strategies.</para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is <c>null</c>.</exception>
+        public static async Task<decimal> Sum(this ParallelAsyncQuery<decimal> source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            decimal sum = 0;
+            object lockObj = new object();
+            await source.ForEach(item =>
+            {
+                lock (lockObj)
+                {
+                    sum += item;
+                }
+            }).Do().ConfigureAwait(false);
+            return sum;
+        }
+
+        #endregion
+
+        #region ToList / Aggregate
+
+        /// <summary>
+        /// Materializes the parallel query into a <see cref="List{T}"/>.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="source">The source parallel async query.</param>
+        /// <returns>A task producing a list of all elements.</returns>
+        /// <remarks>
+        /// <para>
+        /// If <c>PreserveOrder = true</c> the list preserves logical order using the internal
+        /// reordering buffer. Otherwise a fast unordered collection strategy is used (via <see cref="ConcurrentBag{T}"/>),
+        /// and the resulting item order is unspecified.
+        /// </para>
+        /// <para>Terminal operation: enumerates the entire sequence.</para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is <c>null</c>.</exception>
+        public static async Task<List<T>> ToList<T>(this ParallelAsyncQuery<T> source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            if (!source.Settings.PreserveOrder)
+            {
+                var bag = new ConcurrentBag<T>();
+                await source.ForEach(item => bag.Add(item)).Do().ConfigureAwait(false);
+                return bag.ToList();
+            }
+            else
+            {
+                var list = new List<T>();
+                await foreach (var item in source.ConfigureAwait(false))
+                {
+                    list.Add(item);
+                }
+                return list;
+            }
+        }
+
+        /// <summary>
+        /// Applies an accumulator function over the sequence in a sequential manner
+        /// (on the consumer side) to guarantee correctness for non-associative operations.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <typeparam name="TAccumulate">The accumulator/result type.</typeparam>
+        /// <param name="source">The source parallel async query.</param>
+        /// <param name="seed">The initial accumulator value.</param>
+        /// <param name="func">A function that combines the current accumulator and the next element.</param>
+        /// <returns>A task producing the final accumulated value.</returns>
+        /// <remarks>
+        /// <para>
+        /// This method enumerates the parallel query and applies <paramref name="func"/> on the client
+        /// thread sequentially after each element is yielded. For purely associative &amp; commutative
+        /// operations you may obtain higher performance by implementing a custom parallel reduction.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown if <paramref name="source"/> or <paramref name="func"/> is <c>null</c>.
+        /// </exception>
+        public static async Task<TAccumulate> Aggregate<T, TAccumulate>(
+            this ParallelAsyncQuery<T> source,
+            TAccumulate seed,
+            Func<TAccumulate, T, TAccumulate> func)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (func == null) throw new ArgumentNullException(nameof(func));
+
+            var result = seed;
+            await foreach (var item in source.ConfigureAwait(false))
+            {
+                result = func(result, item);
+            }
+            return result;
+        }
+
+        #endregion
+
+        #region First / FirstOrDefault
+
+        /// <summary>
+        /// Returns the first element of the parallel query, throwing if the sequence is empty.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="source">The source parallel async query.</param>
+        /// <returns>A task producing the first element.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is <c>null</c>.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the sequence contains no elements.</exception>
+        public static async Task<T> First<T>(this ParallelAsyncQuery<T> source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            await using var enumerator = source.GetAsyncEnumerator();
+            if (await enumerator.MoveNextAsync().ConfigureAwait(false))
+                return enumerator.Current;
+
+            throw new InvalidOperationException("Sequence contains no elements.");
+        }
+
+        /// <summary>
+        /// Returns the first element of the parallel query, or the default value if the sequence is empty.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="source">The source parallel async query.</param>
+        /// <returns>
+        /// A task producing the first element, or <c>default(T)</c> if none exist.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is <c>null</c>.</exception>
+        public static async Task<T?> FirstOrDefault<T>(this ParallelAsyncQuery<T> source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            await using var enumerator = source.GetAsyncEnumerator();
+            if (await enumerator.MoveNextAsync().ConfigureAwait(false))
+                return enumerator.Current;
+
+            return default;
+        }
+
+        #endregion
     }
 }
-

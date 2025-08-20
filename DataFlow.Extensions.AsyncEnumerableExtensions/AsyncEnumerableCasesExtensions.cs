@@ -12,7 +12,7 @@ public static class AsyncEnumerableCasesExtensions
         return items.Select(x => (Dict.ContainsKey(x.category) ? Dict[x.category] : Dict.Count, x.item));
     }
 
-    static int getFilterIndex<T>(this Func<T, bool>[] filters, T item)
+    static int GetFilterIndex<T>(this Func<T, bool>[] filters, T item)
     {
 
         int CategoryIndex = 0;
@@ -28,7 +28,7 @@ public static class AsyncEnumerableCasesExtensions
     }
 
     public static IAsyncEnumerable<(int category, T item)> Cases<T>(this IAsyncEnumerable<T> items, params Func<T, bool>[] filters)
-    => items.Select(item => (filters.getFilterIndex(item), item));
+    => items.Select(item => (filters.GetFilterIndex(item), item));
 
 
 

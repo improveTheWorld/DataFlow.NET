@@ -73,7 +73,7 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
         static void csvSimpleExample()
         {
             // Read lines from a CSV file, extract data, and fill into an Enumerable of Person
-            Read.csv<Person>("People.csv", ",")
+            Read.Csv<Person>("People.csv", ",")
                 // Convert names to uppercase
                 .Select(p =>
                 {
@@ -81,7 +81,7 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
                     return p;
                 })
                 // Rewrite into a new CSV file
-                .WriteCSV("People_UpperCase.csv", true);
+                .WriteCsv("People_UpperCase.csv", true);
 
             // Note: The file People.csv is processed without being fully loaded into memory.
         }
@@ -93,7 +93,7 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
             StreamWriter InfoLogs = new("others.txt");
 
             // Read lines and categorize by log level
-            Read.textSync("log.txt")
+            Read.TextSync("log.txt")
                 .Until(line => line.StartsWith("STOP:"))
                 .Cases(
                     line => line.ToUpper().Contains("ERROR"),
@@ -114,7 +114,7 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
                 )
                 // Re-Write a new log file with the level information added for all processed log lines
                 .AllCases()
-                .WriteText("log_WithLevel.txt");
+                .WriteTextSync("log_WithLevel.txt");
 
             errorLogs.Close();
             warningLogs.Close();
@@ -144,7 +144,7 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
 
 
             // Read the log file and analyze each line
-            Read.textSync(log)
+            Read.TextSync(log)
                 // Define regex patterns for different log entry types
                 .TokenAndFlatten($"Received Response : {NUMS.As("ErrorCode")} {WORDS.As("errorMessage")}")
                 .Cases(

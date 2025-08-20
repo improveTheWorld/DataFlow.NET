@@ -21,18 +21,18 @@ namespace DataFlow.Log
                 (watchedList ??= new List<T>()).AddRange(toWatch);
             }
         }
-        public bool isAllWatched()
+        public bool WatchingAll()
         { 
             return watchedList == null; 
         }
 
         // Method to check if an object exists in the WatchedList
-        virtual public bool isWatched(T instance)
+        virtual public bool IsWatched(T instance)
         {
-            return watchedList==null || isInList(instance);
+            return watchedList==null || IsInWatchedList(instance);
         }
 
-        public bool isInList(T instance)
+        public bool IsInWatchedList(T instance)
         {
             return watchedList != null && watchedList.Contains(instance);
         }

@@ -31,7 +31,7 @@
                                   .ToArray();
         }
 
-        bool isMatching( string pattern, string input)
+        bool IsMatching( string pattern, string input)
         {
             if(pattern == "*"|| pattern == input)
             {
@@ -62,12 +62,12 @@
             }
         }
 
-        public bool isMatching(NameSpaceComparer input)
+        public bool IsMatching(NameSpaceComparer input)
         {
             
             if(input.namespaces.Length > namespaces.Length  && includeSubSpaces)
             {
-                return isMatching(new NameSpaceComparer(input, input.namespaces.Length - namespaces.Length)) ;
+                return IsMatching(new NameSpaceComparer(input, input.namespaces.Length - namespaces.Length)) ;
             }
             else if (namespaces.Length != input.namespaces.Length)
             {
@@ -77,7 +77,7 @@
             { 
                 for (int i=0; i<  namespaces.Length; i++)
                 {
-                    if ( !isMatching(namespaces[i], input.namespaces[i] ) )
+                    if ( !IsMatching(namespaces[i], input.namespaces[i] ) )
                     {
                         return false;
                     }

@@ -227,7 +227,7 @@ namespace DataFlow.Log
             return AddLogger(CreateFileLogger(fullPath));
         }
 
-        public static ILoggerTarget getColoredConsoleWriter()
+        public static ILoggerTarget GetColoredConsoleWriter()
         {
             return  loggerTargets.Where(x=>x is ColoredConsoleWriter).FirstOrDefault()?? AddLogger(new ColoredConsoleWriter());
         }

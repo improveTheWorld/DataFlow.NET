@@ -4,10 +4,10 @@ using DataFlow.Extensions;
 
 namespace DataFlow.Tests
 {
-    public class IEnumerableExtentionsTest
+    public class EnumerableExtentionsTest
     {
         [Fact]
-        public void IEnumerableExtentions_CombineOrdered_With_Int_Enums()
+        public void CombineOrderedWithIntEnums()
         {
             int[] ordered1 = { 1, 5, 6, 8, 10 };
             int[] ordered2 = { 0, 1, 1, 2, 7, 9, 10, 11 };
@@ -18,7 +18,7 @@ namespace DataFlow.Tests
         }
 
         [Fact]
-        public void IEnumerableExtentions_CombineOrdered_With_Int_Enums_ParamsEmpty()
+        public void CombineOrderedWithIntEnumsParamsEmpty()
         {
             int[] ordered1 = {};
             int[] ordered2 = {};
@@ -29,7 +29,7 @@ namespace DataFlow.Tests
         }
 
         [Fact]
-        public void IEnumerableExtentions_CombineOrdered_With_Int_Enums_SecondtParamEmpty()
+        public void CombineOrderedWithIntEnumsSecondtParamEmpty()
         {
             int[] ordered1 = { 1, 5, 6, 8, 10 };
             int[] ordered2 = { };
@@ -40,7 +40,7 @@ namespace DataFlow.Tests
         }
 
         [Fact]
-        public void IEnumerableExtentions_CombineOrdered_With_Int_Enums_FirstParamEmpty()
+        public void CombineOrderedWithIntEnumsFirstParamEmpty()
         {
             int[] ordered1 = { };
             int[] ordered2 = { 1, 5, 6, 8, 10 };
@@ -51,7 +51,7 @@ namespace DataFlow.Tests
         }
 
         [Fact]
-        public void IEnumerableExtentions_CombineOrdered_With_Int_Enums_ParamsNull()
+        public void CombineOrderedWithIntEnumsParamsNull()
         {
             int[] ordered1 = null;
             int[] ordered2 = null;
@@ -62,7 +62,7 @@ namespace DataFlow.Tests
         }
 
         [Fact]
-        public void IEnumerableExtentions_CombineOrdered_With_Int_Enums_FirstParamNull()
+        public void CombineOrderedWithIntEnumsFirstParamNull()
         {
             int[] ordered1 = null;
             int[] ordered2 = { 1, 5, 6, 8, 10 };
@@ -73,7 +73,7 @@ namespace DataFlow.Tests
         }
 
         [Fact]
-        public void IEnumerableExtentions_CombineOrdered_With_Int_Enums_SecondParamNull()
+        public void CombineOrderedWithIntEnumsSecondParamNull()
         {
             int[] ordered1 = { 1, 5, 6, 8, 10 };
             int[] ordered2 = null;
@@ -84,7 +84,7 @@ namespace DataFlow.Tests
         }
 
         [Fact]
-        public void IEnumerableExtentions_CombineOrdered_With_Int_Enums_onElementEnum()
+        public void CombineOrderedWithIntEnumsonElementEnum()
         {
             int[] ordered1 = { 1 };
             int[] ordered2 = { 5};

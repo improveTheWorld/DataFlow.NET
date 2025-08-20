@@ -43,17 +43,17 @@ namespace DataFlow.Log
         {
             iLogger.Filters.WatchedInstances.Watch(requester);
 
-            nameForLog(requester, ((InstanceName != null) ? InstanceName : nameof(requester)));
+            NameForLog(requester, ((InstanceName != null) ? InstanceName : nameof(requester)));
 
             return requester;
         }
 
-        public static bool isWatched(this object requester)
+        public static bool IsWatched(this object requester)
         {
-            return iLogger.Filters.WatchedInstances.isWatched(requester);
+            return iLogger.Filters.WatchedInstances.IsWatched(requester);
         }
 
-        public static void nameForLog(this object requester, string name)
+        public static void NameForLog(this object requester, string name)
         {
             iLogger.GiveName(requester, name);
         }

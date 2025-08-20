@@ -62,9 +62,9 @@ namespace DataFlow.Tests
             string[] argsOk = { "-D", "c:/test/text.txt", "-m" };
             string[] argsMandatoryMissed = { "-D", "c:/test/text.txt", "-c", "10" };
             Console.WriteLine("****************Parse : Ok**************** ");           ;
-            Console.WriteLine(parser.iInvoke("CheckAgains", argsOk));
+            Console.WriteLine(parser.Invoke("CheckAgains", argsOk));
             Console.WriteLine("****************Parse : Error**************** ");
-            Console.WriteLine(parser.iInvoke("CheckAgains", argsMandatoryMissed));
+            Console.WriteLine(parser.Invoke("CheckAgains", argsMandatoryMissed));
         }
     }
 }

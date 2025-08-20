@@ -8,11 +8,11 @@ public static class NEW
     {
         try
         {
-            return (T)NEW_ExactConstructor(typeof(T), parameters);
+            return (T)NewUsingConstructor(typeof(T), parameters);
         }
         catch 
         {
-            return (T)NEW_InternalOrder(typeof(T), parameters);
+            return (T)NewUsingInternalOrder(typeof(T), parameters);
         }
                  
     }
@@ -21,7 +21,7 @@ public static class NEW
        return (T) NEW_GivenSchema(typeof(T), schema, parameters);  
     }
 
-    static object NEW_ExactConstructor(Type objectType, params object[] parameters)
+    static object NewUsingConstructor(Type objectType, params object[] parameters)
     {
 
         //: try:
@@ -42,7 +42,7 @@ public static class NEW
         
     }
 
-    public static object NEW_InternalOrder(Type objectType, params object[] parameters)
+    public static object NewUsingInternalOrder(Type objectType, params object[] parameters)
     {
         if (objectType == null)
         {
@@ -53,7 +53,7 @@ public static class NEW
             throw new ArgumentNullException(nameof(parameters));
         }
 
-        return Feeder.Feed_InternalOrder(objectType.GetConstructor(Array.Empty<Type>()).Invoke(Array.Empty<object>()), parameters);
+        return Feeder.FeedUsingInternalOrder(objectType.GetConstructor(Array.Empty<Type>()).Invoke(Array.Empty<object>()), parameters);
     }
 
 
@@ -83,7 +83,7 @@ public static class NEW
         }
 
         
-        return  Feeder.Feed_WithSchema(instance, Feeder.GetSchemaDictionary(schema), parameters);
+        return  Feeder.FeedUsingSchema(instance, Feeder.GetSchemaDictionary(schema), parameters);
         
     }
 }
