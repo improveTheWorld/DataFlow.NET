@@ -103,7 +103,7 @@ namespace DataFlow.Tests
         void Parse_IFeedable()
         {
 
-            Mix_Field_Property parsed = NEW.GetNew< Mix_Field_Property>("2;yes;True".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+            Mix_Field_Property parsed = ObjectMaterializer.Create< Mix_Field_Property>("2;yes;True".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
             Mix_Field_Property expected = new Mix_Field_Property { FieldBool = true, intField = 2, StringProperty = "yes" };
             DeepAssert.Equal(expected, parsed);
 
@@ -116,7 +116,7 @@ namespace DataFlow.Tests
         {
 
             Mix_Field_Property expected = new Mix_Field_Property { FieldBool = true, intField = 2, StringProperty = "yes" };            
-            var parsed = NEW.GetNew<Mix_Field_Property>(" yes;2 ;True  ".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),  "StringProperty", "intField", "FieldBool");
+            var parsed = ObjectMaterializer.Create<Mix_Field_Property>(" yes;2 ;True  ".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),  "StringProperty", "intField", "FieldBool");
             DeepAssert.Equal(expected, parsed);
 
         }
@@ -126,7 +126,7 @@ namespace DataFlow.Tests
         {
            
             Mix_Field_Oredered expected = new Mix_Field_Oredered { FieldBool = true, intField = 2, StringProperty = "yes" };
-            var parsed = NEW.GetNew<Mix_Field_Oredered>(" 2 ;yes; True  ".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+            var parsed = ObjectMaterializer.Create<Mix_Field_Oredered>(" 2 ;yes; True  ".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
 
             DeepAssert.Equal(expected, parsed);
 

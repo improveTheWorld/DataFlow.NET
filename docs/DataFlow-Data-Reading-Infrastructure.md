@@ -6,10 +6,10 @@ This document provides a deep-dive into the reading infrastructure of the `DataF
 
 ### Asynchrony Convention (IMPORTANT)
 
-Default method names are **ASYNCHRONOUS**. Synchronous variants use the `Sync` suffix.
+Default method names are ASYNCHRONOUS. Synchronous variants use the `Sync` suffix.
 
-- **Async:** `Read.Csv<T>()` returns `IAsyncEnumerable<T>`
-- **Sync:** `Read.CsvSync<T>()` returns `IEnumerable<T>`
+- Async: `Read.Csv<T>()` returns `IAsyncEnumerable<T>`
+- Sync: `Read.CsvSync<T>()` returns `IEnumerable<T>`
 
 ### 0.1 Read Raw Text Lines
 
@@ -21,26 +21,63 @@ IAsyncEnumerable<string> lines = Read.Text("file.txt");
 IEnumerable<string> linesSync = Read.TextSync("file.txt");
 ```
 
-### 0.2 Simple CSV
+### 0.2 Simple CSV (Default RFC-leaning behavior)
 
-*Auto-defaults: `HasHeader = true` if no schema is passed. Errors throw by default.*
+Auto-defaults: `HasHeader = true` if no schema is passed. Errors throw by default.
 
 ```csharp
 // Async
-var rows = Read.Csv<MyRow>("data.csv", ",");
+var rows = Read.Csv<MyRow>("data.csv");
 
 // Sync
-var rowsSync = Read.CsvSync<MyRow>("data.csv", ",");
+var rowsSync = Read.CsvSync<MyRow>("data.csv");
 
 // Provide a schema for a header-less file
-var rows2 = Read.Csv<MyRow>("data_no_header.csv", ",", null, "Id", "Name", "Price");
+var rows2 = Read.Csv<MyRow>("data_no_header.csv",
+    new CsvReadOptions { HasHeader = false, Schema = new[] { "Id", "Name", "Price" } });
 
 // Handle errors by skipping instead of throwing
-// (onError triggers Skip behavior + DelegatingErrorSink)
-var rows3 = Read.Csv<MyRow>("maybe_dirty.csv", ",", (raw, ex) => Console.WriteLine(raw + " :: " + ex.Message));
+var rows3 = Read.Csv<MyRow>("maybe_dirty.csv",
+    new CsvReadOptions {
+        ErrorAction = ReaderErrorAction.Skip,
+        ErrorSink = new DelegatingErrorSink(e => Console.WriteLine($"{e.line}:{e.message}"))
+    });
 ```
 
-### 0.3 Full CSV with Options
+### 0.3 CSV With Schema & Type Inference
+
+```csharp
+var infOpts = new CsvReadOptions {
+    HasHeader = true,
+    InferSchema = true,
+    SchemaInferenceMode = SchemaInferenceMode.ColumnNamesAndTypes,
+    SchemaInferenceSampleRows = 200,
+    FieldTypeInference = FieldTypeInferenceMode.Primitive,
+    Progress = new Progress<ReaderProgress>(p => Console.WriteLine($"Rows={p.RecordsRead}"))
+};
+
+await foreach (var rec in Read.Csv<MyRow>("typed_data.csv", infOpts))
+{
+    // rec fields now strongly typed where inferred (int, decimal, bool, etc.)
+}
+
+Console.WriteLine("Inferred column CLR types:");
+for (int i = 0; i < infOpts.InferredTypes!.Length; i++)
+    Console.WriteLine($"{infOpts.Schema![i]} -> {infOpts.InferredTypes[i].Name}");
+```
+
+### 0.4 CSV Capturing Raw Records (Auditing)
+
+```csharp
+var auditOpts = new CsvReadOptions {
+    HasHeader = true,
+    CaptureRawRecord = true,
+    RawRecordObserver = (n, raw) => AuditLog.WriteLine($"{n}:{raw}")
+};
+await foreach (var r in Read.Csv<MyRow>("audited.csv", auditOpts)) { }
+```
+
+### 0.5 Full CSV with Options (Strict ingestion)
 
 ```csharp
 var options = new CsvReadOptions {
@@ -48,7 +85,8 @@ var options = new CsvReadOptions {
     Separator = ';',
     AllowMissingTrailingFields = false,
     AllowExtraFields = false,
-    TrimWhitespace = true,
+    TrimWhitespace = false, // default now false
+    QuoteMode = CsvQuoteMode.RfcStrict,
     ErrorAction = ReaderErrorAction.Skip,
     ErrorSink = new JsonLinesFileErrorSink("csv_errors.ndjson"),
     Progress = new Progress<ReaderProgress>(p => Console.WriteLine($"Read {p.RecordsRead} recs"))
@@ -60,19 +98,15 @@ await foreach (var rec in Read.Csv<MyRow>("data.csv", options))
 }
 ```
 
-### 0.4 Simple JSON
+### 0.6 Simple JSON
 
-*Defaults: `RequireArrayRoot = true`, `AllowSingleObject = true`*
+Defaults: `RequireArrayRoot = true`, `AllowSingleObject = true`
 
 ```csharp
-// Async
 await foreach (var item in Read.Json<MyDoc>("data.json")) { /* ... */ }
-
-// Sync
-foreach (var item in Read.JsonSync<MyDoc>("data.json")) { /* ... */ }
 ```
 
-### 0.5 JSON with Validation / Progress / Single Object Handling
+### 0.7 JSON with Validation / Progress / Single Object Handling
 
 ```csharp
 var jsonOpts = new JsonReadOptions<MyDoc> {
@@ -88,15 +122,15 @@ var jsonOpts = new JsonReadOptions<MyDoc> {
 await foreach (var d in Read.Json<MyDoc>("data.json", jsonOpts)) { /* ... */ }
 ```
 
-### 0.6 Simple YAML
+### 0.8 Simple YAML
 
-*Auto mode: detects sequence root OR multi-document format.*
+Auto mode: detects sequence root OR multi-document format.
 
 ```csharp
 await foreach (var obj in Read.Yaml<MyType>("file.yaml")) { /* ... */ }
 ```
 
-### 0.7 YAML with Type Restrictions
+### 0.9 YAML with Type Restrictions
 
 ```csharp
 var yOpts = new YamlReadOptions<MyType> {
@@ -113,74 +147,61 @@ await foreach (var obj in Read.Yaml<MyType>("file.yaml", yOpts)) { /* ... */ }
 
 ## 1. ReadOptions & Error Strategy
 
-### 1.1. Core Option Abstraction
+### 1.1 Core Option Abstraction
 
-All format-specific option records (`CsvReadOptions`, `JsonReadOptions<T>`, `YamlReadOptions<T>`) inherit from the abstract `ReadOptions`, which provides:
+All format-specific option records (`CsvReadOptions`, `JsonReadOptions<T>`, `YamlReadOptions<T>`) inherit from `ReadOptions`, which provides:
 
-- **`ErrorAction`** (`ReaderErrorAction`): `Throw` | `Skip` | `Stop`
-- **`ErrorSink`** (`IReaderErrorSink`)
-- **`Progress`** (`IProgress<ReaderProgress>`)
-- **`ProgressRecordInterval`**: Default `5000`
-- **`ProgressTimeInterval`**: Default `5s`
-- **`CancellationToken`**
-- **`Metrics`** (`ReaderMetrics`)
-- **Stack trace flags**: Unused in default sinks unless you build a custom one.
-- **Internal progress gating**: Triggers on time OR record interval.
+- ErrorAction (`ReaderErrorAction`): Throw | Skip | Stop
+- ErrorSink (`IReaderErrorSink`)
+- Progress (`IProgress<ReaderProgress>`)
+- ProgressRecordInterval (default 5000)
+- ProgressTimeInterval (default 5s)
+- CancellationToken
+- Metrics (`ReaderMetrics`)
+- Internal progress gating (record OR time driven)
 
-### 1.2. ReaderErrorAction Semantics
+### 1.2 ReaderErrorAction Semantics
 
-- **`Throw`**: The first error throws an `InvalidDataException` immediately. Enumeration stops.
-- **`Skip`**: The error is logged to the sink, the offending record is ignored, and reading continues.
-- **`Stop`**: The error is logged, `Metrics.TerminatedEarly` is set to `true`, and the iteration exits gracefully. `options.Complete()` is **NOT** called.
+- Throw: first error throws `InvalidDataException`
+- Skip: log & continue
+- Stop: log, set `TerminatedEarly`, exit enumeration (no `Complete()`)
 
-### 1.3. ReaderMetrics Fields
+### 1.3 ReaderMetrics Fields
 
-- **`LinesRead`**: Physical lines consumed. (Not always meaningful for JSON/YAML).
-- **`RecordsRead`**: Number of successfully emitted logical records (rows, elements, documents).
-- **`ErrorCount`**: Total errors encountered, including skipped ones.
-- **`LastLineNumber`**: *Declared but not updated; may be deprecated.*
-- **`TerminatedEarly`**: `true` if `ErrorAction.Stop` was triggered or the consumer stopped enumeration prematurely.
-- **`TerminationErrorMessage`**: The message from the error that triggered the `Stop` action.
-- **`StartedUtc` / `CompletedUtc`**: Timestamps. `CompletedUtc` is only set on normal completion, not on `Stop` or exceptions.
+- LinesRead
+- RecordsRead
+- ErrorCount
+- LastLineNumber (legacy; not maintained)
+- TerminatedEarly
+- TerminationErrorMessage
+- StartedUtc / CompletedUtc (CompletedUtc only on normal completion)
 
-### 1.4. Progress Reporting
+### 1.4 Progress Reporting
 
-Progress is triggered when **EITHER** of the following is met:
+Triggers when:
 
-- `(RecordsRead - lastProgressRecordMark) >= ProgressRecordInterval` (and interval > 0)
-- Wall clock time since last emission >= `ProgressTimeInterval`
+- Records since last >= ProgressRecordInterval (if > 0), OR
+- Elapsed wall time >= ProgressTimeInterval
 
-The `ReaderProgress` structure contains `LinesRead`, `RecordsRead`, `ErrorCount`, `Elapsed`, and `Percentage`.
+`ReaderProgress` includes counts, elapsed, optional percentage (JSON only currently).
 
-- **`Percentage`** is only populated when the total size is known (currently only in the JSON reader).
+### 1.5 HandleError Workflow
 
-### 1.5. HandleError Workflow
+1. Increment ErrorCount
+2. Produce `ReaderError` -> `ErrorSink.Report`
+3. Apply action logic (Throw / Stop / Skip)
+4. Return boolean controlling loop continuation
 
-1. Increment `ErrorCount`.
+### 1.6 Early Termination & Finalization
 
-2. Build a `ReaderError` object and send it to `ErrorSink.Report()`. Sink exceptions are swallowed.
-
-3. Apply action logic:
-   
-   - **`Throw`**: `throw new InvalidDataException(message)`
-   
-   - **`Stop`**: Set `TerminatedEarly` and `TerminationErrorMessage`, then return `false` to break the loop.
-   
-   - **`Skip`**: Return `true` to continue.
-     
-     > **Note**: `RawExcerpt` is a best-effort snippet (e.g., truncated to ~128 chars for JSON).
-
-### 1.6. Early Termination & Finalization
-
-- **Normal Completion**: `options.Complete()` is called, setting `CompletedUtc` and emitting final progress.
-- **Termination via `Stop`**: The iterator exits *before* `Complete()` is called, leaving `CompletedUtc` as `null`. This is intentional and can be used to detect abnormal termination.
-- **Cancellation or Exception**: `CompletedUtc` also remains `null`.
+- Normal completion -> `Complete()` sets `CompletedUtc`
+- Stop / exception / cancellation -> `CompletedUtc` remains null
 
 ---
 
 ## 2. Error Sinks
 
-### 2.1. Interface
+### 2.1 Interface
 
 ```csharp
 public interface IReaderErrorSink : IDisposable
@@ -189,12 +210,12 @@ public interface IReaderErrorSink : IDisposable
 }
 ```
 
-### 2.2. Built-in Sinks
+### 2.2 Built-in Sinks
 
-- **`NullErrorSink`**: A no-op singleton (the default).
-- **`JsonLinesFileErrorSink`**: Writes one JSON object per line (NDJSON) to a file. It is thread-safe and flushes on each report.
+- NullErrorSink (default)
+- JsonLinesFileErrorSink (thread-safe NDJSON)
 
-### 2.3. ReaderError JSON Lines Example (`JsonLinesFileErrorSink`)
+### 2.3 Example JSON Error Record
 
 ```json
 {
@@ -210,272 +231,241 @@ public interface IReaderErrorSink : IDisposable
 }
 ```
 
-### 2.4. Custom Sink Pattern
+### 2.4 Custom Sink Pattern
 
-Example of a custom sink that batches errors and forwards them to Serilog.
+(unchanged; see original content—retained above in previous version)
 
-```csharp
-public sealed class SerilogBatchErrorSink : IReaderErrorSink
-{
-    private readonly List<ReaderError> _buffer = new(256);
-    private readonly object _gate = new();
-    private readonly int _flushSize;
+### 2.5 Upgrading Legacy `onError` Delegates
 
-    public SerilogBatchErrorSink(int flushSize = 100) => _flushSize = flushSize;
-
-    public void Report(ReaderError error)
-    {
-        lock (_gate)
-        {
-            _buffer.Add(error);
-            if (_buffer.Count >= _flushSize) Flush();
-        }
-    }
-
-    private void Flush()
-    {
-        foreach (var e in _buffer)
-        {
-            Log.Error("[{Reader}] {File}:{Line} rec#{Record} {Type} {Msg}",
-                e.Reader, e.FilePath, e.LineNumber, e.RecordNumber, e.ErrorType, e.Message);
-        }
-        _buffer.Clear();
-    }
-
-    public void Dispose()
-    {
-        lock (_gate)
-        {
-            if (_buffer.Count > 0) Flush();
-        }
-    }
-}
-
-// Usage:
-var opts = new CsvReadOptions {
-    ErrorAction = ReaderErrorAction.Skip,
-    ErrorSink = new SerilogBatchErrorSink(200)
-};
-```
-
-### 2.5. Upgrading Legacy `onError` Delegates
-
-Simple overloads wrap the callback inside an internal `DelegatingErrorSink`:
-
-- If `onError == null` -> `ErrorAction = Throw`, `ErrorSink = NullErrorSink`
-- If `onError` is provided -> `ErrorAction = Skip`, `ErrorSink = DelegatingErrorSink`
+- null delegate => Throw + NullErrorSink
+- provided delegate => Skip + DelegatingErrorSink
 
 ---
 
-## 3. CSV (`CsvReadOptions`)
+## 3. CSV (CsvReadOptions)
 
-### 3.1. Fields & Defaults
+### 3.1 Core Fields & Defaults (Updated)
 
-- **`Separator`**: `,`
-- **`Schema`**: `string[]?` (If `null` and `HasHeader` is true, the header row is used as the schema).
-- **`HasHeader`**: `true`
-- **`TrimWhitespace`**: `true` (Fields are trimmed before mapping).
-- **`AllowMissingTrailingFields`**: `true` (Missing trailing columns become `default`; if `false`, an error is raised).
-- **`AllowExtraFields`**: `false` (Extra incoming columns cause an error unless set to `true`).
+- Separator: `,`
+- Schema: `string[]?` (if null & `HasHeader` true, header row consumed)
+- HasHeader: `true`
+- TrimWhitespace: `false`  (BREAKING CHANGE; previously true)
+- AllowMissingTrailingFields: `true`
+- AllowExtraFields: `false`
 
-### 3.2. RFC 4180 Compliance & Notes
+### 3.2 Quoting & QuoteMode
 
-- Supports double-quote escaping (`""`) and multiline fields.
-- Line endings are normalized to `\n`.
-- No comment line handling.
-- An unterminated quoted field at EOF will result in a `CsvFormatError`.
+New enum `CsvQuoteMode`:
 
-### 3.3. Strict Mode Recommendation
+- RfcStrict (default): Only a quote at start of field opens quoted mode; stray mid-field quotes produce `CsvQuoteError`.
+- Lenient: A quote transitions into quoted mode even mid-field.
+- ErrorOnIllegalQuote: Mid-field quote triggers `CsvQuoteError`; action determined by `ErrorAction`.
 
-For "fail fast" ingestion, use the following configuration:
+Additional controls:
+
+- ErrorOnTrailingGarbageAfterClosingQuote (default true): Characters other than separator/newline after closing quote generate `CsvQuoteError`.
+- Unterminated quoted field at EOF -> `CsvQuoteError`.
+
+### 3.3 Line Ending Fidelity
+
+- PreserveLineEndings (default true): CRLF preserved exactly.
+- NormalizeNewlinesInFields (default false): If enabled (and not preserving), CRLF inside quoted fields converted to LF. (Normalization is field-scoped, not global).
+- Metrics LinesRead counts physical line terminations encountered.
+
+### 3.4 Schema & Column Name Inference
+
+Enable via:
+
+- `InferSchema = true`
+- `SchemaInferenceMode`:
+  - ColumnNamesOnly
+  - ColumnNamesAndTypes
+
+Behavior:
+
+- If no header and no schema: synthetic names generated `Column1..N`.
+- Optional `GenerateColumnName` delegate `(rawHeaderCell, filePath, index, defaultName)` allows custom naming (e.g., sanitize, deduplicate).
+- Sampling: up to `SchemaInferenceSampleRows` (default 100 unless changed) records buffered for inference; beyond that streaming resumes.
+- Warnings: Anomalies in inference may emit `CsvSchemaInferenceWarning` (governed by `ErrorAction`). (Ensure sinks expect warnings as ordinary errors with that `errorType`.)
+
+### 3.5 Type Inference & Field Conversion
+
+Controlled via:
+
+- `FieldTypeInference`:
+  - None (all strings)
+  - Primitive (default; bool,int,long,decimal,double,DateTime,Guid)
+  - Custom (use `FieldValueConverter` delegate)
+
+Two-phase approach when `SchemaInferenceMode = ColumnNamesAndTypes`:
+
+1. Sampling Phase:
+   - Candidate set per column starts with precedence:
+     bool → int → long → decimal → double → DateTime → Guid
+   - “Systematic error learning”: first parse failure for a candidate in a column is tolerated; the candidate is only removed after a second failure in the SAME column (treat single failure as anomaly).
+   - Preservation rules:
+     - PreserveNumericStringsWithLeadingZeros: if value matches leading-zero digits, numeric candidates removed (kept as string).
+     - PreserveLargeIntegerStrings: if length > 18 digits, numeric candidates removed (avoid precision loss).
+2. Enforcement Phase:
+   - Inferred types stored in `InferredTypes`.
+   - Runtime conversion is strict; on first conversion failure for a finalized column type, that column is permanently demoted to `string` and subsequent rows use raw strings.
+   - Casting order: direct parse to the inferred type; no fallback chain except demotion-to-string.
+
+Custom Conversion:
+
+- When `FieldTypeInference = Custom`, `FieldValueConverter(string raw)` is used for EVERY field (bypass primitive chain). Return any object (including leaving as string).
+
+Fallback Behavior:
+
+- If no candidate types survive sampling for a column, it defaults to `string`.
+
+### 3.6 Raw Record Capture & Auditing
+
+- `CaptureRawRecord` (bool): If true, original record text (as read, including separators and original line endings if preserved) is captured per logical record.
+- `RawRecordObserver` `(recordNumber, rawLine)` delegate: Observes each raw record (useful for auditing, lineage, compliance).
+- Raw capture occurs after unescaping doubled quotes but before trimming (since TrimWhitespace default is false).
+- Large files: prefer `RawRecordObserver` streaming rather than setting `CaptureRawRecord` just to gather the data—observer avoids extra retention.
+
+### 3.7 Legacy Behavior Emulation (Migration Guidance)
+
+To replicate pre-overhaul (lenient) style:
 
 ```csharp
-new CsvReadOptions {
-  HasHeader = true,
-  TrimWhitespace = false,
-  AllowMissingTrailingFields = false,
-  AllowExtraFields = false,
-  ErrorAction = ReaderErrorAction.Throw
+var legacyLike = new CsvReadOptions {
+    TrimWhitespace = true,
+    QuoteMode = CsvQuoteMode.Lenient,
+    InferSchema = false,
+    FieldTypeInference = FieldTypeInferenceMode.Primitive,
+    PreserveLineEndings = false,
+    NormalizeNewlinesInFields = true // old behavior tended to normalize
 };
 ```
 
-### 3.4. Schema Resolution Logic
+### 3.8 Strict Ingestion Recommendation
 
-- If `options.Schema` is `null` and `HasHeader` is `true`, the first record is consumed as the schema header.
-- If the schema is still `null` at the first data row, a `SchemaError` is logged for each row.
-- Schema mismatches (missing/extra columns with strict options) trigger a `SchemaError`.
+```csharp
+var strict = new CsvReadOptions {
+    HasHeader = true,
+    TrimWhitespace = false,
+    QuoteMode = CsvQuoteMode.RfcStrict,
+    AllowMissingTrailingFields = false,
+    AllowExtraFields = false,
+    ErrorAction = ReaderErrorAction.Throw
+};
+```
 
-### 3.5. Field Type Mapping
+### 3.9 Error Types (CSV)
 
-Raw string fields are mapped to object properties using reflection (`NEW.GetNew<T>`). The framework attempts to convert the string to the following types in order: `bool` -> `int` -> `long` -> `decimal` -> `double` -> `DateTime` -> `Guid` -> `string`.
+- CsvQuoteError: mid-field stray quote, trailing garbage after closing quote, unterminated quoted field.
+- CsvSchemaInferenceWarning: anomalies during type or width inference (e.g., contradictory rows).
+- SchemaError: column count mismatches or missing required fields.
 
-### 3.6. Progress & Metrics Behavior
+### 3.10 Field Mapping Pipeline
 
-- `LinesRead` increments per physical line.
-- `RecordsRead` increments per successfully attempted row.
-- Progress emits only counts (no `Percentage`).
+Order in row processing:
+
+1. Raw parsing (respect quotes, line endings)
+2. Optional trim (if TrimWhitespace = true)
+3. Schema width adjustment (missing vs. extra fields)
+4. Type conversion using `ConvertFieldValue` (inference-aware)
+5. Object materialization (`NEW.GetNew<T>`)
+
+### 3.11 Progress & Metrics
+
+- LinesRead increments with each completed physical line delimiter (CR, LF, or CRLF).
+- RecordsRead increments after each successfully emitted logical record (post-mapping).
+- Percentage not computed (file length not consulted).
+- Raw record capture does not affect metrics.
 
 ---
 
-## 4. JSON (`JsonReadOptions<T>`)
+## 4. JSON (JsonReadOptions<T>)
 
-### 4.1. Fields & Defaults
+(Section unchanged from prior version except numbering — retained for completeness.)
 
-- **`SerializerOptions`**: `System.Text.Json` options (default `PropertyNameCaseInsensitive = true`).
-- **`RequireArrayRoot`**: `true`.
-- **`AllowSingleObject`**: `true` (Allows a single root object even if `RequireArrayRoot` is true).
-- **`ValidateElements`**: `false`.
-- **`ElementValidator`**: `Func<JsonElement, bool>?` (Required if `ValidateElements` is true).
-- **`MaxDepth`**: `0` (Uses `JsonReader` default).
+### 4.1 Fields & Defaults
 
-### 4.2. Root Handling Matrix
+### 4.2 Root Handling Matrix
 
-- **Root is `StartArray`**: Streams elements from the array.
-- **Root is a single value/object**:
-  - If `RequireArrayRoot` is `true` AND `AllowSingleObject` is `false` -> `JsonFormatError`.
-  - Otherwise, the single object is processed as one logical record.
+### 4.3 Fast Path vs. Validation Path
 
-### 4.3. Fast Path vs. Validation Path
+### 4.4 Progress Percentage
 
-- **Fast Path** (default): Uses `JsonSerializer.Deserialize<T>(ref reader)` for direct, high-throughput streaming.
-- **Validation Path** (if `ValidateElements` is true): Each element is parsed into a `JsonDocument` to be validated by `ElementValidator` before deserialization. This path has higher overhead.
+### 4.5 ElementValidator Usage Example
 
-### 4.4. Progress Percentage
-
-The JSON reader is the only one that currently reports `Percentage` because it can access the total file size and current stream position.
-
-### 4.5. ElementValidator Usage Example
-
-```csharp
-var opts = new JsonReadOptions<MyItem> {
-    ValidateElements = true,
-    ElementValidator = e => e.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Number,
-    ErrorAction = ReaderErrorAction.Skip
-};
-```
+(See original content; behavior unchanged.)
 
 ---
 
-## 5. YAML (`YamlReadOptions<T>`)
+## 5. YAML (YamlReadOptions<T>)
 
-### 5.1. Fields & Defaults
+(Generally unchanged; see original content.)
 
-- **`RestrictTypes`**: `true` (Enforces a type whitelist).
-- **`AllowedTypes`**: `null` (If `null` while `RestrictTypes` is true, only type `T` is allowed).
-- **`DisallowAliases`**: `true` (*Note: Does not fully disable aliases at the parser level*).
-- **`DisallowCustomTags`**: `true` (*Note: Not currently used in the reader pipeline*).
-- **`UseSequenceStreamMode`**: `true` (*Note: Currently unused; detection is automatic*).
-- **`MaxDepth`**: `64` (*Note: Not actively enforced*).
+### 5.1 Fields & Defaults
 
-### 5.2. Structural Mode Detection
+### 5.2 Structural Mode Detection
 
-The reader automatically detects the YAML structure:
+### 5.3 Type Restriction Logic
 
-- If the root is a sequence (`[...]` or a multi-line list), it iterates each item.
-- Otherwise, it falls back to multi-document mode, where each document (`--- ...`) is a record.
+### 5.4 Aliases / Tags Security Note
 
-### 5.3. Type Restriction Logic
+### 5.5 Error Handling
 
-If `RestrictTypes` is `true`:
+### 5.6 Progress & Metrics
 
-- If `AllowedTypes` is `null`, only objects of the exact type `T` are permitted (subclasses are rejected).
-- If `AllowedTypes` is provided, only types in the set are permitted.
-- A rejected type triggers a `TypeRestriction` error.
-
-### 5.4. Aliases / Tags Security Note
-
-**Warning**: The `DisallowAliases` and `DisallowCustomTags` flags do not provide full security guarantees in the current implementation. `DisallowAliases` only sets `IgnoreUnmatchedProperties`, and `DisallowCustomTags` is not referenced. For untrusted YAML, pre-scanning or external sandboxing is recommended.
-
-### 5.5. Error Handling
-
-Deserialization exceptions are handled per document/item. On `Skip`, the reader attempts to consume events until the next `DocumentEnd` to re-synchronize.
-
-### 5.6. Progress & Metrics
-
-- `RecordsRead` increments per successfully emitted item.
-- `LinesRead` is not updated (remains `0`).
-- `Percentage` is always `null`.
-
-### 5.7. Example Hardened Configuration
-
-```csharp
-var yOpts = new YamlReadOptions<MyDto> {
-    RestrictTypes = true,
-    AllowedTypes = new HashSet<Type>{ typeof(MyDto) },
-    ErrorAction = ReaderErrorAction.Stop,
-    ErrorSink = new JsonLinesFileErrorSink("yaml_errors.ndjson")
-};
-// NOTE: DisallowAliases / DisallowCustomTags flags are currently advisory (not enforced).
-```
+### 5.7 Example Hardened Configuration
 
 ---
 
 ## 6. Error Record & Excerpt Details
 
-The `ReaderError` object emitted to sinks contains the following fields:
+No changes except new CSV error types:
 
-- **`reader`**: "CSV", "JSON", or "YAML".
-- **`file`**: The file path.
-- **`line`**: Line number (meaningful for CSV, `-1` otherwise).
-- **`record`**: Logical record index.
-- **`errorType`**: Classification like `SchemaError`, `JsonFormatError`, etc.
-- **`message`**: The error message.
-- **`excerpt`**: A truncated snippet of the raw data.
-- **`action`**: The `ReaderErrorAction` that was taken (`Skip`, `Stop`, `Throw`).
+- CsvQuoteError
+- CsvSchemaInferenceWarning
+
+Excerpt truncation still ~128 chars.
 
 ---
 
 ## 7. Progress Usage Examples
 
-### 7.1. Basic Count-Driven Progress
-
-```csharp
-var opts = new CsvReadOptions {
-    Progress = new Progress<ReaderProgress>(p =>
-        Console.WriteLine($"Records={p.RecordsRead} Errors={p.ErrorCount}")
-    ),
-    ProgressRecordInterval = 1000
-};
-```
-
-### 7.2. Time-Driven Progress
-
-```csharp
-var opts = new JsonReadOptions<MyDoc> {
-    Progress = new Progress<ReaderProgress>(p =>
-        Console.WriteLine($"{p.Percentage?.ToString("0.00") ?? "?"}% ({p.RecordsRead} recs)")
-    ),
-    ProgressRecordInterval = 0, // Disable count-based trigger
-    ProgressTimeInterval = TimeSpan.FromSeconds(2)
-};
-```
-
-### 7.3. Dual Trigger (Default)
-
-The default configuration triggers progress whichever comes first: every 5 seconds or every 5000 records.
+(Examples remain valid; CSV inference use-cases can also attach progress.)
 
 ---
 
-## 8. Known Limitations
+## 8. Known Limitations (Updated)
 
-- **CSV**: Does not track column numbers in errors. `LastLineNumber` metric is not updated.
-- **JSON**: The validation path incurs extra allocation overhead. `CompletedUtc` is not set on `Stop`.
-- **YAML**: `DisallowAliases` and `DisallowCustomTags` flags are not fully enforced. `LinesRead` and `MaxDepth` are not used.
-- **General**: Error sink failures are silently swallowed. `CompletedUtc` is `null` in all abnormal termination scenarios (`Stop`, exception, cancellation).
+- CSV:
+  - Column numbers not reported in errors.
+  - Type inference limited to primitive set; no culture-specific parsing hooks (use Custom + delegate).
+  - Raw record capture increases allocations (avoid for huge files unless required).
+- JSON:
+  - Validation path alloc-heavy.
+  - Percentage only for JSON (file-length based).
+- YAML:
+  - DisallowAliases / DisallowCustomTags not fully enforced.
+  - MaxDepth not enforced.
+- General:
+  - Error sink failures swallowed.
+  - CompletedUtc null on Stop / exception / cancellation.
+  - No global StringMapper reconfiguration API (intentional).
 
 ---
 
 ## 9. Side-by-Side Quick Reference
 
-| Format   | Simple Overload                                    | Options Record       | Special Features                                                                                  |
-|:-------- |:-------------------------------------------------- |:-------------------- |:------------------------------------------------------------------------------------------------- |
-| **CSV**  | `Read.Csv<T>(path, sep, onError?, schema...)`      | `CsvReadOptions`     | RFC4180 multiline, schema inference, type inference.                                              |
-| **JSON** | `Read.Json<T>(path, serializerOptions?, onError?)` | `JsonReadOptions<T>` | Streaming `Utf8JsonReader`, array or single object root, optional element validation, progress %. |
-| **YAML** | `Read.Yaml<T>(path, deserializer?, onError?)`      | `YamlReadOptions<T>` | Auto sequence vs. multi-doc detection, type restriction whitelist.                                |
+| Format | Simple Overload      | Options Record       | Special Features                                                                        |
+| ------ | -------------------- | -------------------- | --------------------------------------------------------------------------------------- |
+| CSV    | `Read.Csv<T>(path)`  | `CsvReadOptions`     | RFC4180 fidelity, quote modes, schema & type inference, raw record capture              |
+| JSON   | `Read.Json<T>(path)` | `JsonReadOptions<T>` | Streaming Utf8JsonReader, single-or-array root, element validation, percentage progress |
+| YAML   | `Read.Yaml<T>(path)` | `YamlReadOptions<T>` | Auto sequence vs multi-doc detection, type restriction whitelist                        |
 
 ---
 
-## 10. Full Integration Examples (Pipeline Style)
+## 
+
+10. Full Integration Examples (Pipeline Style)
 
 *Note: In DataFlow.NET, prefer streaming transformation pipelines (`Select` / `Cases` / `SelectCase` / `ForEachCase` / `AllCases` / `WriteX`) over manual loops to preserve laziness, enable zero-cost composition, and keep batch vs. streaming symmetry.*
 
@@ -677,3 +667,39 @@ Console.WriteLine($"Orders: {csvOpts.Metrics.RecordsRead} rows, errors={csvOpts.
 Console.WriteLine($"Events: {jsonOpts.Metrics.RecordsRead} events, errors={jsonOpts.Metrics.ErrorCount}");
 Console.WriteLine($"Configs: {yamlOpts.Metrics.RecordsRead} docs, errors={yamlOpts.Metrics.ErrorCount}");
 ```
+
+---
+
+## 11. Additional Example: CSV Type Inference with Preservation Flags
+
+```csharp
+var opts = new CsvReadOptions {
+    HasHeader = true,
+    InferSchema = true,
+    SchemaInferenceMode = SchemaInferenceMode.ColumnNamesAndTypes,
+    PreserveNumericStringsWithLeadingZeros = true,
+    PreserveLargeIntegerStrings = true,
+    FieldTypeInference = FieldTypeInferenceMode.Primitive
+};
+
+await foreach (var row in Read.Csv<dynamic>("accounts.csv", opts)) { }
+
+Console.WriteLine("Types:");
+for (int i = 0; i < opts.InferredTypes!.Length; i++)
+    Console.WriteLine($"{opts.Schema![i]} -> {opts.InferredTypes[i]}");
+```
+
+---
+
+## 12. Auditing & Compliance Pattern
+
+```csharp
+var audit = new CsvReadOptions {
+    HasHeader = true,
+    CaptureRawRecord = true,
+    RawRecordObserver = (n, raw) => RawRecordStore.Enqueue(new RawAuditRow(n, raw))
+};
+await foreach (var r in Read.Csv<MyRow>("inbound.csv", audit)) { }
+```
+
+

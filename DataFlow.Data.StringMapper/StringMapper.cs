@@ -5,6 +5,30 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace DataFlow.Data.StringMapper
 {
+
+    public sealed record StringInferenceOptions
+    {
+        public bool PreserveLeadingZeroNumeric { get; init; } = true;
+        public bool PreserveLargeIntegerStrings { get; init; } = true;
+
+        // Enable/disable individual primitive parsers
+        public bool EnableBoolean { get; init; } = true;
+        public bool EnableInt32 { get; init; } = true;
+        public bool EnableInt64 { get; init; } = true;
+        public bool EnableDecimal { get; init; } = true;
+        public bool EnableDouble { get; init; } = true;
+        public bool EnableDateTime { get; init; } = true;
+        public bool EnableGuid { get; init; } = true;
+
+        // Custom hooks:
+        // CustomFirst: invoked BEFORE built-in inference; if returns non-null, short-circuits.
+        public Func<string, object?>? CustomFirst { get; init; }
+        // CustomLast: invoked AFTER built-in inference; receives (original string, inferredValue) and returns final value.
+        public Func<string, object?, object?>? CustomLast { get; init; }
+
+        public static readonly StringInferenceOptions Default = new();
+    }
+
     /// <summary>
     /// Provides extension and helper methods for mapping raw string content into strongly
     /// typed objects (CSV-like separated values, JSON, YAML, or custom formats).
@@ -69,31 +93,81 @@ namespace DataFlow.Data.StringMapper
         /// Parsing order is boolean → Int32 → Int64 → Double → DateTime → string.
         /// This order is chosen to favor the narrowest integral representations before widening.
         /// </remarks>
-        public static object GetObject(string objectValue)
+        // NEW overload with options object (pluggable inference pipeline)
+        public static object GetObject(string objectValue) =>
+    GetObject(objectValue, preserveLeadingZeroNumeric: true, preserveLargeInteger: true);
+
+        // Existing 2-flag overload now delegates to options-based overload
+        public static object GetObject(string objectValue, bool preserveLeadingZeroNumeric, bool preserveLargeInteger)
         {
-            if (bool.TryParse(objectValue, out var boolValue))
-                return boolValue;
-                
-            if (int.TryParse(objectValue, out var intValue))
-                return intValue;
-
-            if (long.TryParse(objectValue, out var bigintValue))
-                return bigintValue;
-
-            if (decimal.TryParse(objectValue, out var decValue))
-                return decValue;
-
-            if (double.TryParse(objectValue, out var doubleValue))
-                return doubleValue;
-
-            if (DateTime.TryParse(objectValue, out var dateValue))
-                return dateValue;
-
-            if (Guid.TryParse(objectValue, out var guidValue))
-                return guidValue;
-
-            return objectValue;
+            var opts = StringInferenceOptions.Default with
+            {
+                PreserveLeadingZeroNumeric = preserveLeadingZeroNumeric,
+                PreserveLargeIntegerStrings = preserveLargeInteger
+            };
+            return GetObject(objectValue, opts);
         }
+
+        // NEW overload with options object (pluggable inference pipeline)
+        public static object GetObject(string objectValue, StringInferenceOptions options)
+        {
+            if (objectValue == null) return "";
+
+            // Custom pre-pass
+            if (options.CustomFirst != null)
+            {
+                var custom = options.CustomFirst(objectValue);
+                if (custom is not null)
+                    return options.CustomLast != null
+                        ? (options.CustomLast(objectValue, custom) ?? custom)
+                        : custom;
+            }
+
+            // Preservation decisions
+            if (options.PreserveLeadingZeroNumeric && objectValue.Length > 1 && objectValue[0] == '0' && AllDigits(objectValue))
+                return Finalize(objectValue, objectValue);
+
+            if (options.PreserveLargeIntegerStrings && objectValue.Length > 18 && AllDigits(objectValue))
+                return Finalize(objectValue, objectValue);
+
+            object? candidate = objectValue;
+
+            if (options.EnableBoolean && bool.TryParse(objectValue, out var b))
+                return Finalize(objectValue, b);
+
+            if (options.EnableInt32 && int.TryParse(objectValue, out var i))
+                return Finalize(objectValue, i);
+
+            if (options.EnableInt64 && long.TryParse(objectValue, out var l))
+                return Finalize(objectValue, l);
+
+            if (options.EnableDecimal && decimal.TryParse(objectValue, out var dec))
+                return Finalize(objectValue, dec);
+
+            if (options.EnableDouble && double.TryParse(objectValue, out var dbl))
+                return Finalize(objectValue, dbl);
+
+            if (options.EnableDateTime && DateTime.TryParse(objectValue, out var dt))
+                return Finalize(objectValue, dt);
+
+            if (options.EnableGuid && Guid.TryParse(objectValue, out var g))
+                return Finalize(objectValue, g);
+
+            return Finalize(objectValue, objectValue);
+
+            object Finalize(string original, object inferred)
+                => options.CustomLast != null
+                    ? (options.CustomLast(original, inferred) ?? inferred)
+                    : inferred;
+
+            static bool AllDigits(string s)
+            {
+                for (int idx = 0; idx < s.Length; idx++)
+                    if (s[idx] < '0' || s[idx] > '9') return false;
+                return true;
+            }
+        }
+
 
         #endregion
 
@@ -135,7 +209,7 @@ namespace DataFlow.Data.StringMapper
                 .Select(GetObject)
                 .ToArray();
 
-            return NEW.GetNew<T>(schema, values);
+            return ObjectMaterializer.Create<T>(schema, values);
         }
 
         #endregion

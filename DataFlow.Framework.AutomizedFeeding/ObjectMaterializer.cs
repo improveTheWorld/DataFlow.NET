@@ -2,26 +2,26 @@
 
 namespace DataFlow.Framework;
  
-public static class NEW
+public static class ObjectMaterializer
 {
-    public static T? GetNew<T>(params string[] parameters)
+    public static T? Create<T>(params string[] parameters)
     {
         try
         {
-            return (T)NewUsingConstructor(typeof(T), parameters);
+            return (T)CreateUsingConstructor(typeof(T), parameters);
         }
         catch 
         {
-            return (T)NewUsingInternalOrder(typeof(T), parameters);
+            return (T)CreateUsingInternalOrder(typeof(T), parameters);
         }
                  
     }
-    public static T? GetNew<T>(string[] schema, params object[] parameters)
+    public static T? Create<T>(string[] schema, params object[] parameters)
     {
-       return (T) NEW_GivenSchema(typeof(T), schema, parameters);  
+       return (T) CreateUsingSchema(typeof(T), schema, parameters);  
     }
 
-    static object NewUsingConstructor(Type objectType, params object[] parameters)
+    static object CreateUsingConstructor(Type objectType, params object[] parameters)
     {
 
         //: try:
@@ -42,7 +42,7 @@ public static class NEW
         
     }
 
-    public static object NewUsingInternalOrder(Type objectType, params object[] parameters)
+    public static object CreateUsingInternalOrder(Type objectType, params object[] parameters)
     {
         if (objectType == null)
         {
@@ -57,7 +57,7 @@ public static class NEW
     }
 
 
-    static object NEW_GivenSchema(Type newObjectType, string[] schema, params object[] parameters)
+    static object CreateUsingSchema(Type newObjectType, string[] schema, params object[] parameters)
     {
         if (newObjectType == null)
         {

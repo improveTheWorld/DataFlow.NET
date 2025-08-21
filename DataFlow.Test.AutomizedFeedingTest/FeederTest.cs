@@ -134,7 +134,7 @@ namespace DataFlow.Tests
         [MemberData(nameof(GetFood))]
         void NewObjectTests<T>( T expectedFeededObject, params string[] parameters)
         {
-            T  objectTofeed = NEW.GetNew<T>(parameters);
+            T  objectTofeed = ObjectMaterializer.Create<T>(parameters);
             DeepAssert.Equal(expectedFeededObject, objectTofeed);
         }
 

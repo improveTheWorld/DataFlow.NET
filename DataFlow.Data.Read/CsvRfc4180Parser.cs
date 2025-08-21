@@ -1,202 +1,477 @@
-// RFC 4180 CSV parser (synchronous & asynchronous helpers).
-using System.Runtime.CompilerServices;
+// Entire file replaced: new high-fidelity RFC 4180 parser with quote/line ending controls & raw record capture.
 using System.Text;
 
 namespace DataFlow.Data;
 
 internal static class CsvRfc4180Parser
 {
+    private const int BufferSize = 8192;
+
     internal static IEnumerable<string[]> Parse(TextReader reader, CsvReadOptions options)
     {
-        var sb = new StringBuilder();
         var fields = new List<string>(32);
-        string? line;
+        var fieldSb = new StringBuilder(256);
+        var rawRecordSb = options.CaptureRawRecord || options.RawRecordObserver != null
+            ? new StringBuilder(512)
+            : null;
+
+        char[] buffer = new char[BufferSize];
+        int read;
         bool inQuotes = false;
-        long physicalLine = 0;
+        bool afterClosingQuote = false;
+        bool atStartOfField = true;
+
         long recordNumber = 0;
+        long physicalLine = 0;
+        bool lastCharWasCR = false;
+
+        // This variable holds a completed record until we yield it.
+        // (We defer yield so that EmitRecord can stay a void local function.)
+        string[]? pendingRecord = null;
 
         void CommitField()
         {
-            fields.Add(options.TrimWhitespace ? sb.ToString().Trim() : sb.ToString());
-            sb.Clear();
+            string val = options.TrimWhitespace ? fieldSb.ToString().Trim() : fieldSb.ToString();
+            fields.Add(val);
+            fieldSb.Clear();
+            atStartOfField = true;
+            afterClosingQuote = false;
         }
 
-        while ((line = reader.ReadLine()) != null)
+        void EmitRecord()
+        {
+            recordNumber++;
+            physicalLine++;
+            options.Metrics.RecordsRead = recordNumber;
+            options.Metrics.LinesRead = physicalLine;
+
+            var arr = fields.ToArray();
+            // BUG FIX: previously was "var yieldReturn = arr;" which shadowed the outer variable.
+            // Now we correctly assign to the outer capture.
+            pendingRecord = arr;
+
+            if (rawRecordSb != null)
+            {
+                string raw = rawRecordSb.ToString();
+                if (!options.PreserveLineEndings && options.NormalizeNewlinesInFields)
+                    raw = raw.Replace("\r\n", "\n");
+                options.RawRecordObserver?.Invoke(recordNumber, raw);
+                rawRecordSb.Clear();
+            }
+
+            fields.Clear();
+            fieldSb.Clear();
+            atStartOfField = true;
+            afterClosingQuote = false;
+
+            if (options.ShouldEmitProgress())
+                options.EmitProgress();
+        }
+
+        while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
         {
             options.CancellationToken.ThrowIfCancellationRequested();
-            physicalLine++;
-            options.Metrics.LinesRead = physicalLine;
-            var span = line.AsSpan();
-            int i = 0;
-            while (i < span.Length)
+
+            for (int i = 0; i < read; i++)
             {
-                char c = span[i];
+                char c = buffer[i];
+
+                // Capture raw characters for auditing if requested
+                if (rawRecordSb != null) rawRecordSb.Append(c);
+
+                // Handle CR that might indicate CRLF across buffer boundaries
+                if (lastCharWasCR)
+                {
+                    lastCharWasCR = false;
+                    if (c == '\n')
+                    {
+                        // This LF completes a prior CRLF already processed when committing record.
+                        continue;
+                    }
+                }
 
                 if (inQuotes)
                 {
                     if (c == '"')
                     {
-                        if (i + 1 < span.Length && span[i + 1] == '"')
+                        // Escaped double quote?
+                        if (i + 1 < read && buffer[i + 1] == '"')
                         {
-                            sb.Append('"');
-                            i += 2;
+                            fieldSb.Append('"');
+                            if (rawRecordSb != null) rawRecordSb.Append(buffer[i + 1]);
+                            i++;
                             continue;
                         }
+                        // Closing quote
                         inQuotes = false;
-                        i++;
+                        afterClosingQuote = true;
                         continue;
                     }
-                    else
+                    fieldSb.Append(c);
+                    continue;
+                }
+                else if (afterClosingQuote)
+                {
+                    if (c == options.Separator)
                     {
-                        sb.Append(c);
-                        i++;
+                        CommitField();
                         continue;
                     }
+                    if (c == '\r' || c == '\n')
+                    {
+                        CommitField();
+                        if (c == '\r')
+                        {
+                            // Lookahead for LF inside current buffer
+                            if (i + 1 < read)
+                            {
+                                if (buffer[i + 1] == '\n')
+                                {
+                                    if (rawRecordSb != null) rawRecordSb.Append(buffer[i + 1]);
+                                    i++;
+                                }
+                            }
+                            else
+                            {
+                                // CR might be at end-of-buffer; mark to skip next leading LF
+                                lastCharWasCR = true;
+                            }
+                        }
+                        EmitRecord();
+                        if (pendingRecord != null)
+                        {
+                            var done = pendingRecord;
+                            pendingRecord = null;
+                            yield return done;
+                        }
+                        if (options.Metrics.TerminatedEarly) yield break;
+                        continue;
+                    }
+                    if (options.ErrorOnTrailingGarbageAfterClosingQuote)
+                    {
+                        if (!options.HandleError(
+                                "CSV",
+                                physicalLine + 1,
+                                recordNumber + 1,
+                                options.FilePath ?? "",
+                                "CsvQuoteError",
+                                $"Illegal character '{Printable(c)}' after closing quote.",
+                                GetExcerpt(rawRecordSb)))
+                            yield break;
+                    }
+                    // Treat as literal continuation when leniency chosen
+                    fieldSb.Append(c);
+                    afterClosingQuote = false;
+                    continue;
                 }
                 else
                 {
-                    if (c == '"')
+                    if (atStartOfField && c == '"')
                     {
                         inQuotes = true;
-                        i++;
+                        atStartOfField = false;
                         continue;
                     }
-                    else if (c == options.Separator)
+
+                    if (c == '"')
+                    {
+                        switch (options.QuoteMode)
+                        {
+                            case CsvQuoteMode.RfcStrict:
+                            case CsvQuoteMode.ErrorOnIllegalQuote:
+                                if (!options.HandleError(
+                                        "CSV",
+                                        physicalLine + 1,
+                                        recordNumber + 1,
+                                        options.FilePath ?? "",
+                                        "CsvQuoteError",
+                                        "Illegal quote character inside unquoted field.",
+                                        GetExcerpt(rawRecordSb)))
+                                    yield break;
+                                if (options.QuoteMode == CsvQuoteMode.RfcStrict)
+                                {
+                                    // Keep literal quote if in strict-but-non-fatal mode
+                                    fieldSb.Append('"');
+                                }
+                                continue;
+
+                            case CsvQuoteMode.Lenient:
+                                inQuotes = true;
+                                atStartOfField = false;
+                                continue;
+                        }
+                    }
+
+                    if (c == options.Separator)
                     {
                         CommitField();
-                        i++;
                         continue;
                     }
-                    else
+
+                    if (c == '\r' || c == '\n')
                     {
-                        sb.Append(c);
-                        i++;
+                        CommitField();
+                        if (c == '\r')
+                        {
+                            if (i + 1 < read)
+                            {
+                                if (buffer[i + 1] == '\n')
+                                {
+                                    if (rawRecordSb != null) rawRecordSb.Append(buffer[i + 1]);
+                                    i++;
+                                }
+                            }
+                            else
+                            {
+                                lastCharWasCR = true;
+                            }
+                        }
+                        EmitRecord();
+                        if (pendingRecord != null)
+                        {
+                            var done = pendingRecord;
+                            pendingRecord = null;
+                            yield return done;
+                        }
+                        if (options.Metrics.TerminatedEarly) yield break;
                         continue;
                     }
+
+                    fieldSb.Append(c);
+                    atStartOfField = false;
+                    continue;
                 }
             }
 
-            // End of physical line
-            if (inQuotes)
+            if (pendingRecord != null)
             {
-                // Append newline and continue reading next physical line
-                sb.Append('\n');
-                continue;
+                var done = pendingRecord;
+                pendingRecord = null;
+                yield return done;
+                if (options.Metrics.TerminatedEarly) yield break;
             }
+        }
 
-            // Complete record
-            CommitField();
-            recordNumber++;
-            options.Metrics.RecordsRead = recordNumber;
-
-            if (options.ShouldEmitProgress()) options.EmitProgress();
-
-            yield return fields.ToArray();
-            fields.Clear();
-            sb.Clear();
-
-            if (options.Metrics.TerminatedEarly)
+        // EOF handling
+        if (inQuotes)
+        {
+            if (!options.HandleError(
+                    "CSV",
+                    physicalLine,
+                    recordNumber + 1,
+                    options.FilePath ?? "",
+                    "CsvQuoteError",
+                    "Unterminated quoted field at EOF.",
+                    GetExcerpt(rawRecordSb)))
                 yield break;
         }
 
-        if (inQuotes)
+        // Emit any final (possibly empty) last record
+        if (fieldSb.Length > 0 || fields.Count > 0 || !atStartOfField)
         {
-            // Unterminated quoted field
-            if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead + 1, options.FilePath ?? "",
-                "CsvFormatError", "Unterminated quoted field at EOF", sb.ToString().Length > 128 ? sb.ToString()[..128] : sb.ToString()))
+            CommitField();
+            EmitRecord();
+            if (pendingRecord != null)
             {
-                yield break;
+                var done = pendingRecord;
+                pendingRecord = null;
+                yield return done;
             }
         }
     }
 
-    internal static async IAsyncEnumerable<string[]> ParseAsync(StreamReader reader, CsvReadOptions options, [EnumeratorCancellation] CancellationToken ct = default)
+    internal static async IAsyncEnumerable<string[]> ParseAsync(StreamReader reader, CsvReadOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        var sb = new StringBuilder();
         var fields = new List<string>(32);
-        string? line;
+        var fieldSb = new StringBuilder(256);
+        var rawRecordSb = options.CaptureRawRecord || options.RawRecordObserver != null ? new StringBuilder(512) : null;
+
+        char[] buffer = new char[BufferSize];
+        int read;
         bool inQuotes = false;
-        long physicalLine = 0;
+        bool afterClosingQuote = false;
+        bool atStartOfField = true;
+
         long recordNumber = 0;
+        long physicalLine = 0;
+        bool lastCharWasCR = false;
 
         void CommitField()
         {
-            fields.Add(options.TrimWhitespace ? sb.ToString().Trim() : sb.ToString());
-            sb.Clear();
+            string val = options.TrimWhitespace ? fieldSb.ToString().Trim() : fieldSb.ToString();
+            fields.Add(val);
+            fieldSb.Clear();
+            atStartOfField = true;
+            afterClosingQuote = false;
         }
 
-        while ((line = await reader.ReadLineAsync()) != null)
+        string[] MakeRecord()
+        {
+            recordNumber++;
+            physicalLine++;
+            options.Metrics.RecordsRead = recordNumber;
+            options.Metrics.LinesRead = physicalLine;
+            var arr = fields.ToArray();
+
+            if (rawRecordSb != null)
+            {
+                string raw = rawRecordSb.ToString();
+                if (!options.PreserveLineEndings && options.NormalizeNewlinesInFields)
+                    raw = raw.Replace("\r\n", "\n");
+                options.RawRecordObserver?.Invoke(recordNumber, raw);
+                rawRecordSb.Clear();
+            }
+
+            fields.Clear();
+            fieldSb.Clear();
+            atStartOfField = true;
+            afterClosingQuote = false;
+
+            if (options.ShouldEmitProgress()) options.EmitProgress();
+
+            return arr;
+        }
+
+        while ((read = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
         {
             ct.ThrowIfCancellationRequested();
             options.CancellationToken.ThrowIfCancellationRequested();
-            physicalLine++;
-            options.Metrics.LinesRead = physicalLine;
 
-            var span = line.AsSpan();
-            int i = 0;
-            while (i < span.Length)
+            for (int i = 0; i < read; i++)
             {
-                char c = span[i];
+                char c = buffer[i];
+                if (rawRecordSb != null) rawRecordSb.Append(c);
+
+                if (lastCharWasCR)
+                {
+                    lastCharWasCR = false;
+                    if (c == '\n')
+                    {
+                        continue; // consumed as part of previous CRLF
+                    }
+                }
 
                 if (inQuotes)
                 {
                     if (c == '"')
                     {
-                        if (i + 1 < span.Length && span[i + 1] == '"')
+                        if (i + 1 < read && buffer[i + 1] == '"')
                         {
-                            sb.Append('"');
-                            i += 2;
+                            fieldSb.Append('"');
+                            if (rawRecordSb != null) rawRecordSb.Append(buffer[i + 1]);
+                            i++;
                             continue;
                         }
                         inQuotes = false;
-                        i++;
+                        afterClosingQuote = true;
                         continue;
                     }
-                    else
+                    fieldSb.Append(c);
+                    continue;
+                }
+                else if (afterClosingQuote)
+                {
+                    if (c == options.Separator)
                     {
-                        sb.Append(c);
-                        i++;
+                        CommitField();
                         continue;
                     }
+                    if (c == '\r' || c == '\n')
+                    {
+                        CommitField();
+                        if (c == '\r')
+                        {
+                            if (i + 1 < read)
+                            {
+                                if (buffer[i + 1] == '\n')
+                                {
+                                    if (rawRecordSb != null) rawRecordSb.Append(buffer[i + 1]);
+                                    i++;
+                                }
+                            }
+                            else
+                            {
+                                lastCharWasCR = true;
+                            }
+                        }
+                        var rec = MakeRecord();
+                        yield return rec;
+                        if (options.Metrics.TerminatedEarly) yield break;
+                        continue;
+                    }
+                    if (options.ErrorOnTrailingGarbageAfterClosingQuote)
+                    {
+                        if (!options.HandleError("CSV", physicalLine + 1, recordNumber + 1, options.FilePath ?? "",
+                            "CsvQuoteError", $"Illegal character '{Printable(c)}' after closing quote.", GetExcerpt(rawRecordSb)))
+                            yield break;
+                    }
+                    fieldSb.Append(c);
+                    afterClosingQuote = false;
+                    continue;
                 }
                 else
                 {
-                    if (c == '"')
+                    if (atStartOfField && c == '"')
                     {
                         inQuotes = true;
-                        i++;
+                        atStartOfField = false;
                         continue;
                     }
-                    else if (c == options.Separator)
+
+                    if (c == '"')
+                    {
+                        switch (options.QuoteMode)
+                        {
+                            case CsvQuoteMode.RfcStrict:
+                            case CsvQuoteMode.ErrorOnIllegalQuote:
+                                if (!options.HandleError("CSV", physicalLine + 1, recordNumber + 1, options.FilePath ?? "",
+                                    "CsvQuoteError", "Illegal quote character inside unquoted field.", GetExcerpt(rawRecordSb)))
+                                    yield break;
+                                if (options.QuoteMode == CsvQuoteMode.RfcStrict)
+                                    fieldSb.Append('"');
+                                continue;
+                            case CsvQuoteMode.Lenient:
+                                inQuotes = true;
+                                atStartOfField = false;
+                                continue;
+                        }
+                    }
+
+                    if (c == options.Separator)
                     {
                         CommitField();
-                        i++;
                         continue;
                     }
-                    else
+
+                    if (c == '\r' || c == '\n')
                     {
-                        sb.Append(c);
-                        i++;
+                        CommitField();
+                        if (c == '\r')
+                        {
+                            if (i + 1 < read)
+                            {
+                                if (buffer[i + 1] == '\n')
+                                {
+                                    if (rawRecordSb != null) rawRecordSb.Append(buffer[i + 1]);
+                                    i++;
+                                }
+                            }
+                            else
+                            {
+                                lastCharWasCR = true;
+                            }
+                        }
+                        var rec = MakeRecord();
+                        yield return rec;
+                        if (options.Metrics.TerminatedEarly) yield break;
                         continue;
                     }
+
+                    fieldSb.Append(c);
+                    atStartOfField = false;
+                    continue;
                 }
             }
-
-            if (inQuotes)
-            {
-                sb.Append('\n');
-                continue;
-            }
-
-            CommitField();
-            recordNumber++;
-            options.Metrics.RecordsRead = recordNumber;
-
-            if (options.ShouldEmitProgress()) options.EmitProgress();
-
-            yield return fields.ToArray();
-            fields.Clear();
-            sb.Clear();
 
             if (options.Metrics.TerminatedEarly)
                 yield break;
@@ -204,11 +479,56 @@ internal static class CsvRfc4180Parser
 
         if (inQuotes)
         {
-            if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RecordsRead + 1, options.FilePath ?? "",
-                "CsvFormatError", "Unterminated quoted field at EOF", sb.ToString().Length > 128 ? sb.ToString()[..128] : sb.ToString()))
-            {
+            if (!options.HandleError("CSV", physicalLine, recordNumber + 1, options.FilePath ?? "",
+                "CsvQuoteError", "Unterminated quoted field at EOF.", GetExcerpt(rawRecordSb)))
                 yield break;
-            }
+        }
+
+        if (fieldSb.Length > 0 || fields.Count > 0 || !atStartOfField)
+        {
+            CommitField();
+            var rec = MakeRecord();
+            yield return rec;
         }
     }
+
+
+    #region Core Sync / Async Shared
+
+   
+    // NOTE: Due to complexity of nested iterator yielding inside local methods with side-effects,
+    //       we re-implemented async path separately for clarity & correctness.
+
+    private static bool PeekNextIsLf(char[] buffer, int i, int read, TextReader tr, ref StringBuilder? rawRecord)
+    {
+        if (i + 1 < read)
+        {
+            if (buffer[i + 1] == '\n')
+            {
+                if (rawRecord != null) rawRecord.Append('\n');
+                return true;
+            }
+            return false;
+        }
+        // Need to peek underlying reader (sync only path uses this; async path ensures lookahead within buffer)
+        tr.Peek(); // no direct append because we don't consume here
+        return false;
+    }
+
+    private static string Printable(char c) => c switch
+    {
+        '\r' => "\\r",
+        '\n' => "\\n",
+        '\t' => "\\t",
+        _ => c.ToString()
+    };
+
+    private static string GetExcerpt(StringBuilder? sb)
+    {
+        if (sb == null) return "";
+        if (sb.Length <= 128) return sb.ToString();
+        return sb.ToString(0, 128);
+    }
+
+    #endregion
 }

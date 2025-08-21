@@ -101,7 +101,7 @@ namespace DataFlow
         [Fact]
         void Parse_StringFields_returnsAllFieldsAreFilled()
         {
-            Mix_Field_PropertyWithConstructor? parsed = NEW.GetNew<Mix_Field_PropertyWithConstructor>("True ;2 ;yes".Split(';', 3));
+            Mix_Field_PropertyWithConstructor? parsed = ObjectMaterializer.Create<Mix_Field_PropertyWithConstructor>("True ;2 ;yes".Split(';', 3));
             Mix_Field_PropertyWithConstructor expected = new Mix_Field_PropertyWithConstructor(true, 2, "yes");
             DeepAssert.Equal(expected, parsed);
 
