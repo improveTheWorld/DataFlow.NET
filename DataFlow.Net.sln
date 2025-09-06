@@ -95,6 +95,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Framework.DataSour
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Framework.RegexTokenizer", "DataFlow.Framework.RegexTokenizer\DataFlow.Framework.RegexTokenizer.csproj", "{EF0ABB8B-4689-49DC-E21C-1ED0D3346329}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Data.Benchmarks", "..\benchmarks\DataFlow.Data.Benchmarks\DataFlow.Data.Benchmarks.csproj", "{14D8BC80-4EA3-49A8-B682-5F4393ACC5A8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Data.Tests", "..\tests\DataFlow.Data.Tests\DataFlow.Data.Tests.csproj", "{F55E5CD4-18EF-4852-8540-384E1AB6CE51}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -265,6 +269,14 @@ Global
 		{EF0ABB8B-4689-49DC-E21C-1ED0D3346329}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EF0ABB8B-4689-49DC-E21C-1ED0D3346329}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EF0ABB8B-4689-49DC-E21C-1ED0D3346329}.Release|Any CPU.Build.0 = Release|Any CPU
+		{14D8BC80-4EA3-49A8-B682-5F4393ACC5A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{14D8BC80-4EA3-49A8-B682-5F4393ACC5A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{14D8BC80-4EA3-49A8-B682-5F4393ACC5A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{14D8BC80-4EA3-49A8-B682-5F4393ACC5A8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F55E5CD4-18EF-4852-8540-384E1AB6CE51}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F55E5CD4-18EF-4852-8540-384E1AB6CE51}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F55E5CD4-18EF-4852-8540-384E1AB6CE51}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F55E5CD4-18EF-4852-8540-384E1AB6CE51}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

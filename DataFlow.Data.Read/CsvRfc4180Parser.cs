@@ -42,12 +42,60 @@ internal static class CsvRfc4180Parser
         {
             recordNumber++;
             physicalLine++;
-            options.Metrics.RecordsRead = recordNumber;
+            options.Metrics.RawRecordsParsed = recordNumber;
             options.Metrics.LinesRead = physicalLine;
 
+            // Guard rail: MaxColumnsPerRow
+            if (options.MaxColumnsPerRow > 0 && fields.Count > options.MaxColumnsPerRow)
+            {
+                if (!options.HandleError(
+                        "CSV",
+                        physicalLine,
+                        recordNumber,
+                        options.FilePath ?? "",
+                        "CsvLimitExceeded",
+                        $"Row has {fields.Count} columns (limit {options.MaxColumnsPerRow}).",
+                        GetExcerpt(rawRecordSb)))
+                {
+                    pendingRecord = null;
+                    return;
+                }
+                // Skip behavior: do not emit this record
+                pendingRecord = null;
+                fields.Clear();
+                fieldSb.Clear();
+                afterClosingQuote = false;
+                atStartOfField = true;
+                rawRecordSb?.Clear();
+                return;
+            }
+
+            // Guard rail: MaxRawRecordLength
+            if (options.MaxRawRecordLength > 0 && rawRecordSb != null && rawRecordSb.Length > options.MaxRawRecordLength)
+            {
+                if (!options.HandleError(
+                        "CSV",
+                        physicalLine,
+                        recordNumber,
+                        options.FilePath ?? "",
+                        "CsvLimitExceeded",
+                        $"Raw record length {rawRecordSb.Length} exceeds limit {options.MaxRawRecordLength}.",
+                        GetExcerpt(rawRecordSb)))
+                {
+                    pendingRecord = null;
+                    return;
+                }
+                // Skip record if continuing
+                pendingRecord = null;
+                fields.Clear();
+                fieldSb.Clear();
+                afterClosingQuote = false;
+                atStartOfField = true;
+                rawRecordSb?.Clear();
+                return;
+            }
+
             var arr = fields.ToArray();
-            // BUG FIX: previously was "var yieldReturn = arr;" which shadowed the outer variable.
-            // Now we correctly assign to the outer capture.
             pendingRecord = arr;
 
             if (rawRecordSb != null)
@@ -309,8 +357,53 @@ internal static class CsvRfc4180Parser
         {
             recordNumber++;
             physicalLine++;
-            options.Metrics.RecordsRead = recordNumber;
+            options.Metrics.RawRecordsParsed = recordNumber;
             options.Metrics.LinesRead = physicalLine;
+
+            // Guard rail: MaxColumnsPerRow
+            if (options.MaxColumnsPerRow > 0 && fields.Count > options.MaxColumnsPerRow)
+            {
+                if (!options.HandleError("CSV",
+                                         physicalLine,
+                                         recordNumber,
+                                         options.FilePath ?? "",
+                                         "CsvLimitExceeded",
+                                         $"Row has {fields.Count} columns (limit {options.MaxColumnsPerRow}).",
+                                         GetExcerpt(rawRecordSb)))
+                {
+                    return Array.Empty<string>(); // termination logic handled by caller via Metrics.TerminatedEarly
+                }
+                // Skip this record
+                fields.Clear();
+                fieldSb.Clear();
+                atStartOfField = true;
+                afterClosingQuote = false;
+                rawRecordSb?.Clear();
+                return Array.Empty<string>();
+            }
+
+            // Guard rail: MaxRawRecordLength
+            if (options.MaxRawRecordLength > 0 && rawRecordSb != null && rawRecordSb.Length > options.MaxRawRecordLength)
+            {
+                if (!options.HandleError("CSV",
+                                         physicalLine,
+                                         recordNumber,
+                                         options.FilePath ?? "",
+                                         "CsvLimitExceeded",
+                                         $"Raw record length {rawRecordSb.Length} exceeds limit {options.MaxRawRecordLength}.",
+                                         GetExcerpt(rawRecordSb)))
+                {
+                    return Array.Empty<string>();
+                }
+                // Skip
+                fields.Clear();
+                fieldSb.Clear();
+                atStartOfField = true;
+                afterClosingQuote = false;
+                rawRecordSb?.Clear();
+                return Array.Empty<string>();
+            }
+    
             var arr = fields.ToArray();
 
             if (rawRecordSb != null)

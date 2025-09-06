@@ -8,20 +8,20 @@ public static class ObjectMaterializer
     {
         try
         {
-            return (T)CreateUsingConstructor(typeof(T), parameters);
+            return (T)NewUsingConstructor(typeof(T), parameters);
         }
         catch 
         {
-            return (T)CreateUsingInternalOrder(typeof(T), parameters);
+            return (T)NewUsingInternalOrder(typeof(T), parameters);
         }
                  
     }
     public static T? Create<T>(string[] schema, params object[] parameters)
     {
-       return (T) CreateUsingSchema(typeof(T), schema, parameters);  
+       return (T) NewWithSchema(typeof(T), schema, parameters);  
     }
 
-    static object CreateUsingConstructor(Type objectType, params object[] parameters)
+    static object NewUsingConstructor(Type objectType, params object[] parameters)
     {
 
         //: try:
@@ -42,7 +42,7 @@ public static class ObjectMaterializer
         
     }
 
-    public static object CreateUsingInternalOrder(Type objectType, params object[] parameters)
+    public static object NewUsingInternalOrder(Type objectType, params object[] parameters)
     {
         if (objectType == null)
         {
@@ -57,7 +57,7 @@ public static class ObjectMaterializer
     }
 
 
-    static object CreateUsingSchema(Type newObjectType, string[] schema, params object[] parameters)
+    static object NewWithSchema(Type newObjectType, string[] schema, params object[] parameters)
     {
         if (newObjectType == null)
         {

@@ -1,3 +1,4 @@
+#nullable enable
 using System.Text;
 using System.Text.Json;
 
@@ -7,10 +8,10 @@ namespace DataFlow.Data;
 public sealed record CsvReadOptions : ReadOptions
 {
     public char Separator { get; init; } = ',';
-    public string[]? Schema { get; internal set; }
+    public string[]? Schema { get; set; }
     public bool HasHeader { get; init; } = true;
 
-    // BREAKING CHANGE: default false for strict RFC (spaces outside quotes are significant)
+    // Default false for strict RFC (spaces outside quotes are significant)
     public bool TrimWhitespace { get; init; } = false;
 
     public bool AllowMissingTrailingFields { get; init; } = true;
@@ -40,7 +41,12 @@ public sealed record CsvReadOptions : ReadOptions
 
     // Inferred types & internal state (populated when inference performed)
     public Type[]? InferredTypes { get; internal set; }
-    internal bool[]? InferredTypeFinalized; // Column fallback tracking
+    internal bool[]? InferredTypeFinalized; // Column fallback tracking (true => no further type attempts)
+
+    // Guard rails (0 => disabled)
+    public int MaxColumnsPerRow { get; init; } = 0;
+    public int MaxRawRecordLength { get; init; } = 0;
+
 
     // Internal helper: Convert a raw field using configured inference rules + inferred schema types
     internal object? ConvertFieldValue(string raw, int columnIndex)
@@ -52,21 +58,37 @@ public sealed record CsvReadOptions : ReadOptions
         if (FieldTypeInference == FieldTypeInferenceMode.None)
             return raw;
 
-        // If we have inferred types and they are finalized, attempt strict casting
-        if (InferredTypes != null && columnIndex < InferredTypes.Length && InferredTypes[columnIndex] != null)
+        // If we have inferred types, attempt strict casting unless column permanently demoted/finalized.
+        if (InferredTypes != null &&
+            columnIndex < InferredTypes.Length &&
+            InferredTypes[columnIndex] != null)
         {
             var t = InferredTypes[columnIndex];
-            if (t == typeof(string)) return raw;
+
+            // If column finalized as string, return raw directly.
+            if (t == typeof(string) &&
+                InferredTypeFinalized != null &&
+                columnIndex < InferredTypeFinalized.Length &&
+                InferredTypeFinalized[columnIndex])
+            {
+                return raw;
+            }
+
+            if (t == typeof(string))
+                return raw;
+
             if (!TryConvertToType(raw, t, out var converted))
             {
-                // Fallback to string if strict cast fails & mark column as string
+                // Demote to string and finalize (no further parse attempts for this column).
                 InferredTypes[columnIndex] = typeof(string);
+                if (InferredTypeFinalized != null && columnIndex < InferredTypeFinalized.Length)
+                    InferredTypeFinalized[columnIndex] = true;
                 return raw;
             }
             return converted;
         }
 
-        // Primitive inference path
+        // Primitive inference (no schema types or not inferred yet)
         return StringMapper.StringMapper.GetObject(raw,
             preserveLeadingZeroNumeric: PreserveNumericStringsWithLeadingZeros,
             preserveLargeInteger: PreserveLargeIntegerStrings);
@@ -183,7 +205,8 @@ public sealed class JsonLinesFileErrorSink : IReaderErrorSink
 public record ReaderMetrics
 {
     public long LinesRead;
-    public long RecordsRead;
+    public long RawRecordsParsed;
+    public long RecordsEmitted;
     public long ErrorCount;
     public long LastLineNumber;
     public bool TerminatedEarly;
@@ -224,7 +247,7 @@ public abstract record ReadOptions
     {
         if (Progress == null) return false;
         var now = DateTime.UtcNow;
-        if (Metrics.RecordsRead - _lastProgressRecordMark >= ProgressRecordInterval && ProgressRecordInterval > 0)
+        if (Metrics.RawRecordsParsed - _lastProgressRecordMark >= ProgressRecordInterval && ProgressRecordInterval > 0)
             return true;
         if (now - _lastProgressWall >= ProgressTimeInterval)
             return true;
@@ -242,12 +265,12 @@ public abstract record ReadOptions
         }
         Progress.Report(new ReaderProgress(
             Metrics.LinesRead,
-            Metrics.RecordsRead,
+            Metrics.RawRecordsParsed,
             Metrics.ErrorCount,
             percent,
             elapsed));
         _lastProgressWall = DateTime.UtcNow;
-        _lastProgressRecordMark = Metrics.RecordsRead;
+        _lastProgressRecordMark = Metrics.RawRecordsParsed;
     }
 
     internal void Complete()
@@ -277,7 +300,8 @@ public abstract record ReadOptions
         }
         if (ErrorAction == ReaderErrorAction.Throw)
         {
-            throw new InvalidDataException(message);
+            // Include error type so tests (and users) can distinguish failures.
+            throw new InvalidDataException($"{errorType}: {message}");
         }
         if (ErrorAction == ReaderErrorAction.Stop)
         {
@@ -302,6 +326,14 @@ public sealed record JsonReadOptions<T> : ReadOptions
     public bool ValidateElements { get; init; } = false;
     public Func<JsonElement, bool>? ElementValidator { get; init; }
     public int MaxDepth { get; init; } = 0; // 0 means default
+
+    // Guard rails (0 => disabled)
+    public long MaxElementBytes { get; init; } = 0;
+    public long MaxElements { get; init; } = 0;
+    public int MaxStringLength { get; init; } = 0;
+
+    internal bool GuardRailsEnabled =>
+        MaxElementBytes > 0 || MaxElements > 0 || MaxStringLength > 0;
 }
 
 public sealed record YamlReadOptions<T> : ReadOptions
@@ -311,4 +343,9 @@ public sealed record YamlReadOptions<T> : ReadOptions
     public bool DisallowAliases { get; init; } = true;
     public bool DisallowCustomTags { get; init; } = true;
     public int MaxDepth { get; init; } = 64;
+
+    // Size and count limits (0 => disabled)
+    public int MaxTotalDocuments { get; init; } = 0;
+    public int MaxNodeScalarLength { get; init; } = 0;
+
 }
