@@ -57,7 +57,7 @@ public static partial class Read
                     InferTypesIfRequested(inferenceBuffer, schema, options, path);
                     inferenceCompleted = true;
                     foreach (var buffered in inferenceBuffer)
-                        if (YieldMapped(buffered)) yield return CurrentInstance!;
+                        if (YieldMapped(buffered)) { options.Metrics.RecordsEmitted++; yield return CurrentInstance!; }
                     inferenceBuffer.Clear();
                 }
                 continue;
@@ -71,7 +71,7 @@ public static partial class Read
                     InferTypesIfRequested(inferenceBuffer, schema, options, path);
                     inferenceCompleted = true;
                     foreach (var buffered in inferenceBuffer)
-                        if (YieldMapped(buffered)) yield return CurrentInstance!;
+                        if (YieldMapped(buffered)) { options.Metrics.RecordsEmitted++; yield return CurrentInstance!; }
                     inferenceBuffer.Clear();
                 }
                 continue;
@@ -107,7 +107,11 @@ public static partial class Read
 
             foreach (var buffered in inferenceBuffer!)
             {
-                if (YieldMapped(buffered)) yield return CurrentInstance!;
+                if (YieldMapped(buffered))
+                {
+                    options.Metrics.RecordsEmitted++;
+                    yield return CurrentInstance!;
+                }
                 // Removed per-record progress emission here as well.
             }
         }
@@ -308,7 +312,11 @@ public static partial class Read
                     InferTypesIfRequested(inferenceBuffer, schema, options, path);
                     inferenceCompleted = true;
                     foreach (var buffered in inferenceBuffer)
-                        if (YieldMapped(buffered)) yield return CurrentInstance!;
+                        if (YieldMapped(buffered))
+                        {
+                            options.Metrics.RecordsEmitted++;
+                            yield return CurrentInstance!;
+                        }
                     inferenceBuffer.Clear();
                 }
                 continue;
@@ -322,7 +330,11 @@ public static partial class Read
                     InferTypesIfRequested(inferenceBuffer, schema, options, path);
                     inferenceCompleted = true;
                     foreach (var buffered in inferenceBuffer)
-                        if (YieldMapped(buffered)) yield return CurrentInstance!;
+                        if (YieldMapped(buffered))
+                        {
+                            options.Metrics.RecordsEmitted++;
+                            yield return CurrentInstance!;
+                        }
                     inferenceBuffer.Clear();
                 }
                 continue;
@@ -356,7 +368,11 @@ public static partial class Read
             InferTypesIfRequested(inferenceBuffer!, schema, options, path);
             foreach (var buffered in inferenceBuffer!)
             {
-                if (YieldMapped(buffered)) yield return CurrentInstance!;
+                if (YieldMapped(buffered))
+                {
+                    options.Metrics.RecordsEmitted++;
+                    yield return CurrentInstance!;
+                }
                 // Progress emission removed.
             }
         }
