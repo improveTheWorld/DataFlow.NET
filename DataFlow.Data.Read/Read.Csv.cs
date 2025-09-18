@@ -1,11 +1,6 @@
-﻿using DataFlow.Data.StringMapper;
-using DataFlow.Extensions;
-using System.Buffers;
+﻿using DataFlow.Extensions;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Json;
-using YamlDotNet.Core;
+
 
 namespace DataFlow.Data;
 
@@ -37,7 +32,7 @@ public static partial class Read
         var inferenceBuffer = options.InferSchema ? new List<string[]>(options.SchemaInferenceSampleRows) : null;
         bool inferenceCompleted = !options.InferSchema;
 
-        await foreach (var rawFields in CsvRfc4180Parser.ParseAsync(reader, options, cancellationToken))
+        await foreach (var rawFields in CsvRfc4180Parser.ParseAsync(reader, options, ct: cancellationToken))
         {
             if (options.Metrics.TerminatedEarly) yield break;
 
@@ -279,7 +274,7 @@ public static partial class Read
 
     }
 
-    public static IEnumerable<T> CsvSync<T>(string path, CsvReadOptions options)
+    public static IEnumerable<T> CsvSync<T>(string path, CsvReadOptions options, CancellationToken cancellationToken = default)
     {
         if (options == null) throw new ArgumentNullException(nameof(options));
         options.FilePath = path;
@@ -292,7 +287,7 @@ public static partial class Read
         var inferenceBuffer = options.InferSchema ? new List<string[]>(options.SchemaInferenceSampleRows) : null;
         bool inferenceCompleted = !options.InferSchema;
 
-        foreach (var rawFields in CsvRfc4180Parser.Parse(reader, options))
+        foreach (var rawFields in CsvRfc4180Parser.Parse(reader, options, ct: cancellationToken))
         {
             if (options.Metrics.TerminatedEarly) yield break;
 

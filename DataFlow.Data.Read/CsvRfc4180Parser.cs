@@ -1,221 +1,279 @@
-// Entire file replaced: new high-fidelity RFC 4180 parser with quote/line ending controls & raw record capture.
 using System.Text;
 
 namespace DataFlow.Data;
 
 internal static class CsvRfc4180Parser
 {
-    private const int BufferSize = 8192;
+    private const int DefaultBufferSize = 64 * 1024;
 
-    internal static IEnumerable<string[]> Parse(TextReader reader, CsvReadOptions options)
+  
+    // New sync API with external cancellation token
+    public static IEnumerable<string[]> Parse(
+        TextReader reader,
+        CsvReadOptions options,
+        int bufferSize =  DefaultBufferSize,
+        CancellationToken ct = default)
     {
+        if (reader == null) throw new ArgumentNullException(nameof(reader));
+        if (options == null) throw new ArgumentNullException(nameof(options));
+        if (bufferSize <= 0) throw new ArgumentOutOfRangeException(nameof(bufferSize));
 
-        var fields = new List<string>(32);
-        var fieldSb = new StringBuilder(256);
-        var rawRecordSb = options.CaptureRawRecord || options.RawRecordObserver != null
-            ? new StringBuilder(512)
-            : null;
+        var core = new CsvParserCore(options, ct);
+        char[] buffer = new char[bufferSize];
+        var output = new List<string[]>(64);
 
-        char[] buffer = new char[BufferSize];
-        int read;
-        bool inQuotes = false;
-        bool afterClosingQuote = false;
-        bool atStartOfField = true;
+        // Early deterministic cancellation (covers pre-cancel)
+        CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
 
-        long recordNumber = 0;
-        long physicalLine = 0;                 // counts physical newline terminators (CR, LF, CRLF -> 1)
-        bool suppressLfForCrLf = false;        // true when a CR in this buffer was followed by LF we must not double-count
-        bool pendingCrAcrossBuffer = false;    // true if previous buffer ended with a CR (possible CRLF split)
-        bool skipInitialLfThisBuffer = false;  // set at start of buffer if first char is LF completing cross-buffer CRLF
-
-
-        // This variable holds a completed record until we yield it.
-        // (We defer yield so that EmitRecord can stay a void local function.)
-        string[]? pendingRecord = null;
-
-        void CommitField()
+        while (true)
         {
-            string val = options.TrimWhitespace ? fieldSb.ToString().Trim() : fieldSb.ToString();
-            fields.Add(val);
-            fieldSb.Clear();
-            atStartOfField = true;
-            afterClosingQuote = false;
+            CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
+
+            int read = reader.Read(buffer, 0, buffer.Length);
+            if (read <= 0) break;
+
+            core.Process(buffer.AsSpan(0, read), isFinal: false, output);
+
+            // Yield any produced records
+            for (int i = 0; i < output.Count; i++)
+            {
+                CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
+                yield return output[i];
+            }
+            output.Clear();
+
+            if (options.Metrics.TerminatedEarly)
+                yield break;
         }
 
-        void EmitRecord()
+        // Final cancellation check before flush
+        CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
+
+        core.Process(ReadOnlySpan<char>.Empty, isFinal: true, output);
+        for (int i = 0; i < output.Count; i++)
         {
-            recordNumber++;
-            options.Metrics.RawRecordsParsed = recordNumber;
-            // LinesRead already updated at newline detection sites; leave as-is.
-            // Guard rail: MaxColumnsPerRow
-            if (options.MaxColumnsPerRow > 0 && fields.Count > options.MaxColumnsPerRow)
+            CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
+            yield return output[i];
+        }
+    }
+
+    public static async IAsyncEnumerable<string[]> ParseAsync(
+        TextReader reader,
+        CsvReadOptions options,
+        int bufferSize = DefaultBufferSize,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (reader == null) throw new ArgumentNullException(nameof(reader));
+        if (options == null) throw new ArgumentNullException(nameof(options));
+        if (bufferSize <= 0) throw new ArgumentOutOfRangeException(nameof(bufferSize));
+
+        var core = new CsvParserCore(options, ct);
+        char[] buffer = new char[bufferSize];
+        var output = new List<string[]>(64);
+
+        // Early deterministic cancellation (pre-canceled tokens => OperationCanceledException, not TaskCanceledException)
+        CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
+
+        while (true)
+        {
+            // Check before initiating I/O
+            CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
+
+            int read;
+            try
             {
-                if (!options.HandleError(
-                        "CSV",
-                        physicalLine,
-                        recordNumber,
-                        options.FilePath ?? "",
-                        "CsvLimitExceeded",
-                        $"Row has {fields.Count} columns (limit {options.MaxColumnsPerRow}).",
-                        GetExcerpt(rawRecordSb)))
-                {
-                    pendingRecord = null;
-                    return;
-                }
-                // Skip behavior: do not emit this record
-                pendingRecord = null;
-                fields.Clear();
-                fieldSb.Clear();
-                afterClosingQuote = false;
-                atStartOfField = true;
-                rawRecordSb?.Clear();
-                return;
+#if NETSTANDARD2_0
+                read = await reader.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
+#else
+                read = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false);
+#endif
+            }
+            catch (TaskCanceledException ex) when (ct.IsCancellationRequested || options.CancellationToken.IsCancellationRequested)
+            {
+                // Normalize to OperationCanceledException (tests expect exact OCE)
+                throw CancelUtil.CreateNormalizedOce(ct, options.CancellationToken, ex);
             }
 
-            // Guard rail: MaxRawRecordLength
-            if (options.MaxRawRecordLength > 0 && rawRecordSb != null && rawRecordSb.Length > options.MaxRawRecordLength)
+            // Post-read check (in case cancellation happened just after read completed)
+            CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
+
+            if (read <= 0) break;
+
+            core.Process(buffer.AsSpan(0, read), isFinal: false, output);
+
+            for (int i = 0; i < output.Count; i++)
             {
-                if (!options.HandleError(
-                        "CSV",
-                        physicalLine,
-                        recordNumber,
-                        options.FilePath ?? "",
-                        "CsvLimitExceeded",
-                        $"Raw record length {rawRecordSb.Length} exceeds limit {options.MaxRawRecordLength}.",
-                        GetExcerpt(rawRecordSb)))
-                {
-                    pendingRecord = null;
-                    return;
-                }
-                // Skip record if continuing
-                pendingRecord = null;
-                fields.Clear();
-                fieldSb.Clear();
-                afterClosingQuote = false;
-                atStartOfField = true;
-                rawRecordSb?.Clear();
-                return;
+                CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
+                yield return output[i];
             }
+            output.Clear();
 
-            var arr = fields.ToArray();
-            pendingRecord = arr;
-
-            if (rawRecordSb != null)
-            {
-                string raw = rawRecordSb.ToString();
-                if (!options.PreserveLineEndings && options.NormalizeNewlinesInFields)
-                    raw = raw.Replace("\r\n", "\n");
-                options.RawRecordObserver?.Invoke(recordNumber, raw);
-                rawRecordSb.Clear();
-            }
-
-            fields.Clear();
-            fieldSb.Clear();
-            atStartOfField = true;
-            afterClosingQuote = false;
-
-            if (options.ShouldEmitProgress())
-                options.EmitProgress();
+            if (options.Metrics.TerminatedEarly)
+                yield break;
         }
 
-        while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
-        {
-            options.CancellationToken.ThrowIfCancellationRequested();
+        // Final cancellation check before flush
+        CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
 
-            // Handle CRLF split across buffers:
-            // If last buffer ended with a CR and THIS buffer starts with LF, suppress counting this first LF.
-            if (pendingCrAcrossBuffer)
+        core.Process(ReadOnlySpan<char>.Empty, isFinal: true, output);
+        for (int i = 0; i < output.Count; i++)
+        {
+            CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
+            yield return output[i];
+        }
+    }
+
+    private static class CancelUtil
+    {
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public static void ThrowIfRequested(CancellationToken a, CancellationToken b)
+        {
+            if (a.IsCancellationRequested)
+                throw new OperationCanceledException(a);
+            if (b.IsCancellationRequested)
+                throw new OperationCanceledException(b);
+        }
+
+        public static OperationCanceledException CreateNormalizedOce(CancellationToken a, CancellationToken b, Exception? inner = null)
+        {
+            if (a.IsCancellationRequested)
+                return new OperationCanceledException("CSV read canceled.", inner, a);
+            if (b.IsCancellationRequested)
+                return new OperationCanceledException("CSV read canceled.", inner, b);
+            // Fallback (should not happen if used correctly)
+            return new OperationCanceledException("CSV read canceled.", inner, CancellationToken.None);
+        }
+    }
+
+    private sealed class CsvParserCore
+    {
+        private readonly CsvReadOptions _options;
+        private readonly CancellationToken _externalToken;
+
+        private readonly List<string> _fields = new List<string>(32);
+        private readonly StringBuilder _fieldSb = new StringBuilder(256);
+        private readonly StringBuilder? _rawRecordSb;
+
+        private bool _inQuotes;
+        private bool _afterClosingQuote;
+        private bool _atStartOfField = true;
+
+        private long _recordNumber;
+        private long _physicalLine;
+
+        // Newline / CRLF handling
+        private bool _suppressLfForCrLf;
+        private bool _pendingCrAcrossBuffer;
+        private bool _skipInitialLfThisBuffer;
+
+        private string[]? _pendingRecord;
+
+        private const int CancellationCheckMask = 0x1FFF; // every 8192 chars
+
+        private Exception? _fatal;
+
+        public Exception? FatalException => _fatal;
+
+        private long LogicalRecordNumber => _options.HasHeader ? _recordNumber - 1 : _recordNumber;
+        public CsvParserCore(CsvReadOptions options, CancellationToken externalToken)
+        {
+            _options = options;
+            _externalToken = externalToken;
+            // Always allocate for consistent excerpts (guard rails & quote errors)
+            _rawRecordSb = new StringBuilder(512);
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        private void CheckCancel()
+        {
+            if (_options.CancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException(_options.CancellationToken);
+            if (_externalToken.IsCancellationRequested)
+                throw new OperationCanceledException(_externalToken);
+        }
+
+        public void Process(ReadOnlySpan<char> span, bool isFinal, List<string[]> output)
+        {
+            // If previous buffer ended with CR and current starts with LF, suppress LF counting
+            if (_pendingCrAcrossBuffer)
             {
-                if (read > 0 && buffer[0] == '\n')
-                    skipInitialLfThisBuffer = true;
-                pendingCrAcrossBuffer = false;
+                if (span.Length > 0 && span[0] == '\n')
+                    _skipInitialLfThisBuffer = true;
+                _pendingCrAcrossBuffer = false;
             }
 
-            for (int i = 0; i < read; i++)
+            for (int idx = 0; idx < span.Length; idx++)
             {
-                char c = buffer[i];
+                if ((idx & CancellationCheckMask) == 0)
+                    CheckCancel();
 
-                // Capture raw characters for auditing if requested
-                if (rawRecordSb != null) rawRecordSb.Append(c);
+                char c = span[idx];
+                if (_rawRecordSb != null) _rawRecordSb.Append(c);
 
-                // --- Centralized physical newline counting (before state machine) ---
-                // We count:
-                //   CRLF -> 1 line (on CR)
-                //   Lone CR -> 1 line
-                //   Lone LF -> 1 line
-                // Implementation:
-                //   If char is CR: increment, set lastCharWasCR=true and (if LF follows inside buffer) mark suppress to skip double count.
-                //   If char is LF and not suppressed by preceding CR: increment.
-                // This is independent of quoting; embedded newlines inside quoted fields are physical line terminators.
                 bool suppressedLfThisChar = false;
+
                 if (c == '\r')
+                {
+                    _physicalLine++;
+                    _options.Metrics.LinesRead = _physicalLine;
+
+                    if (idx + 1 < span.Length && span[idx + 1] == '\n')
                     {
-                    physicalLine++;
-                    options.Metrics.LinesRead = physicalLine;
-                    // If next char (still in this buffer) is LF, suppress counting that LF.
-                    if (i + 1 < read && buffer[i + 1] == '\n')
-                    {
-                        suppressLfForCrLf = true;
+                        _suppressLfForCrLf = true;
                     }
-                    else if (i + 1 == read)
+                    else if (idx + 1 == span.Length)
                     {
-                        // CR is last char of buffer; could be CRLF split across buffers.
-                        pendingCrAcrossBuffer = true;
+                        _pendingCrAcrossBuffer = true;
                     }
                 }
                 else if (c == '\n')
                 {
-                    if (skipInitialLfThisBuffer)
+                    if (_skipInitialLfThisBuffer)
                     {
-                        skipInitialLfThisBuffer = false;
+                        _skipInitialLfThisBuffer = false;
                         suppressedLfThisChar = true;
                     }
-                    else if (suppressLfForCrLf)
+                    else if (_suppressLfForCrLf)
                     {
-                        suppressLfForCrLf = false;
+                        _suppressLfForCrLf = false;
                         suppressedLfThisChar = true;
                     }
                     else
                     {
-                        physicalLine++;
-                        options.Metrics.LinesRead = physicalLine;
+                        _physicalLine++;
+                        _options.Metrics.LinesRead = _physicalLine;
                     }
                 }
                 else
                 {
-                    // Non-newline breaks any pending in-buffer suppression except cross-buffer CR (handled separately)
-                    suppressLfForCrLf = false;
-                    skipInitialLfThisBuffer = false;
+                    _suppressLfForCrLf = false;
+                    _skipInitialLfThisBuffer = false;
                 }
-                // If this LF was the second half of a CRLF (already counted) and we are NOT inside quotes,
-                // skip further processing so it cannot create an empty extra record.
-                if (suppressedLfThisChar && !inQuotes)
+
+                if (suppressedLfThisChar && !_inQuotes)
                     continue;
 
-                if (inQuotes)
+                if (_inQuotes)
                 {
                     if (c == '"')
                     {
-                        // Escaped double quote?
-                        if (i + 1 < read && buffer[i + 1] == '"')
+                        if (idx + 1 < span.Length && span[idx + 1] == '"')
                         {
-                            fieldSb.Append('"');
-                            if (rawRecordSb != null) rawRecordSb.Append(buffer[i + 1]);
-                            i++;
+                            _fieldSb.Append('"');
+                            if (_rawRecordSb != null) _rawRecordSb.Append(span[idx + 1]);
+                            idx++;
                             continue;
                         }
-                        // Closing quote
-                        inQuotes = false;
-                        afterClosingQuote = true;
+                        _inQuotes = false;
+                        _afterClosingQuote = true;
                         continue;
                     }
-                   
-                    fieldSb.Append(c);
+                    _fieldSb.Append(c);
                     continue;
                 }
-                else if (afterClosingQuote)
+                else if (_afterClosingQuote)
                 {
-                    if (c == options.Separator)
+                    if (c == _options.Separator)
                     {
                         CommitField();
                         continue;
@@ -224,71 +282,59 @@ internal static class CsvRfc4180Parser
                     {
                         CommitField();
                         EmitRecord();
-                        if (pendingRecord != null)
-                        {
-                            var done = pendingRecord;
-                            pendingRecord = null;
-                            yield return done;
-                        }
-                        if (options.Metrics.TerminatedEarly) yield break;
+                        FlushPending(output);
+                        if (_options.Metrics.TerminatedEarly) return;
                         continue;
                     }
-                    if (options.ErrorOnTrailingGarbageAfterClosingQuote)
+                    if (_options.ErrorOnTrailingGarbageAfterClosingQuote)
                     {
-                        if (!options.HandleError(
-                                "CSV",
-                                physicalLine,
-                                recordNumber + 1,
-                                options.FilePath ?? "",
+                        if (!_options.HandleError("CSV",
+                                _physicalLine,
+                                LogicalRecordNumber + 1 <= 0 ? 1 : LogicalRecordNumber + 1,
+                                _options.FilePath ?? "",
                                 "CsvQuoteError",
                                 $"Illegal character '{Printable(c)}' after closing quote.",
-                                GetExcerpt(rawRecordSb)))
-                            yield break;
+                                GetExcerpt(_rawRecordSb)))
+                            return;
                     }
-                    // Treat as literal continuation when leniency chosen
-                    fieldSb.Append(c);
-                    afterClosingQuote = false;
+                    _fieldSb.Append(c);
+                    _afterClosingQuote = false;
                     continue;
                 }
                 else
                 {
-                    if (atStartOfField && c == '"')
+                    if (_atStartOfField && c == '"')
                     {
-                        inQuotes = true;
-                        atStartOfField = false;
+                        _inQuotes = true;
+                        _atStartOfField = false;
                         continue;
                     }
 
                     if (c == '"')
                     {
-                        switch (options.QuoteMode)
+                        switch (_options.QuoteMode)
                         {
                             case CsvQuoteMode.RfcStrict:
                             case CsvQuoteMode.ErrorOnIllegalQuote:
-                                if (!options.HandleError(
-                                        "CSV",
-                                        physicalLine,
-                                        recordNumber + 1,
-                                        options.FilePath ?? "",
+                                if (!_options.HandleError("CSV",
+                                        _physicalLine,
+                                        LogicalRecordNumber + 1 <= 0 ? 1 : LogicalRecordNumber + 1,
+                                        _options.FilePath ?? "",
                                         "CsvQuoteError",
                                         "Illegal quote character inside unquoted field.",
-                                        GetExcerpt(rawRecordSb)))
-                                    yield break;
-                                if (options.QuoteMode == CsvQuoteMode.RfcStrict)
-                                {
-                                    // Keep literal quote if in strict-but-non-fatal mode
-                                    fieldSb.Append('"');
-                                }
+                                        GetExcerpt(_rawRecordSb)))
+                                    return;
+                                if (_options.QuoteMode == CsvQuoteMode.RfcStrict)
+                                    _fieldSb.Append('"');
                                 continue;
-
                             case CsvQuoteMode.Lenient:
-                                inQuotes = true;
-                                atStartOfField = false;
+                                _inQuotes = true;
+                                _atStartOfField = false;
                                 continue;
                         }
                     }
 
-                    if (c == options.Separator)
+                    if (c == _options.Separator)
                     {
                         CommitField();
                         continue;
@@ -298,386 +344,160 @@ internal static class CsvRfc4180Parser
                     {
                         CommitField();
                         EmitRecord();
-                        if (pendingRecord != null)
-                        {
-                            var done = pendingRecord;
-                            pendingRecord = null;
-                            yield return done;
-                        }
-                        if (options.Metrics.TerminatedEarly) yield break;
+                        FlushPending(output);
+                        if (_options.Metrics.TerminatedEarly) return;
                         continue;
                     }
 
-                    fieldSb.Append(c);
-                    atStartOfField = false;
-                    continue;
+                    _fieldSb.Append(c);
+                    _atStartOfField = false;
                 }
             }
 
-            if (pendingRecord != null)
+            FlushPending(output);
+
+            if (isFinal)
             {
-                var done = pendingRecord;
-                pendingRecord = null;
-                yield return done;
-                if (options.Metrics.TerminatedEarly) yield break;
-            }
-        }
+                // Cancellation takes precedence over format errors
+                CheckCancel();
 
-        // EOF handling
-        if (inQuotes)
-        {
-            if (!options.HandleError(
-                    "CSV",
-                    physicalLine,
-                    recordNumber + 1,
-                    options.FilePath ?? "",
-                    "CsvQuoteError",
-                    "Unterminated quoted field at EOF.",
-                    GetExcerpt(rawRecordSb)))
-                yield break;
-        }
-
-        // Emit any final (possibly empty) last record
-        if (fieldSb.Length > 0 || fields.Count > 0 || !atStartOfField)
-        {
-            CommitField();
-            EmitRecord();
-            if (pendingRecord != null)
-            {
-                var done = pendingRecord;
-                pendingRecord = null;
-                yield return done;
-            }
-        }
-    }
-
-    internal static async IAsyncEnumerable<string[]> ParseAsync(StreamReader reader, CsvReadOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
-    {
-        var fields = new List<string>(32);
-        var fieldSb = new StringBuilder(256);
-        var rawRecordSb = options.CaptureRawRecord || options.RawRecordObserver != null
-        ? new StringBuilder(512)
-        : null;
-
-        char[] buffer = new char[BufferSize];
-        int read;
-        bool inQuotes = false;
-        bool afterClosingQuote = false;
-        bool atStartOfField = true;
-
-        long recordNumber = 0;
-        long physicalLine = 0;              // physical newline terminators (CR, LF, CRLF => 1 each pair)
-        bool suppressLfForCrLf = false;     // CR just seen, next in-buffer char is LF
-        bool pendingCrAcrossBuffer = false; // previous buffer ended with CR
-        bool skipInitialLfThisBuffer = false;
-
-        string[]? pendingRecord = null;
-
-        void CommitField()
-        {
-            string val = options.TrimWhitespace ? fieldSb.ToString().Trim() : fieldSb.ToString();
-            fields.Add(val);
-            fieldSb.Clear();
-            atStartOfField = true;
-            afterClosingQuote = false;
-        }
-
-        void EmitRecord()
-        {
-            recordNumber++;
-            options.Metrics.RawRecordsParsed = recordNumber;
-
-            // MaxColumnsPerRow
-            if (options.MaxColumnsPerRow > 0 && fields.Count > options.MaxColumnsPerRow)
-            {
-                if (!options.HandleError("CSV", physicalLine, recordNumber, options.FilePath ?? "",
-                    "CsvLimitExceeded", $"Row has {fields.Count} columns (limit {options.MaxColumnsPerRow}).",
-                    GetExcerpt(rawRecordSb)))
+                if (_inQuotes)
                 {
-                    pendingRecord = null;
-                    return;
+                    CheckCancel(); // re-check before raising error
+                    if (!_options.HandleError("CSV",
+                            _physicalLine,
+                             LogicalRecordNumber + 1 <= 0 ? 1 : LogicalRecordNumber + 1,
+                            _options.FilePath ?? "",
+                            "CsvQuoteError",
+                            "Unterminated quoted field at EOF.",
+                            GetExcerpt(_rawRecordSb)))
+                        return;
                 }
-                // Skip
-                pendingRecord = null;
-                fields.Clear();
-                fieldSb.Clear();
-                atStartOfField = true;
-                afterClosingQuote = false;
-                rawRecordSb?.Clear();
+
+                if (_fieldSb.Length > 0 || _fields.Count > 0 || !_atStartOfField)
+                {
+                    CheckCancel();
+                    CommitField();
+                    EmitRecord();
+                    FlushPending(output);
+                }
+            }
+        }
+
+        private void CommitField()
+        {
+            string val = _options.TrimWhitespace ? _fieldSb.ToString().Trim() : _fieldSb.ToString();
+            _fields.Add(val);
+            _fieldSb.Clear();
+            _atStartOfField = true;
+            _afterClosingQuote = false;
+        }
+
+        private void EmitRecord()
+        {
+            _recordNumber++;
+            long logicalNumber = LogicalRecordNumber;
+            _options.Metrics.RawRecordsParsed = _recordNumber;
+
+            // Header handling: do not count header in metrics
+            if (!(_options.HasHeader && _recordNumber == 1))
+                _options.Metrics.RawRecordsParsed = logicalNumber;
+
+
+            // Guard rails use logicalNumber for user-facing record index
+            if (_options.MaxColumnsPerRow > 0 && _fields.Count > _options.MaxColumnsPerRow)
+            {
+                GuardRailError(logicalNumber,
+                    "Row has " + _fields.Count + " columns (limit " + _options.MaxColumnsPerRow + ").");
+                ResetRecordState();
                 return;
             }
 
-            // MaxRawRecordLength
-            if (options.MaxRawRecordLength > 0 && rawRecordSb != null && rawRecordSb.Length > options.MaxRawRecordLength)
+            if (_options.MaxRawRecordLength > 0 && _rawRecordSb != null && _rawRecordSb.Length > _options.MaxRawRecordLength)
             {
-                if (!options.HandleError("CSV", physicalLine, recordNumber, options.FilePath ?? "",
-                    "CsvLimitExceeded", $"Raw record length {rawRecordSb.Length} exceeds limit {options.MaxRawRecordLength}.",
-                    GetExcerpt(rawRecordSb)))
-                {
-                    pendingRecord = null;
-                    return;
-                }
-                // Skip
-                pendingRecord = null;
-                fields.Clear();
-                fieldSb.Clear();
-                atStartOfField = true;
-                afterClosingQuote = false;
-                rawRecordSb?.Clear();
+                GuardRailError(logicalNumber,
+                    "Raw record length " + _rawRecordSb.Length + " exceeds limit " + _options.MaxRawRecordLength + ".");
+                ResetRecordState();
                 return;
             }
 
-            var arr = fields.ToArray();
-            pendingRecord = arr;
+            var arr = _fields.ToArray();
+            _pendingRecord = arr;
 
-            if (rawRecordSb != null)
+            if (_rawRecordSb != null)
             {
-                string raw = rawRecordSb.ToString();
-                if (!options.PreserveLineEndings && options.NormalizeNewlinesInFields)
+                string raw = _rawRecordSb.ToString();
+                if (!_options.PreserveLineEndings && _options.NormalizeNewlinesInFields)
                     raw = raw.Replace("\r\n", "\n");
-                options.RawRecordObserver?.Invoke(recordNumber, raw);
-                rawRecordSb.Clear();
+                if (logicalNumber > 0) // skip header
+                    _options.RawRecordObserver?.Invoke(logicalNumber, raw);
+                _rawRecordSb.Clear();
             }
 
-            fields.Clear();
-            fieldSb.Clear();
-            atStartOfField = true;
-            afterClosingQuote = false;
+            _fields.Clear();
+            _fieldSb.Clear();
+            _atStartOfField = true;
+            _afterClosingQuote = false;
 
-            if (options.ShouldEmitProgress())
-                options.EmitProgress();
+            if (_options.ShouldEmitProgress())
+                _options.EmitProgress();
+
+            if ((logicalNumber & 0xFF) == 0)
+                CheckCancel();
         }
 
-        while ((read = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
+        private void GuardRailError(long logicalNumber, string message)
         {
-            ct.ThrowIfCancellationRequested();
-            options.CancellationToken.ThrowIfCancellationRequested();
-
-            if (pendingCrAcrossBuffer)
+            try
             {
-                if (read > 0 && buffer[0] == '\n')
-                    skipInitialLfThisBuffer = true;
-                pendingCrAcrossBuffer = false;
+                if (logicalNumber <= 0) logicalNumber = 1; // defensive
+                _options.HandleError("CSV",
+                _physicalLine,
+                logicalNumber,
+                _options.FilePath ?? "",
+                "CsvLimitExceeded",
+                message,
+                GetExcerpt(_rawRecordSb));
             }
-
-            for (int i = 0; i < read; i++)
+            catch (InvalidDataException ex)
             {
-                char c = buffer[i];
-                if (rawRecordSb != null) rawRecordSb.Append(c);
-
-                bool suppressedLfThisChar = false;
-
-                // Centralized newline counting
-                if (c == '\r')
-                {
-                    physicalLine++;
-                    options.Metrics.LinesRead = physicalLine;
-                    if (i + 1 < read && buffer[i + 1] == '\n')
-                    {
-                        suppressLfForCrLf = true;
-                    }
-                    else if (i + 1 == read)
-                    {
-                        pendingCrAcrossBuffer = true; // maybe CRLF split
-                    }
-                }
-                else if (c == '\n')
-                {
-                    if (skipInitialLfThisBuffer)
-                    {
-                        skipInitialLfThisBuffer = false;
-                        suppressedLfThisChar = true;
-                    }
-                    else if (suppressLfForCrLf)
-                    {
-                        suppressLfForCrLf = false;
-                        suppressedLfThisChar = true;
-                    }
-                    else
-                    {
-                        physicalLine++;
-                        options.Metrics.LinesRead = physicalLine;
-                    }
-                }
-                else
-                {
-                    suppressLfForCrLf = false;
-                    skipInitialLfThisBuffer = false;
-                }
-
-                // Skip state machine for suppressed LF (second char of CRLF) outside quotes
-                if (suppressedLfThisChar && !inQuotes)
-                    continue;
-
-                // State machine
-                if (inQuotes)
-                {
-                    if (c == '"')
-                    {
-                        if (i + 1 < read && buffer[i + 1] == '"')
-                        {
-                            fieldSb.Append('"');
-                            if (rawRecordSb != null) rawRecordSb.Append(buffer[i + 1]);
-                            i++;
-                            continue;
-                        }
-                        inQuotes = false;
-                        afterClosingQuote = true;
-                        continue;
-                    }
-                    fieldSb.Append(c);
-                    continue;
-                }
-                else if (afterClosingQuote)
-                {
-                    if (c == options.Separator)
-                    {
-                        CommitField();
-                        continue;
-                    }
-                    if (c == '\r' || c == '\n')
-                    {
-                        CommitField();
-                        EmitRecord();
-                        if (pendingRecord != null)
-                        {
-                            var done = pendingRecord;
-                            pendingRecord = null;
-                            yield return done;
-                        }
-                        if (options.Metrics.TerminatedEarly) yield break;
-                        continue;
-                    }
-                    if (options.ErrorOnTrailingGarbageAfterClosingQuote)
-                    {
-                        if (!options.HandleError("CSV",
-                                physicalLine,
-                                recordNumber + 1,
-                                options.FilePath ?? "",
-                                "CsvQuoteError",
-                                $"Illegal character '{Printable(c)}' after closing quote.",
-                                GetExcerpt(rawRecordSb)))
-                            yield break;
-                    }
-                    fieldSb.Append(c);
-                    afterClosingQuote = false;
-                    continue;
-                }
-                else
-                {
-                    if (atStartOfField && c == '"')
-                    {
-                        inQuotes = true;
-                        atStartOfField = false;
-                        continue;
-                    }
-
-                    if (c == '"')
-                    {
-                        switch (options.QuoteMode)
-                        {
-                            case CsvQuoteMode.RfcStrict:
-                            case CsvQuoteMode.ErrorOnIllegalQuote:
-                                if (!options.HandleError("CSV",
-                                        physicalLine,
-                                        recordNumber + 1,
-                                        options.FilePath ?? "",
-                                        "CsvQuoteError",
-                                        "Illegal quote character inside unquoted field.",
-                                        GetExcerpt(rawRecordSb)))
-                                    yield break;
-                                if (options.QuoteMode == CsvQuoteMode.RfcStrict)
-                                    fieldSb.Append('"');
-                                continue;
-                            case CsvQuoteMode.Lenient:
-                                inQuotes = true;
-                                atStartOfField = false;
-                                continue;
-                        }
-                    }
-
-                    if (c == options.Separator)
-                    {
-                        CommitField();
-                        continue;
-                    }
-
-                    if (c == '\r' || c == '\n')
-                    {
-                        CommitField();
-                        EmitRecord();
-                        if (pendingRecord != null)
-                        {
-                            var done = pendingRecord;
-                            pendingRecord = null;
-                            yield return done;
-                        }
-                        if (options.Metrics.TerminatedEarly) yield break;
-                        continue;
-                    }
-
-                    fieldSb.Append(c);
-                    atStartOfField = false;
-                    continue;
-                }
-            }
-
-            if (pendingRecord != null)
-            {
-                var done = pendingRecord;
-                pendingRecord = null;
-                yield return done;
-                if (options.Metrics.TerminatedEarly) yield break;
+                // Preserve already parsed/ready records for flush
+                _fatal = ex;
             }
         }
-
-        if (inQuotes)
+        private void ResetRecordState()
         {
-            if (!options.HandleError("CSV",
-                    physicalLine,
-                    recordNumber + 1,
-                    options.FilePath ?? "",
-                    "CsvQuoteError",
-                    "Unterminated quoted field at EOF.",
-                    GetExcerpt(rawRecordSb)))
-                yield break;
+            _fields.Clear();
+            _fieldSb.Clear();
+            _afterClosingQuote = false;
+            _atStartOfField = true;
+            _rawRecordSb?.Clear();
+            _pendingRecord = null;
         }
 
-        if (fieldSb.Length > 0 || fields.Count > 0 || !atStartOfField)
+        private void FlushPending(List<string[]> output)
         {
-            CommitField();
-            EmitRecord();
-            if (pendingRecord != null)
+            if (_pendingRecord != null)
             {
-                var done = pendingRecord;
-                pendingRecord = null;
-                yield return done;
+                output.Add(_pendingRecord);
+                _pendingRecord = null;
             }
         }
     }
-
-
-    #region Core Sync / Async Shared
-
-
-    // NOTE: Due to complexity of nested iterator yielding inside local methods with side-effects,
-    //       we re-implemented async path separately for clarity & correctness.
-
 
     private static string Printable(char c) => c switch
     {
         '\r' => "\\r",
         '\n' => "\\n",
         '\t' => "\\t",
-        _ => c.ToString()
+        _ => c < ' ' ? $"0x{(int)c:X2}" : c.ToString()
     };
 
-    private static string GetExcerpt(StringBuilder? sb)
+    private static string? GetExcerpt(StringBuilder? sb)
     {
-        if (sb == null) return "";
-        if (sb.Length <= 128) return sb.ToString();
-        return sb.ToString(0, 128);
+        if (sb == null) return null;
+        const int MaxExcerpt = 128;
+        int max = sb.Length <= MaxExcerpt ? sb.Length : MaxExcerpt;
+        return sb.ToString(0, max);
     }
-
-    #endregion
 }

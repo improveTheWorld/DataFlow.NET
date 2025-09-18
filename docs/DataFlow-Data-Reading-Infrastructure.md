@@ -786,13 +786,88 @@ Internally the ReaderError object uses CLR property names shown below. When seri
 
 If you build a custom sink that serializes manually, you may choose either the CLR names or align to the canonical JSON names above for consistency.
 
-### 6.2. Excerpt Generation Policy
+### 6.2 Excerpt Generation Policy
 
-The `excerpt` field's content depends on the data format being read:
+The excerpt field provides a concise, source‑derived snippet to help operators and tooling quickly diagnose errors without re‑opening the full data file. Excerpts are intentionally short, never contain stack traces, and are safe to log verbatim (subject to your own data governance constraints).
 
-- **CSV**:Typically the first 8 fields joined by commas. Some early structural errors (e.g., missing schema) may include the entire row instead of truncating to 8 fields.
-- **JSON**: The excerpt is the raw text of the JSON element that caused the error, explicitly truncated to a maximum of 128 characters.
-- **YAML**: Behavior varies. For general parsing errors (`YamlException`), the excerpt is often empty. For security violations (`YamlSecurityError`), the excerpt contains a short, non-truncated detail about the violation, such as the name of a disallowed alias or the URI of a custom tag.
+This revision clarifies (a) how excerpts are produced per format and error type, (b) the difference between “raw prefix” vs. “field summary” styles in CSV, and (c) truncation rules. It also lists planned adjustments should you choose to unify behavior.
+
+#### 6.2.1 Quick Reference Table
+
+| Format | Error Type / Category | Excerpt Style | Source Basis | Truncation (current) | Notes |
+|--------|-----------------------|---------------|--------------|----------------------|-------|
+| CSV | SchemaError | Field summary | First N (currently 8) parsed fields, post‑quote normalization | No further char truncation (only field count) | Extra or missing field situations; joined with commas. |
+| CSV | CsvQuoteError | Raw prefix | Raw record text as accumulated (including quotes, separators) | 120 chars (current) | Fired on illegal quotes, trailing garbage, unterminated quotes. |
+| CSV | CsvLimitExceeded | Raw prefix | Raw record text (same as above) | 120 chars (current) | Guard rails (MaxColumnsPerRow / MaxRawRecordLength). |
+| CSV | CsvSchemaInferenceWarning (Planned) | Field summary | Sample row’s fields | Planned: first 8 fields | Not yet emitted; treat like SchemaError when it appears. |
+| CSV | Conversion / Materialization Exceptions (exType name in errorType) | Field summary | First 8 fields | No char truncation of those 8 fields | Arises during type conversion or object materialization. |
+| CSV | Generic / Other Internal (rare) | Raw prefix | Raw record | 120 chars (fallback) | Safety fallback if no specific mapping rule applies. |
+| JSON | JsonException / JsonRootError | Raw element | Token or root fragment | 128 chars | Raw UTF‑8 slice re‑materialized as text. |
+| JSON | JsonValidationError / JsonValidationFailed | Raw element | Element’s GetRawText() | 128 chars | Provided only if element fully buffered. |
+| JSON | JsonSizeLimit | Raw element (if available) else empty | Offending value (when captured) | 128 chars | Over‑limit element may sometimes have empty excerpt if length guard triggers early. |
+| YAML | YamlSecurityError (aliases, tags, depth, etc.) | Detail atom | Violation detail (alias/tag/len/depth token) | No truncation | Intentionally concise (anchor/tag names, numeric spec). |
+| YAML | TypeRestriction | Type name | Fully qualified runtime type or "null" | No truncation | Helps whitelist diagnostics. |
+| YAML | YamlException | (Usually empty) | Parser does not always provide reliable raw slice | Empty | Avoids misleading partial fragments. |
+| All | Stop / Throw final error (same types above) | As per error type | Same | Same | ErrorAction does not alter excerpt content. |
+
+#### 6.2.2 CSV Excerpt Styles
+
+CSV uses two main styles:
+
+1. Field Summary (Schema / Conversion Context):
+   - Rationale: Shows logical interpretation aligned with schema decisions.
+   - Construction: Take the first N fields (currently N = 8), post‑quote and un-escape, pre‑type conversion.
+   - Presentation: Joined with commas. Fields containing commas or quotes are not re‑re‑quoted (this is a diagnostic summary, not a round‑trippable CSV fragment).
+
+2. Raw Prefix (Structural / Guard Rail Context):
+   - Rationale: When the structural integrity (quoting, raw length, column explosion) is suspect, surfacing the exact raw slice is more useful than a tokenized view.
+   - Construction: Take the first up‑to 120 raw characters accumulated for the record (includes quotes, separators, doubled quotes, and any embedded newline chars already read).
+   - Normalization: No trimming or whitespace normalization; if NormalizeNewlinesInFields later alters internal representation, the excerpt still shows the original raw data at error time.
+
+Planned (optional) unification (if adopted later):
+- Make truncation size consistent with JSON (128 chars).
+- Introduce a configurable option CsvExcerptMode (RawPrefixAlways | FieldSummaryForSchema | UnifiedRaw) and CsvExcerptMaxChars (default 128).
+- Provide ColumnIndex/ColumnName metadata to avoid needing extra fields inside excerpt for column-level conversion errors.
+
+Until such unification is implemented, sinks should not assume a single style for all CSV error types.
+
+#### 6.2.3 JSON Excerpts
+
+- Always derived from the logical JSON value (object / array / primitive) that triggered or was being processed at error time.
+- Truncation: Hard cap at 128 characters (configurable only by modifying code currently).
+- For incomplete / partially buffered elements (fast path) excerpt may be empty if the serializer raised an exception before a stable raw slice could be reconstructed.
+- Size limit violations (JsonSizeLimit) can result in empty excerpts if enforcement triggers prior to full buffering.
+
+#### 6.2.4 YAML Excerpts
+
+- Security violations (YamlSecurityError) produce minimal atomic details:
+  - Alias / Anchor: the name (no surrounding markers added).
+  - Tag violation: full tag string (e.g., !Foo, tag:example.org,2020:Foo).
+  - Depth / Document / Scalar length: structured “Depth=X Max=Y”, “MaxTotalDocuments=Z”, or “Len=X Max=Y”.
+- TypeRestriction: Fully qualified type name or “null”.
+- General parsing (YamlException): Excerpt left empty to avoid misleading half-tokens; YAML token-based reconstruction is more complex and would risk noise over signal.
+
+#### 6.2.5 Truncation & Length Rules
+
+Current (implemented):
+- CSV raw prefix: 120 chars (hard-coded).
+- CSV field summary: Up to first 8 fields (each full; no further char truncation).
+- JSON element excerpts: 128 chars.
+- YAML security/type excerpts: No truncation (bounded by naturally short content).
+- YAML general parse errors: Empty.
+
+Recommended (if standardizing):
+- Single default max excerpt length across all raw or element-based excerpts (e.g., 128).
+- Explicit option: ReadOptions.MaxExcerptChars (0 = unlimited, with per-format safety ceilings).
+- Option: CsvFieldSummaryFieldCount (default 8).
+
+#### 6.2.6 Edge Cases & Guidance
+
+- Multi-line CSV Fields: Raw prefix may include a newline if the quoting issue occurs after crossing a physical line boundary—this is intentional. Logging sinks should not assume single-line excerpts.
+- Binary / Control Characters: Non-printable characters in CSV excerpts are emitted as-is today. If you need sanitization, perform it in your sink before persistence.
+- Guard Rail Skips: If a record is rejected before schema mapping, a field summary is impossible—raw prefix is the only reliable slice.
+- Redaction/Sensitivity: Excerpts may contain sensitive substrings (emails, IDs). Implement sink-side redaction if required; the core layer remains neutral.
+- Consuming Tools: Do not parse structured meaning (like column counts) from the excerpt; rely on dedicated error fields (errorType, message).
 
 ### 6.3. Common Error Types
 
