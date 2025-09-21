@@ -29,7 +29,7 @@ public static partial class Read
         var baseParser = new YamlDotNet.Core.Parser(reader);
         baseParser.Consume<YamlDotNet.Core.Events.StreamStart>();
 
-        // UPDATED: use generic security parser
+        // Use generic security parser
         var secureParser = new SecurityFilteringParser<T>(baseParser, options);
 
         var deserializerBuilder = new YamlDotNet.Serialization.DeserializerBuilder()
@@ -39,35 +39,58 @@ public static partial class Read
         long record = 0;
         bool sequenceRootChecked = false;
         bool sequenceRootMode = false;
+        bool firstDocumentStartConsumed = false;
 
         while (!options.Metrics.TerminatedEarly && secureParser.Accept<YamlDotNet.Core.Events.StreamEnd>(out _) == false)
         {
             cancellationToken.ThrowIfCancellationRequested();
             options.CancellationToken.ThrowIfCancellationRequested();
 
+            // Root mode detection (run once)
             if (!sequenceRootChecked)
             {
                 sequenceRootChecked = true;
-                if (secureParser.Accept<YamlDotNet.Core.Events.SequenceStart>(out _))
+                // Expect (and consume) first DocumentStart
+                if (secureParser.Accept<YamlDotNet.Core.Events.DocumentStart>(out _))
                 {
-                    secureParser.MoveNext(); // consume sequence start
+                    secureParser.MoveNext(); // consume DocumentStart
+                    firstDocumentStartConsumed = true;
+                    // After DocumentStart, check if root is a sequence
+                    if (secureParser.Accept<YamlDotNet.Core.Events.SequenceStart>(out _))
+                    {
+                        secureParser.MoveNext(); // consume SequenceStart
+                        sequenceRootMode = true;
+                    }
+                }
+                else if (secureParser.Accept<YamlDotNet.Core.Events.SequenceStart>(out _))
+                {
+                    // Extremely rare case: implicit doc start not surfaced; handle anyway
+                    secureParser.MoveNext();
                     sequenceRootMode = true;
                 }
             }
 
             if (sequenceRootMode)
             {
+                // End of the sequence (then expect DocumentEnd)
                 if (secureParser.Accept<YamlDotNet.Core.Events.SequenceEnd>(out _))
                 {
-                    secureParser.MoveNext(); // consume end
+                    secureParser.MoveNext(); // consume SequenceEnd
+                    if (secureParser.Accept<YamlDotNet.Core.Events.DocumentEnd>(out _))
+                        secureParser.MoveNext();
                     break;
                 }
             }
             else
             {
-                if (!secureParser.Accept<YamlDotNet.Core.Events.DocumentStart>(out _))
-                    break;
-                secureParser.MoveNext(); // consume DocumentStart
+                // Multi-document mode: for subsequent documents consume DocumentStart each loop
+                if (!firstDocumentStartConsumed)
+                {
+                    if (!secureParser.Accept<YamlDotNet.Core.Events.DocumentStart>(out _))
+                        break;
+                    secureParser.MoveNext();
+                }
+                firstDocumentStartConsumed = false;
             }
 
             record++;
@@ -96,7 +119,7 @@ public static partial class Read
                     yield break;
 
                 if (sequenceRootMode)
-                    SecurityFilteringParser<T>.SkipSequenceElement(secureParser);
+                    SecurityFilteringParser<T>.ResyncFailedSequenceElement(secureParser);
                 else
                     SecurityFilteringParser<T>.SkipDocument(secureParser);
             }

@@ -34,7 +34,7 @@ internal static class CsvRfc4180Parser
 
             core.Process(buffer.AsSpan(0, read), isFinal: false, output);
 
-            // Yield any produced records
+            // Yield any accumulated good rows
             for (int i = 0; i < output.Count; i++)
             {
                 CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
@@ -42,7 +42,11 @@ internal static class CsvRfc4180Parser
             }
             output.Clear();
 
-            if (options.Metrics.TerminatedEarly)
+            // Throw if fatal
+            if (core.FatalException != null)
+                throw core.FatalException;
+
+            if (options.Metrics.TerminatedEarly || core.StopRequested)
                 yield break;
         }
 
@@ -101,6 +105,9 @@ internal static class CsvRfc4180Parser
 
             core.Process(buffer.AsSpan(0, read), isFinal: false, output);
 
+            if (core.FatalException != null)
+                throw core.FatalException;
+
             for (int i = 0; i < output.Count; i++)
             {
                 CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
@@ -108,7 +115,7 @@ internal static class CsvRfc4180Parser
             }
             output.Clear();
 
-            if (options.Metrics.TerminatedEarly)
+            if (options.Metrics.TerminatedEarly || core.StopRequested)
                 yield break;
         }
 
@@ -116,11 +123,15 @@ internal static class CsvRfc4180Parser
         CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
 
         core.Process(ReadOnlySpan<char>.Empty, isFinal: true, output);
+        if (core.FatalException != null)
+            throw core.FatalException;
+
         for (int i = 0; i < output.Count; i++)
         {
             CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
             yield return output[i];
         }
+
     }
 
     private static class CancelUtil
@@ -161,6 +172,8 @@ internal static class CsvRfc4180Parser
         private long _recordNumber;
         private long _physicalLine;
 
+        private bool _stopRequested;
+
         // Newline / CRLF handling
         private bool _suppressLfForCrLf;
         private bool _pendingCrAcrossBuffer;
@@ -170,8 +183,9 @@ internal static class CsvRfc4180Parser
 
         private const int CancellationCheckMask = 0x1FFF; // every 8192 chars
 
-        private Exception? _fatal;
+        public bool StopRequested => _stopRequested;
 
+        private Exception? _fatal;
         public Exception? FatalException => _fatal;
 
         private long LogicalRecordNumber => _options.HasHeader ? _recordNumber - 1 : _recordNumber;
@@ -194,6 +208,8 @@ internal static class CsvRfc4180Parser
 
         public void Process(ReadOnlySpan<char> span, bool isFinal, List<string[]> output)
         {
+            if (_stopRequested || _fatal != null) return;
+
             // If previous buffer ended with CR and current starts with LF, suppress LF counting
             if (_pendingCrAcrossBuffer)
             {
@@ -204,6 +220,9 @@ internal static class CsvRfc4180Parser
 
             for (int idx = 0; idx < span.Length; idx++)
             {
+                if (_stopRequested || _fatal != null)
+                    break;
+
                 if ((idx & CancellationCheckMask) == 0)
                     CheckCancel();
 
@@ -356,6 +375,13 @@ internal static class CsvRfc4180Parser
 
             FlushPending(output);
 
+            if (_stopRequested || _fatal != null)
+            {
+                // Ensure any pending completed record prior to stop is flushed
+                FlushPending(output);
+                return;
+            }
+
             if (isFinal)
             {
                 // Cancellation takes precedence over format errors
@@ -363,6 +389,12 @@ internal static class CsvRfc4180Parser
 
                 if (_inQuotes)
                 {
+                    if (_stopRequested || _fatal != null)
+                    {
+                        FlushPending(output);
+                        return;
+                    }
+
                     CheckCancel(); // re-check before raising error
                     if (!_options.HandleError("CSV",
                             _physicalLine,
@@ -397,12 +429,9 @@ internal static class CsvRfc4180Parser
         {
             _recordNumber++;
             long logicalNumber = LogicalRecordNumber;
-            _options.Metrics.RawRecordsParsed = _recordNumber;
-
-            // Header handling: do not count header in metrics
+            // Only count data rows (exclude header)
             if (!(_options.HasHeader && _recordNumber == 1))
                 _options.Metrics.RawRecordsParsed = logicalNumber;
-
 
             // Guard rails use logicalNumber for user-facing record index
             if (_options.MaxColumnsPerRow > 0 && _fields.Count > _options.MaxColumnsPerRow)
@@ -450,21 +479,29 @@ internal static class CsvRfc4180Parser
         {
             try
             {
-                if (logicalNumber <= 0) logicalNumber = 1; // defensive
-                _options.HandleError("CSV",
-                _physicalLine,
-                logicalNumber,
-                _options.FilePath ?? "",
-                "CsvLimitExceeded",
-                message,
-                GetExcerpt(_rawRecordSb));
+                if (logicalNumber <= 0) logicalNumber = 1;
+                bool continueParsing = _options.HandleError(
+                    "CSV",
+                    _physicalLine,
+                    logicalNumber,
+                    _options.FilePath ?? "",
+                    "CsvLimitExceeded",
+                    message,
+                    GetExcerpt(_rawRecordSb));
+
+                if (!continueParsing)
+                {
+                    // STOP behavior: do not parse further, but do NOT discard already flushed rows
+                    _stopRequested = true;
+                }
             }
             catch (InvalidDataException ex)
             {
-                // Preserve already parsed/ready records for flush
+                // THROW behavior: record fatal; outer loop will throw before yielding
                 _fatal = ex;
             }
         }
+
         private void ResetRecordState()
         {
             _fields.Clear();
@@ -479,6 +516,8 @@ internal static class CsvRfc4180Parser
         {
             if (_pendingRecord != null)
             {
+                // REMOVE the conditional that skipped header
+                // if (!(_options.HasHeader && _recordNumber == 1))
                 output.Add(_pendingRecord);
                 _pendingRecord = null;
             }

@@ -46,7 +46,8 @@ internal sealed class SecurityFilteringParser<T> : IParser
 
     public bool Accept<TEvent>(out TEvent @event) where TEvent : ParsingEvent
     {
-        EnsureAdvanced();
+        // Ensure we have at least one current event, but do NOT advance further.
+        if (!_advanced) EnsureAdvanced();
         if (_current is TEvent matched)
         {
             @event = matched;
@@ -58,11 +59,13 @@ internal sealed class SecurityFilteringParser<T> : IParser
 
     public bool MoveNext()
     {
-        EnsureAdvanced();
         if (_finished) return false;
+        // Mark that we need to advance to the next event
         _advanced = false;
+        EnsureAdvanced();          // This will advance underlying parser to next acceptable event
         return !_finished;
     }
+
 
     private void EnsureAdvanced()
     {
@@ -315,6 +318,36 @@ internal sealed class SecurityFilteringParser<T> : IParser
             else if (ev is SequenceEnd or MappingEnd)
             {
                 if (depth == 0) break;
+                depth--;
+            }
+        }
+    }
+    internal static void ResyncFailedSequenceElement(IParser parser)
+    {
+        // We are somewhere inside a top-level element (typically a mapping) whose
+        // MappingStart was already consumed. We need to consume until we reach the
+        // matching MappingEnd (depth balanced) at top level (depth == 0) and then
+        // advance once to land on the next element's first event (or SequenceEnd).
+        int depth = 0;
+        // We do NOT call MoveNext first; parser.Current is whatever the
+        // deserializer left it at (often the scalar key or its value). We want to
+        // move forward from here.
+        while (parser.MoveNext())
+        {
+            var ev = parser.Current;
+            if (ev is MappingStart or SequenceStart)
+            {
+                depth++;
+            }
+            else if (ev is MappingEnd or SequenceEnd)
+            {
+                if (depth == 0)
+                {
+                    // We reached the end of the failed element's root container
+                    // Advance once more so outer loop starts with next element (or SequenceEnd)
+                    parser.MoveNext();
+                    break;
+                }
                 depth--;
             }
         }
