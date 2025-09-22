@@ -265,7 +265,7 @@ public abstract record ReadOptions
         }
         Progress.Report(new ReaderProgress(
             Metrics.LinesRead,
-            Metrics.RawRecordsParsed,
+            Metrics.RecordsEmitted,
             Metrics.ErrorCount,
             percent,
             elapsed));

@@ -27,7 +27,11 @@ public static partial class Read
 
         using var reader = new StreamReader(path);
         var baseParser = new YamlDotNet.Core.Parser(reader);
-        baseParser.Consume<YamlDotNet.Core.Events.StreamStart>();
+        // Correct priming: advance once and verify we are at StreamStart.
+        if (!baseParser.MoveNext() || baseParser.Current is not YamlDotNet.Core.Events.StreamStart)
+            throw new InvalidDataException("YAML: Missing StreamStart event.");
+        // IMPORTANT: Do NOT advance again here. The security parser's first advance
+        // will move from StreamStart to the first real document event (DocumentStart or SequenceStart).
 
         // Use generic security parser
         var secureParser = new SecurityFilteringParser<T>(baseParser, options);
@@ -98,9 +102,11 @@ public static partial class Read
 
             bool success = false;
             T item = default;
+            bool terminateAfterYield = false;
             try
             {
                 item = deserializer.Deserialize<T>(secureParser);
+                
                 if (options.RestrictTypes && !IsAllowed(options, item))
                 {
                     if (!options.HandleError("YAML", -1, record, path, "TypeRestriction",
@@ -114,6 +120,11 @@ public static partial class Read
             }
             catch (YamlDotNet.Core.YamlException ex)
             {
+                // If a prior security violation (or any Stop/Throw) already set TerminatedEarly,
+                // suppress a secondary parse error to avoid double counting.
+                if (options.Metrics.TerminatedEarly)
+                    yield break;
+
                 if (!options.HandleError("YAML", -1, record, path,
                         ex.GetType().Name, ex.Message, ""))
                     yield break;
@@ -127,17 +138,26 @@ public static partial class Read
             if (!sequenceRootMode && secureParser.Accept<YamlDotNet.Core.Events.DocumentEnd>(out _))
                 secureParser.MoveNext();
 
-            if (success)
+            if (success && !options.Metrics.TerminatedEarly)
             {
                 options.Metrics.RecordsEmitted++; // ensure emitted count
                 yield return item;
                 if (options.ShouldEmitProgress()) options.EmitProgress();
             }
+            else if (success && terminateAfterYield)
+            {
+                // Termination was triggered while reading ahead; still emit this record.
+                options.Metrics.RecordsEmitted++;
+                yield return item;
+            }
 
-            if (options.Metrics.TerminatedEarly) yield break;
+            if (terminateAfterYield || options.Metrics.TerminatedEarly)
+                yield break;
         }
 
-        options.Complete();
+        // Only mark completion if we did not terminate early.
+        if (!options.Metrics.TerminatedEarly)
+            options.Complete();
     }
 
 
