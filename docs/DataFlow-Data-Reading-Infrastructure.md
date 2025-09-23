@@ -211,17 +211,24 @@ Triggers when:
 
 `ReaderProgress` includes counts, elapsed, optional percentage (JSON only currently).
 
+JSON Single-Root (Non-Array) Progress Nuance:
+- Fast path (no validation / guard rails): a percentage update can occur after the single value is fully deserialized (may appear as a direct jump from a very low initial percentage to 100% for small files).
+- Validation / guard-rail path (`ValidateElements` = `true` OR `GuardRailsEnabled` OR `MaxStringLength` > 0): the implementation loads and processes the entire file in `HandleSingleRootFullFile` without intermediate progress callbacks; you typically see only an initial (near 0%) event (if any) and a final completion (100%). This is by design to avoid partial metrics while the full element is being materialized.
+
 ### 1.5 HandleError Workflow
 
-1. Increment ErrorCount
+1. Increment `ErrorCount`
 2. Produce `ReaderError` -> `ErrorSink.Report`
 3. Apply action logic (Throw / Stop / Skip)
 4. Return boolean controlling loop continuation
 
 ### 1.6 Early Termination & Finalization
 
-- Normal completion -> `Complete()` sets `CompletedUtc`
-- Stop / exception / cancellation -> `CompletedUtc` remains null
+- Normal completion: the reader calls `Complete()`, which sets `CompletedUtc`.
+- `ErrorAction = Stop`: the first error that triggers Stop sets `Metrics.TerminatedEarly = true`; the reader exits without calling `Complete()`; `CompletedUtc` remains null.
+- `ErrorAction` = `Throw`: the first error throws `InvalidDataException` after any already‑parsed rows have been yielded; `Metrics.TerminatedEarly` = `true` and `CompletedUtc` remains null (`Complete()` is not invoked).
+- Cancellation: enumeration stops; `Complete()` is not called; `CompletedUtc` remains null. (TerminatedEarly is not set unless future revisions decide to treat cancellation as a termination condition for that flag.)
+- In all early termination cases (Stop or Throw), previously emitted records `(RecordsEmitted` > 0) remain valid and can be consumed, but the absence of `CompletedUtc` + `TerminatedEarly` = `true` signals the read did not finish normally.
 
 ---
 
@@ -321,6 +328,12 @@ If you supply an onError delegate:
 - For CSV the delegate signature is (string rawExcerpt, Exception ex).
 - For JSON/YAML the delegate signature is (Exception ex).
 
+DelegatingErrorSink Wrapping Behavior (Important):
+
+- The exception instance passed to your delegate is always a newly created InvalidDataException built only from the reader error’s Message (and for CSV, the RawExcerpt is passed separately as the first parameter). Original exception type, stack trace, InnerException, and any additional data are not preserved.
+- Consequently you cannot distinguish (via the simple overload) between, for example, a schema width error vs. a conversion exception except by inspecting ex.Message or (for CSV) the excerpt text.
+- If you need original exception types, stack traces, line/record numbers, errorType, or consistent excerpt policies, use the options-based API with a custom IReaderErrorSink.
+
 If you need richer error data (line, record index, type, excerpt), use the options-based API with a custom sink:
 
 Example minimal custom sink (property names aligned with ReaderError public model):
@@ -416,7 +429,8 @@ Two-phase approach when `SchemaInferenceMode = ColumnNamesAndTypes`:
      - PreserveLargeIntegerStrings: if length > 18 digits, numeric candidates removed (avoid precision loss).
 2. Enforcement Phase:
    - Inferred types stored in `InferredTypes`.
-   - Runtime conversion is strict; on first conversion failure for a finalized column type, that column is permanently demoted to `string` and subsequent rows use raw strings. (Implemented in the field conversion pipeline invoked by ConvertFieldValue.)
+   - Runtime conversion is strict; on the FIRST conversion failure for a finalized inferred column type, that column is permanently demoted to `string` and subsequent rows use the raw string value (immediate demotion; no “second failure” tolerance at runtime). Demotion is one-way and does not emit an additional error after the failure that triggered demotion.
+   - The demotion logic resides in CsvReadOptions.ConvertFieldValue (not shown here). It consults internal per-column state (InferredTypeFinalized + inferred type array). If future changes alter this behavior (e.g., two-failure tolerance at runtime), this section must be updated accordingly.
    - Casting order: direct parse to the inferred type; no fallback chain except demotion-to-string.
 
 Custom Conversion:
@@ -629,6 +643,10 @@ Edge Cases & Notes:
 
 The JSON reader is the only one that currently reports `Percentage` because it can access the total file size and current stream position.(Future enhancement may add heuristic percentages for other formats; treat absence of a value as “unknown”.)
 
+Single Root (Non-Array) Clarification:
+- Fast path: Percentage can update after deserialization of the single value (may appear as a jump).
+- Validation / guard-rail path: The entire file is read in a single pass (HandleSingleRootFullFile). No intermediate progress callbacks are emitted; expect an initial (optional) and final (100%) report only.
+
 ### 4.5. ElementValidator Usage Example
 
 ```csharp
@@ -642,9 +660,13 @@ var opts = new JsonReadOptions<MyItem> {
 ---
 ### 4.6 JSON Guard Rails and Limits 
 - **MaxElements** (default 0 = unlimited): Maximum number of top-level elements (array items or single root value). When an array’s element index would exceed this value a `JsonSizeLimit` error is raised and reading terminates or continues per `ErrorAction`. The violating element is NOT counted in `RawRecordsParsed`.
-- **MaxElementBytes** (default 0 = unlimited; validation path only): Caps the byte size of a single element. Measured as the UTF-8 length of the full JSON value after buffering. Violation → `JsonSizeLimit`.
+- - **MaxElementBytes** (default 0 = unlimited; validation path only): Caps the byte size of a single element. Measured as the difference in Utf8JsonReader.BytesConsumed before and after parsing the element (i.e., the exact number of UTF‑8 bytes consumed for that JSON value, excluding the trailing comma or closing bracket but including interior whitespace and all structural tokens). Violation → `JsonSizeLimit`.
 - **MaxStringLength** (default 0 = unlimited): Maximum length of any string value anywhere inside an element. A single over-length string triggers `JsonSizeLimit`. This option forces the validation path (fast path disabled) because recursive traversal is required.
 - **GuardRailsEnabled** (default false): Forces validation path even if no validator is set, enabling string length enforcement or future guard rails. Fast path is disabled if ANY of: (`ValidateElements && ElementValidator != null`) OR `GuardRailsEnabled` OR `MaxStringLength > 0`. `JsonSizeLimit` error triggers: `element count exceeded`, `element byte size exceeded`, or `string length exceeded`.
+
+Implementation Note on MaxElementBytes:
+- Enforcement occurs only on the validation path (ParseValue + JsonDocument). The measured size excludes the delimiter (comma) and any following whitespace outside the element.
+- Large elements on the fast path are not currently size-checked. A future enhancement could: (a) probe element completeness with TrySkip, (b) compute size from start/end BytesConsumed, and (c) enforce MaxElementBytes without forcing full materialization. If adopted, documentation will be updated to reflect support on both paths.
 
 ## 5. YAML (`YamlReadOptions<T>`)
 
@@ -797,8 +819,8 @@ This revision clarifies (a) how excerpts are produced per format and error type,
 | Format | Error Type / Category | Excerpt Style | Source Basis | Truncation (current) | Notes |
 |--------|-----------------------|---------------|--------------|----------------------|-------|
 | CSV | SchemaError | Field summary | First N (currently 8) parsed fields, post‑quote normalization | No further char truncation (only field count) | Extra or missing field situations; joined with commas. |
-| CSV | CsvQuoteError | Raw prefix | Raw record text as accumulated (including quotes, separators) | 120 chars (current) | Fired on illegal quotes, trailing garbage, unterminated quotes. |
-| CSV | CsvLimitExceeded | Raw prefix | Raw record text (same as above) | 120 chars (current) | Guard rails (MaxColumnsPerRow / MaxRawRecordLength). |
+| CSV | CsvQuoteError | Raw prefix | Raw record text as accumulated (including quotes, separators) | 128 chars (current) | Fired on illegal quotes, trailing garbage, unterminated quotes. |
+| CSV | CsvLimitExceeded | Raw prefix | Raw record text (same as above) | 128 chars (current) | Guard rails (MaxColumnsPerRow / MaxRawRecordLength). |
 | CSV | CsvSchemaInferenceWarning (Planned) | Field summary | Sample row’s fields | Planned: first 8 fields | Not yet emitted; treat like SchemaError when it appears. |
 | CSV | Conversion / Materialization Exceptions (exType name in errorType) | Field summary | First 8 fields | No char truncation of those 8 fields | Arises during type conversion or object materialization. |
 | CSV | Generic / Other Internal (rare) | Raw prefix | Raw record | 120 chars (fallback) | Safety fallback if no specific mapping rule applies. |
@@ -821,7 +843,7 @@ CSV uses two main styles:
 
 2. Raw Prefix (Structural / Guard Rail Context):
    - Rationale: When the structural integrity (quoting, raw length, column explosion) is suspect, surfacing the exact raw slice is more useful than a tokenized view.
-   - Construction: Take the first up‑to 120 raw characters accumulated for the record (includes quotes, separators, doubled quotes, and any embedded newline chars already read).
+   - Construction: Take the first up‑to 128 raw characters accumulated for the record (includes quotes, separators, doubled quotes, and any embedded newline chars already read).
    - Normalization: No trimming or whitespace normalization; if NormalizeNewlinesInFields later alters internal representation, the excerpt still shows the original raw data at error time.
 
 Planned (optional) unification (if adopted later):
@@ -850,7 +872,7 @@ Until such unification is implemented, sinks should not assume a single style fo
 #### 6.2.5 Truncation & Length Rules
 
 Current (implemented):
-- CSV raw prefix: 120 chars (hard-coded).
+- CSV raw prefix: 128 chars (hard-coded).
 - CSV field summary: Up to first 8 fields (each full; no further char truncation).
 - JSON element excerpts: 128 chars.
 - YAML security/type excerpts: No truncation (bounded by naturally short content).
@@ -935,13 +957,13 @@ The default configuration triggers progress whichever comes first: every 5 secon
 - A single non-array root processed under validation/guard-rail paths is read using a full file pass (non-streaming) to validate and deserialize.
 - The simple overload’s onError delegate provides only exception context (no line/record/excerpt); use options + custom sink for structured error metadata.
 **YAML**:
-- The simple YAML overload’s custom IDeserializer parameter is currently ignored (placeholder for future enhancement).
 - LinesRead metric is not populated for YAML (remains 0).
 
 **General**:
 - `IReaderErrorSink.Report` exceptions are not caught; a sink failure can terminate the read.
 - `CompletedUtc` remains `null` if the read terminates early due to Stop, Throw, cancellation, or an unhandled exception.
 - Simple overloads (CSV/JSON/YAML) implicitly set `ErrorAction = Skip` when an `onError` delegate is supplied; you cannot override `ErrorAction` or attach a custom sink through those overloads.
+- DelegatingErrorSink wraps all reported errors in a new InvalidDataException (original stack / type discarded). Use options + custom sink to retain richer context.
 
 ---
 

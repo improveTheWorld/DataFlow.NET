@@ -300,6 +300,9 @@ public abstract record ReadOptions
         }
         if (ErrorAction == ReaderErrorAction.Throw)
         {
+            // Mark early termination also for Throw (documentation: fatal errors set TerminatedEarly)
+            Metrics.TerminatedEarly = true;
+            Metrics.TerminationErrorMessage = message;
             // Include error type so tests (and users) can distinguish failures.
             throw new InvalidDataException($"{errorType}: {message}");
         }

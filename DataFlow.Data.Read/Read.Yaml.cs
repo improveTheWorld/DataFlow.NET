@@ -162,7 +162,7 @@ public static partial class Read
 
 
     // Simple YAML API
-    public static async IAsyncEnumerable<T> Yaml<T>(string path, YamlDotNet.Serialization.IDeserializer? deserializer = null, Action<Exception>? onError = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public static async IAsyncEnumerable<T> Yaml<T>(string path, Action<Exception>? onError = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var opts = new YamlReadOptions<T>
         {

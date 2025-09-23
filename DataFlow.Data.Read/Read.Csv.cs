@@ -34,8 +34,7 @@ public static partial class Read
 
         await foreach (var rawFields in CsvRfc4180Parser.ParseAsync(reader, options, ct: cancellationToken))
         {
-            if (options.Metrics.TerminatedEarly) yield break;
-
+            
             if (schema == null && options.HasHeader && !headerConsumed)
             {
                 schema = ProcessHeader(rawFields, options);
@@ -91,6 +90,11 @@ public static partial class Read
                 options.Metrics.RecordsEmitted++;
                 yield return CurrentInstance!;
             }
+
+            // Only short-circuit here for Stop. For Throw we must allow the inner enumerator
+            // to advance so the stored fatal exception (guard rail, etc.) is actually thrown.
+            if (options.Metrics.TerminatedEarly && options.ErrorAction == ReaderErrorAction.Stop)
+                yield break;
         }
 
         if (options.InferSchema && !inferenceCompleted)
@@ -289,8 +293,6 @@ public static partial class Read
 
         foreach (var rawFields in CsvRfc4180Parser.Parse(reader, options, ct: cancellationToken))
         {
-            if (options.Metrics.TerminatedEarly) yield break;
-
             if (schema == null && options.HasHeader && !headerConsumed)
             {
                 schema = ProcessHeader(rawFields, options);
@@ -354,6 +356,8 @@ public static partial class Read
                 options.Metrics.RecordsEmitted++;
                 yield return CurrentInstance!;
             }
+
+            if (options.Metrics.TerminatedEarly) yield break;
         }
 
         if (options.InferSchema && !inferenceCompleted)

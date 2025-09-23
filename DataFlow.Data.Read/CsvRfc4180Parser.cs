@@ -59,6 +59,8 @@ internal static class CsvRfc4180Parser
             CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
             yield return output[i];
         }
+        if (core.FatalException != null)
+            throw core.FatalException;
     }
 
     public static async IAsyncEnumerable<string[]> ParseAsync(
@@ -105,15 +107,16 @@ internal static class CsvRfc4180Parser
 
             core.Process(buffer.AsSpan(0, read), isFinal: false, output);
 
-            if (core.FatalException != null)
-                throw core.FatalException;
-
+            // Yield any accumulated rows BEFORE throwing fatal (so previously good rows are not lost)
             for (int i = 0; i < output.Count; i++)
             {
                 CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
                 yield return output[i];
             }
             output.Clear();
+
+            if (core.FatalException != null)
+                throw core.FatalException;
 
             if (options.Metrics.TerminatedEarly || core.StopRequested)
                 yield break;
@@ -123,14 +126,14 @@ internal static class CsvRfc4180Parser
         CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
 
         core.Process(ReadOnlySpan<char>.Empty, isFinal: true, output);
-        if (core.FatalException != null)
-            throw core.FatalException;
-
+        // Final flush: yield first, then throw if fatal occurred during finalization
         for (int i = 0; i < output.Count; i++)
         {
             CancelUtil.ThrowIfRequested(options.CancellationToken, ct);
             yield return output[i];
         }
+        if (core.FatalException != null)
+            throw core.FatalException;
 
     }
 
