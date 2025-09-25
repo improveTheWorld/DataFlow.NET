@@ -10,13 +10,18 @@ public static partial class Read
     // ---------------------------
     // PUBLIC ASYNC (OPTIONS) API
     // ---------------------------
+
+    /// <summary>
+    /// core async JSON reader from a supplied stream (not disposed). The file overload delegates here.
+    /// </summary>
     public static async IAsyncEnumerable<T> Json<T>(
-        string path,
+        Stream stream,
         JsonReadOptions<T> options,
+        string? filePath = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         if (options == null) throw new ArgumentNullException(nameof(options));
-        options.FilePath = path;
+        options.FilePath = filePath ?? options.FilePath ?? StreamPseudoPath;
 
         if (options.ValidateElements && options.ElementValidator == null)
             throw new ArgumentException("ValidateElements is true but ElementValidator is null.", nameof(options));
@@ -25,7 +30,18 @@ public static partial class Read
         if (options.GuardRailsEnabled) fastPath = false;
         if (options.MaxStringLength > 0) fastPath = false;
 
-        await foreach (var item in JsonStreamCore(path, options, fastPath, ct).ConfigureAwait(false))
+        await foreach (var item in JsonStreamCore(stream, options, fastPath, ct).ConfigureAwait(false))
+            yield return item;
+    }
+
+    public static async IAsyncEnumerable<T> Json<T>(
+        string path,
+        JsonReadOptions<T> options,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024,
+            FileOptions.SequentialScan | FileOptions.Asynchronous);
+        await foreach (var item in Json(fs, options, filePath: path, ct))
             yield return item;
     }
 
@@ -54,12 +70,13 @@ public static partial class Read
     // PUBLIC SYNC (OPTIONS) API
     // ---------------------------
     public static IEnumerable<T> JsonSync<T>(
-        string path,
+        Stream stream,
         JsonReadOptions<T> options,
+        string? filePath = null,
         CancellationToken ct = default)
     {
         if (options == null) throw new ArgumentNullException(nameof(options));
-        options.FilePath = path;
+        options.FilePath = filePath ?? options.FilePath ?? StreamPseudoPath;
 
         if (options.ValidateElements && options.ElementValidator == null)
             throw new ArgumentException("ValidateElements is true but ElementValidator is null.", nameof(options));
@@ -68,7 +85,7 @@ public static partial class Read
         if (options.GuardRailsEnabled) fastPath = false;
         if (options.MaxStringLength > 0) fastPath = false;
 
-        var asyncEnum = JsonStreamCore(path, options, fastPath, ct);
+        var asyncEnum = JsonStreamCore(stream, options, fastPath, ct);
         var e = asyncEnum.GetAsyncEnumerator(ct);
         try
         {
@@ -82,6 +99,17 @@ public static partial class Read
         {
             e.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
+    }
+
+    public static IEnumerable<T> JsonSync<T>(
+        string path,
+        JsonReadOptions<T> options,
+        CancellationToken ct = default)
+    {
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024,
+            FileOptions.SequentialScan | FileOptions.Asynchronous);
+        foreach (var item in JsonSync<T>(fs, options, filePath: path, ct))
+            yield return item;
     }
 
     // ---------------------------
@@ -106,16 +134,16 @@ public static partial class Read
     }
     // ===========================
     // CORE STREAMING IMPLEMENTATION 
+    // (STREAM VARIANT)
     // ===========================
     private static async IAsyncEnumerable<T> JsonStreamCore<T>(
-        string path,
+        Stream input,
         JsonReadOptions<T> options,
         bool fastPath,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        var fileInfo = new FileInfo(path);
-        long totalBytes = fileInfo.Exists ? fileInfo.Length : 0;
-
+        var filePathLocal = options.FilePath ?? StreamPseudoPath;
+        long totalBytes = (input.CanSeek ? input.Length : 0);
         var readerOptions = options.MaxDepth > 0
             ? new JsonReaderOptions
             {
@@ -134,16 +162,7 @@ public static partial class Read
         int bytesInBuffer = 0;
         bool isFinalBlock = false;
         var state = new JsonReaderState(readerOptions);
-
-        await using var fs = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize,
-            FileOptions.SequentialScan | FileOptions.Asynchronous);
-
-        bytesInBuffer = await fs.ReadAsync(buffer.AsMemory(0, bufferSize), ct).ConfigureAwait(false);
+        bytesInBuffer = await input.ReadAsync(buffer.AsMemory(0, bufferSize), ct).ConfigureAwait(false);
         isFinalBlock = bytesInBuffer == 0;
 
         if (isFinalBlock)
@@ -164,7 +183,7 @@ public static partial class Read
         try
         {
             if (options.Progress != null)
-                options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+                options.EmitProgress(totalBytes, input.CanSeek ? input.Position : null);
 
             while (!rootFinished)
             {
@@ -186,18 +205,18 @@ public static partial class Read
                         {
                             var rootOutcome = TryDetermineRoot(
                                 ref reader,
-                                path,
+                                options.FilePath ?? StreamPseudoPath,
                                 fastPath,
                                 options,
                                 totalBytes,
-                                fs.CanSeek ? fs.Position : null,
+                                input.CanSeek ? input.Position : null,
                                 out rootIsArray,
                                 out bool singleRootCompleted,
                                 out bool singleRootNeedMore,
                                 out bool terminate,
                                 out ProcessResult<T>? singleRootResult);
 
-                            
+
                             switch (rootOutcome)
                             {
                                 case RootState.NotYet:
@@ -216,17 +235,9 @@ public static partial class Read
                                 case RootState.InvalidButContinuable:
                                     rootDetermined = true;
                                     rootFinished = true;
-
-                                    // IMPORTANT:
-                                    // We ONLY update RawRecordsParsed for single-root AFTER the element
-                                    // has been fully processed (success / skip). This prevents provisional
-                                    // increments that would lead to double counting when the element
-                                    // spans multiple buffers (incomplete parses).
                                     if (singleRootResult.HasValue)
                                     {
-                                        // Processed single root (emitted or not) counts as exactly one raw record.
                                         options.Metrics.RawRecordsParsed = 1;
-
                                         if (singleRootResult.Value.Emitted &&
                                             singleRootResult.Value.Item is not null)
                                         {
@@ -234,8 +245,27 @@ public static partial class Read
                                             pending.Add(singleRootResult.Value.Item);
                                         }
                                     }
-
                                     if (terminate || options.Metrics.TerminatedEarly)
+                                        rootFinished = true;
+                                    break;
+
+                                case RootState.SingleValueDetected:
+                                    // Validation path single root: load remaining stream + current buffer into memory and process once
+                                    rootDetermined = true;
+                                    var svResult = ProcessSingleRootValidationFromStream(
+                                        input,
+                                        buffer,
+                                        bytesInBuffer,
+                                        options,
+                                        ct);
+                                    options.Metrics.RawRecordsParsed = 1;
+                                    if (svResult.Emitted && svResult.Item is not null)
+                                    {
+                                        options.Metrics.RecordsEmitted++;
+                                        pending.Add(svResult.Item);
+                                    }
+                                    rootFinished = true;
+                                    if (svResult.TerminateStream || options.Metrics.TerminatedEarly)
                                         rootFinished = true;
                                     break;
                             }
@@ -284,7 +314,7 @@ public static partial class Read
 
                             if (options.MaxElements > 0 && nextIndex > options.MaxElements)
                             {
-                                bool cont = options.HandleError("JSON", -1, nextIndex, path,
+                                bool cont = options.HandleError("JSON", -1, nextIndex, filePathLocal,
                                     "JsonSizeLimit",
                                     $"Element count exceeded limit {options.MaxElements}.",
                                     "");
@@ -295,7 +325,7 @@ public static partial class Read
 
                             var elemResult = ProcessArrayElement(
                                 ref reader,
-                                path,
+                                filePathLocal,
                                 nextIndex,
                                 fastPath,
                                 options,
@@ -327,7 +357,7 @@ public static partial class Read
                             }
 
                             if (options.ShouldEmitProgress())
-                                options.EmitProgress(totalBytes, fs.CanSeek ? fs.Position : null);
+                                options.EmitProgress(totalBytes, input.CanSeek ? input.Position : null);
 
                             if (options.Metrics.TerminatedEarly)
                             {
@@ -370,9 +400,15 @@ public static partial class Read
 
                 AdjustBufferForNextRead(ref buffer, ref bufferSize, ref bytesInBuffer, consumedBytes, needMoreData, rootFinished, isFinalBlock, options);
 
-                (bytesInBuffer, isFinalBlock) = await ReadMoreAsync(fs, buffer, bytesInBuffer, bufferSize, rootFinished, isFinalBlock, ct)
-                    .ConfigureAwait(false);
-            }
+                (bytesInBuffer, isFinalBlock) = await ReadMoreAsync(
+                                                        input,
+                                                        buffer,
+                                                        bytesInBuffer,
+                                                        bufferSize,
+                                                        rootFinished,
+                                                        isFinalBlock,
+                                                        ct).ConfigureAwait(false);
+                                                    }
 
             normalCompletion = true;
         }
@@ -391,6 +427,18 @@ public static partial class Read
         }
     }
 
+    // (LEGACY PATH ENTRY) - retained for backward compatibility (delegates to stream core)
+    private static async IAsyncEnumerable<T> JsonStreamCore<T>(
+        string path,
+        JsonReadOptions<T> options,
+        bool fastPath,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024,
+            FileOptions.SequentialScan | FileOptions.Asynchronous);
+        await foreach (var x in JsonStreamCore(fs, options, fastPath, ct))
+            yield return x;
+    }
 
     // ===========================
     // ROOT HANDLING
@@ -399,9 +447,10 @@ public static partial class Read
     {
         NotYet,
         ArrayDetermined,
-        SingleValueProcessed,
-        SingleValueNeedMoreData,
-        InvalidButContinuable
+        SingleValueProcessed,       // fast path handled inside TryDetermineRoot
+        SingleValueNeedMoreData,    // fast path incomplete
+        InvalidButContinuable,
+        SingleValueDetected         // validation (non-fast) path: caller must process full value 
     }
 
     private static RootState TryDetermineRoot<T>(
@@ -468,7 +517,6 @@ public static partial class Read
 
                         if (result.IsIncomplete)
                         {
-                            // Leave StartObject consumption intact (preReader consumed it)
                             reader = preReader;
                             singleRootNeedsMore = true;
                             return RootState.SingleValueNeedMoreData;
@@ -479,13 +527,9 @@ public static partial class Read
                         terminate = result.TerminateStream;
                         return RootState.SingleValueProcessed;
                     }
-                    else
-                    {
-                        singleRootResult = ProcessSingleRootValidationPath(path, 1, options);
-                        singleRootCompleted = true;
-                        terminate = singleRootResult.Value.TerminateStream;
-                        return RootState.SingleValueProcessed;
-                    }
+                    // Validation / guard-rail path: caller must process fully from stream
+                    return RootState.SingleValueDetected;
+
 
                 default:
                     continue;
@@ -494,16 +538,96 @@ public static partial class Read
         return RootState.NotYet;
     }
 
-    private static ProcessResult<T> ProcessSingleRootValidationPath<T>(
-        string path,
-        long elementIndex,
-        JsonReadOptions<T> options)
+    //Validation path single-root processing using existing streamed bytes (no file reopen).
+    private static ProcessResult<T> ProcessSingleRootValidationFromStream<T>(
+        Stream input,
+        byte[] initialBuffer,
+        int bytesInBuffer,
+        JsonReadOptions<T> options,
+        CancellationToken ct)
     {
-        var pending = new List<T>(1);
-        HandleSingleRootFullFile(path, elementIndex, options, ref pending);
-        if (pending.Count == 1)
-            return ProcessResult<T>.Emit(pending[0]);
-        return ProcessResult<T>.SuccessNoEmit();
+        // Materialize entire JSON (single value) into a MemoryStream
+        MemoryStream ms;
+        if (input.CanSeek)
+        {
+            long remaining = input.Length - input.Position;
+            long capacity = bytesInBuffer + remaining;
+            capacity = capacity < 0 ? bytesInBuffer : capacity;
+            ms = new MemoryStream(capacity > int.MaxValue ? bytesInBuffer : (int)Math.Min(capacity, int.MaxValue));
+        }
+        else
+        {
+            ms = new MemoryStream(bytesInBuffer + 8192);
+        }
+
+        ms.Write(initialBuffer, 0, bytesInBuffer);
+
+        // Copy remainder
+        var copyBuf = ArrayPool<byte>.Shared.Rent(64 * 1024);
+        try
+        {
+            int read;
+            while ((read = input.Read(copyBuf, 0, copyBuf.Length)) > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                options.CancellationToken.ThrowIfCancellationRequested();
+                ms.Write(copyBuf, 0, read);
+            }
+            ms.Position = 0;
+
+            using var doc = JsonDocument.Parse(ms, new JsonDocumentOptions
+            {
+                MaxDepth = options.MaxDepth > 0 ? options.MaxDepth : 0
+            });
+            var rootEl = doc.RootElement;
+
+            if (!CheckStringLength(rootEl, options, options.FilePath ?? StreamPseudoPath, 1))
+                return ProcessResult<T>.SuccessNoEmit();
+
+            if (options.ValidateElements && options.ElementValidator != null)
+            {
+                bool valid;
+                try { valid = options.ElementValidator(rootEl); }
+                catch (Exception exVal)
+                {
+                    options.HandleError("JSON", -1, 1, options.FilePath ?? StreamPseudoPath,
+                        "JsonValidationError", exVal.Message, Truncate(SafeGetRawText(rootEl), 128));
+                    return ProcessResult<T>.SuccessNoEmit();
+                }
+                if (!valid)
+                {
+                    options.HandleError("JSON", -1, 1, options.FilePath ?? StreamPseudoPath,
+                        "JsonValidationFailed", "Element validator returned false.",
+                        Truncate(SafeGetRawText(rootEl), 128));
+                    return ProcessResult<T>.SuccessNoEmit();
+                }
+            }
+
+            try
+            {
+                var item = rootEl.Deserialize<T>(options.SerializerOptions);
+                return item is not null ? ProcessResult<T>.Emit(item) : ProcessResult<T>.SuccessNoEmit();
+            }
+            catch (Exception exDeser)
+            {
+                bool cont = options.HandleError("JSON", -1, 1, options.FilePath ?? StreamPseudoPath,
+                    exDeser.GetType().Name, exDeser.Message,
+                    Truncate(SafeGetRawText(rootEl), 128));
+                return cont ? ProcessResult<T>.SuccessNoEmit() : ProcessResult<T>.Terminate();
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exOuter)
+        {
+            bool cont = options.HandleError("JSON", -1, 1, options.FilePath ?? StreamPseudoPath,
+                exOuter.GetType().Name, exOuter.Message, "");
+            return cont ? ProcessResult<T>.SuccessNoEmit() : ProcessResult<T>.Terminate();
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(copyBuf);
+            ms.Dispose();
+        }
     }
 
     private static ProcessResult<T> ProcessOneValueSingleFast<T>(
@@ -516,25 +640,30 @@ public static partial class Read
         bool isFinalBlock)
     {
         var preReader = reader;
+        bool valueFullyAvailable = IsValueFullyAvailable(ref reader);
+
+
         try
         {
-            // Probe completeness first (avoid repeated failing Deserialize on partial buffers)
-            if (!IsValueFullyAvailable(ref reader))
+            if (!valueFullyAvailable && !isFinalBlock)
             {
-                // Incomplete value: restore and wait for more data unless this is truly the final block
                 reader = preReader;
-                if (!isFinalBlock)
-                    return ProcessResult<T>.IncompletePartial();
-                // If final block AND still incomplete, let JsonSerializer throw (will translate to error)
+                return ProcessResult<T>.IncompletePartial();
             }
+
             var item = JsonSerializer.Deserialize<T>(ref reader, options.SerializerOptions);
+
             if (options.ShouldEmitProgress())
                 options.EmitProgress(totalBytes, currentPos);
-            return item is not null ? ProcessResult<T>.Emit(item) : ProcessResult<T>.SuccessNoEmit();
+
+            return item is not null
+                ? ProcessResult<T>.Emit(item)
+                : ProcessResult<T>.SuccessNoEmit();
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            if (ex is JsonException && !isFinalBlock)
+            if (ex is JsonException && !isFinalBlock && !valueFullyAvailable)
             {
                 reader = preReader;
                 return ProcessResult<T>.IncompletePartial();
@@ -542,22 +671,47 @@ public static partial class Read
 
             string excerpt = "";
             var excerptReader = preReader;
+            bool advanced = false;
+
             try
             {
                 excerpt = BuildExcerptFromValue(ref excerptReader, 128);
                 reader = excerptReader;
+                advanced = true;
             }
-            catch { }
+            catch
+            {
+                // Fallback advance attempt
+                try
+                {
+                    var skipProbe = preReader;
+                    if (skipProbe.TrySkip())
+                    {
+                        reader = skipProbe;
+                        advanced = true;
+                    }
+                }
+                catch { /* leave advanced=false */ }
+            }
 
-            bool cont = options.HandleError("JSON", -1, elementIndex, path,
-                ex.GetType().Name, ex.Message, excerpt);
+            bool cont = options.HandleError(
+                "JSON",
+                -1,
+                elementIndex,
+                path,
+                ex.GetType().Name,
+                ex.Message,
+                excerpt);
 
             if (!cont)
                 return ProcessResult<T>.Terminate();
+
+            if (!advanced)
+                return ProcessResult<T>.Terminate(); // avoid infinite loop
+
             return ProcessResult<T>.SuccessNoEmit();
         }
     }
-
     // ===========================
     // ARRAY ELEMENT PROCESSING
     // ===========================
@@ -634,21 +788,24 @@ public static partial class Read
     }
 
     private static async ValueTask<(int bytesInBuffer, bool isFinalBlock)> ReadMoreAsync(
-        FileStream fs,
-        byte[] buffer,
-        int currentBytes,
-        int bufferSize,
-        bool rootFinished,
-        bool alreadyFinal,
-        CancellationToken ct)
+    Stream input,
+    byte[] buffer,
+    int currentBytes,
+    int bufferSize,
+    bool rootFinished,
+    bool alreadyFinal,
+    CancellationToken ct)
     {
         if (rootFinished) return (currentBytes, alreadyFinal);
-
-        int read = await fs.ReadAsync(buffer.AsMemory(currentBytes, bufferSize - currentBytes), ct).ConfigureAwait(false);
+#if NETSTANDARD2_0
+int read = await input.ReadAsync(buffer, currentBytes, bufferSize - currentBytes, ct).ConfigureAwait(false);
+#else
+        int read = await input.ReadAsync(buffer.AsMemory(currentBytes, bufferSize - currentBytes), ct).ConfigureAwait(false);
+#endif
         int total = currentBytes + read;
         bool eof = read == 0;
-        if (fs.CanSeek)
-            eof = eof || fs.Position >= fs.Length;
+        if (input.CanSeek)
+            eof = eof || input.Position >= input.Length;
         return (total, eof);
     }
 
@@ -783,6 +940,7 @@ public static partial class Read
                 return cont ? ProcessResult<T>.FailureSkip() : ProcessResult<T>.Terminate();
             }
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception exOuter)
         {
             bool cont = options.HandleError("JSON", -1, elementIndex, path,
@@ -810,62 +968,7 @@ public static partial class Read
             return false;
         }
     }
-    private static void HandleSingleRootFullFile<T>(
-        string path,
-        long elementIndex,
-        JsonReadOptions<T> options,
-        ref List<T> pending)
-    {
-        try
-        {
-            using var fullFs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 8192, FileOptions.SequentialScan);
-            using var doc = JsonDocument.Parse(fullFs, new JsonDocumentOptions { MaxDepth = options.MaxDepth > 0 ? options.MaxDepth : 0 });
-            var rootEl = doc.RootElement;
-
-            if (!CheckStringLength(rootEl, options, path, elementIndex))
-                return;
-
-            if (options.ValidateElements && options.ElementValidator != null)
-            {
-                bool valid;
-                try { valid = options.ElementValidator(rootEl); }
-                catch (Exception exVal)
-                {
-                    options.HandleError("JSON", -1, elementIndex, path,
-                        "JsonValidationError", exVal.Message, Truncate(SafeGetRawText(rootEl), 128));
-                    return;
-                }
-                if (!valid)
-                {
-                    options.HandleError("JSON", -1, elementIndex, path,
-                        "JsonValidationFailed", "Element validator returned false.",
-                        Truncate(SafeGetRawText(rootEl), 128));
-                    return;
-                }
-            }
-
-            try
-            {
-                var item = rootEl.Deserialize<T>(options.SerializerOptions);
-                if (item is not null)
-                {
-                    // Do NOT touch metrics here: emission is centralized in the main loop
-                    pending.Add(item);
-                }
-            }
-            catch (Exception exDeser)
-            {
-                options.HandleError("JSON", -1, elementIndex, path,
-                    exDeser.GetType().Name, exDeser.Message, Truncate(SafeGetRawText(rootEl), 128));
-            }
-        }
-        catch (Exception exOuter)
-        {
-            options.HandleError("JSON", -1, elementIndex, path,
-                exOuter.GetType().Name, exOuter.Message, "");
-        }
-    }
-
+ 
     private static string BuildExcerptFromValue(ref Utf8JsonReader readerCopy, int maxChars)
     {
         try
@@ -944,3 +1047,4 @@ public static partial class Read
         catch { return ""; }
     }
 }
+

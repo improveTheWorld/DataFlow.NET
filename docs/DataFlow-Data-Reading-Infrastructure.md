@@ -10,6 +10,49 @@ Default method names are ASYNCHRONOUS. Synchronous variants use the `Sync` suffi
 
 - Async: `Read.Csv<T>()` returns `IAsyncEnumerable<T>`
 - Sync: `Read.CsvSync<T>()` returns `IEnumerable<T>`
+- Async: `Read.Yaml<T>()` returns `IAsyncEnumerable<T>`
+- Sync: `Read.YamlSync<T>()` returns `IEnumerable<T>`
+- Async: `Read.Json<T>()` returns `IAsyncEnumerable<T>`
+- Sync: `Read.JsonSync<T>()` returns `IEnumerable<T>`
+- Async: `Read.Text<T>()` returns `IAsyncEnumerable<T>`
+- Sync: `Read.TextSync<T>()` returns `IEnumerable<T>`
+
+### 0.0a Stream-Based APIs
+
+Every file-based reader now has a stream-based counterpart that the file overload delegates to.  
+Use these when you already have an open `Stream` (e.g., memory streams, network streams, zip entries) to avoid temporary files and to keep ownership / lifetime under your control.
+
+General pattern (options-based):
+
+```csharp
+// CSV
+await foreach (var row in Read.Csv<MyRow>(myStream, csvOptions, filePath: "orders.csv"))
+{ /* ... */ }
+
+// JSON
+await foreach (var item in Read.Json<MyDoc>(myStream, jsonOptions, filePath: "data.json"))
+{ /* ... */ }
+
+// YAML
+await foreach (var doc in Read.Yaml<MyType>(myStream, yamlOptions, filePath: "config.yaml"))
+{ /* ... */ }
+
+// Text lines
+await foreach (var line in Read.Text(myStream)) { /* ... */ }
+```
+
+Notes:
+* `filePath` is optional; supplying it improves error diagnostics (`file` field in error records). If omitted, an internal placeholder `"(stream)"` is used.
+* The passed `Stream` is NOT disposed by the reader; the caller retains lifecycle responsibility.
+* Progress percentage for JSON is only computed when the stream is seekable (`CanSeek == true`). Otherwise `Percentage` is `null`.
+* Guard rails, inference, error handling, and cancellation semantics are identical to file-based usage.
+* Simple (delegate-based) also has overloads that accept a `CancellationToken` and stream:
+
+```csharp
+// Example: Simple CSV from stream with cancellation
+await foreach (var r in Read.Csv<MyRow>(myStream, ",", onError: (raw, ex) => Console.WriteLine(ex.Message), cancellationToken: ct))
+{ }
+```
 
 ### 0.1 Read Raw Text Lines
 
@@ -152,8 +195,6 @@ await foreach (var d in Read.Json<MyDoc>(
 await foreach (var obj in Read.Yaml<MyType>("file.yaml")) { /* ... */ }
 ```
 
-Note: The simple YAML overload accepts an optional custom IDeserializer argument; in the current implementation this parameter is not applied (a default deserializer is constructed internally). This is a forward-compatibility placeholder—use the options-based overload if you need guaranteed custom behavior.
-
 ### 0.9 YAML with Type Restrictions
 
 ```csharp
@@ -226,16 +267,49 @@ JSON Single-Root (Non-Array) Progress Nuance:
 
 - Normal completion: the reader calls `Complete()`, which sets `CompletedUtc`.
 - `ErrorAction = Stop`: the first error that triggers Stop sets `Metrics.TerminatedEarly = true`; the reader exits without calling `Complete()`; `CompletedUtc` remains null.
-- `ErrorAction` = `Throw`: the first error throws `InvalidDataException` after any already‑parsed rows have been yielded; `Metrics.TerminatedEarly` = `true` and `CompletedUtc` remains null (`Complete()` is not invoked).
+- `ErrorAction` = `Throw`: the first error throws `InvalidDataException` after any already‑parsed rows have been yielded; `Metrics.TerminatedEarly` = `true` and `CompletedUtc` remains null (`Complete()` is not invoked). In Throw mode, if an excerpt was captured for the error, it is appended to the exception message as:  " | excerpt: {excerpt}".
 - Cancellation: enumeration stops; `Complete()` is not called; `CompletedUtc` remains null. (TerminatedEarly is not set unless future revisions decide to treat cancellation as a termination condition for that flag.)
 - In all early termination cases (Stop or Throw), previously emitted records `(RecordsEmitted` > 0) remain valid and can be consumed, but the absence of `CompletedUtc` + `TerminatedEarly` = `true` signals the read did not finish normally.
+
+---
+### 1.7 Cancellation Tokens
+
+All readers (CSV, JSON, YAML, Text) implement uniform cooperative cancellation for both async and sync APIs.
+
+Cancellation sources:
+- Options-level token: `ReadOptions.CancellationToken` (or format-specific options)
+- Per-call token: the method parameter `CancellationToken`
+
+Both tokens are observed; if either is canceled an `OperationCanceledException` is thrown (never routed through error handling, never downgraded, never converted to `TaskCanceledException`).
+
+Semantics:
+- Exception is propagated immediately (not logged, not counted as an error, not setting TerminatedEarly).
+- `Metrics.CompletedUtc` remains null on cancellation; previously accumulated metrics (e.g. bytes read, rows parsed) are left as-is.
+- No partial item is emitted after cancellation.
+
+Check granularity (where cancellation is polled):
+- CSV: during buffer refills and before each record is materialized.
+- JSON: each outer read loop iteration, before/after token scans, during single-root materialization (including large validation copy).
+- YAML: between document boundaries and major node events.
+- Text line readers: per line (and during large buffer refills).
+- Sync wrappers over async cores inherit the same checkpoints.
+
+Best practice: pass a single upstream CancellationToken directly to the read call. Use the options-level token only when embedding cancellation into reusable option instances.
+
+Example:
+```csharp
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+await foreach (var row in Read.Csv<MyRow>("data.csv", csvOptions, cts.Token))
+{
+    // ...
+}
+```
 
 ---
 
 ## 2. Error Sinks
 
 ### 2.1 Interface
-
 ```csharp
 public interface IReaderErrorSink : IDisposable
 {
@@ -330,7 +404,7 @@ If you supply an onError delegate:
 
 DelegatingErrorSink Wrapping Behavior (Important):
 
-- The exception instance passed to your delegate is always a newly created InvalidDataException built only from the reader error’s Message (and for CSV, the RawExcerpt is passed separately as the first parameter). Original exception type, stack trace, InnerException, and any additional data are not preserved.
+- The exception instance passed to your delegate is always a newly created InvalidDataException built from the reader error’s Message. If an excerpt is available it is appended as " | excerpt: {excerpt}". For CSV simple overloads the raw excerpt is still passed separately as the first delegate parameter. Original exception type, stack trace, InnerException, and any additional data are not preserved.
 - Consequently you cannot distinguish (via the simple overload) between, for example, a schema width error vs. a conversion exception except by inspecting ex.Message or (for CSV) the excerpt text.
 - If you need original exception types, stack traces, line/record numbers, errorType, or consistent excerpt policies, use the options-based API with a custom IReaderErrorSink.
 
@@ -641,7 +715,7 @@ Edge Cases & Notes:
 
 ### 4.4. Progress Percentage
 
-The JSON reader is the only one that currently reports `Percentage` because it can access the total file size and current stream position.(Future enhancement may add heuristic percentages for other formats; treat absence of a value as “unknown”.)
+The JSON reader is the only one that currently reports `Percentage` (when the underlying stream is seekable so total length and position are known). For non-seekable streams `Percentage` is `null`. (Future enhancements may add heuristic percentages for other formats; treat absence of a value as “unknown”.)
 
 Single Root (Non-Array) Clarification:
 - Fast path: Percentage can update after deserialization of the single value (may appear as a jump).
@@ -658,9 +732,9 @@ var opts = new JsonReadOptions<MyItem> {
 ```
 
 ---
-### 4.6 JSON Guard Rails and Limits 
+### 4.6 JSON Guard Rails and Limits
 - **MaxElements** (default 0 = unlimited): Maximum number of top-level elements (array items or single root value). When an array’s element index would exceed this value a `JsonSizeLimit` error is raised and reading terminates or continues per `ErrorAction`. The violating element is NOT counted in `RawRecordsParsed`.
-- - **MaxElementBytes** (default 0 = unlimited; validation path only): Caps the byte size of a single element. Measured as the difference in Utf8JsonReader.BytesConsumed before and after parsing the element (i.e., the exact number of UTF‑8 bytes consumed for that JSON value, excluding the trailing comma or closing bracket but including interior whitespace and all structural tokens). Violation → `JsonSizeLimit`.
+- **MaxElementBytes** (default 0 = unlimited; validation path only): Caps the byte size of a single element. Measured as the difference in Utf8JsonReader.BytesConsumed before and after parsing the element (i.e., the exact number of UTF‑8 bytes consumed for that JSON value, excluding the trailing comma or closing bracket but including interior whitespace and all structural tokens). Violation → `JsonSizeLimit`.
 - **MaxStringLength** (default 0 = unlimited): Maximum length of any string value anywhere inside an element. A single over-length string triggers `JsonSizeLimit`. This option forces the validation path (fast path disabled) because recursive traversal is required.
 - **GuardRailsEnabled** (default false): Forces validation path even if no validator is set, enabling string length enforcement or future guard rails. Fast path is disabled if ANY of: (`ValidateElements && ElementValidator != null`) OR `GuardRailsEnabled` OR `MaxStringLength > 0`. `JsonSizeLimit` error triggers: `element count exceeded`, `element byte size exceeded`, or `string length exceeded`.
 
@@ -830,7 +904,7 @@ This revision clarifies (a) how excerpts are produced per format and error type,
 | YAML | YamlSecurityError (aliases, tags, depth, etc.) | Detail atom | Violation detail (alias/tag/len/depth token) | No truncation | Intentionally concise (anchor/tag names, numeric spec). |
 | YAML | TypeRestriction | Type name | Fully qualified runtime type or "null" | No truncation | Helps whitelist diagnostics. |
 | YAML | YamlException | (Usually empty) | Parser does not always provide reliable raw slice | Empty | Avoids misleading partial fragments. |
-| All | Stop / Throw final error (same types above) | As per error type | Same | Same | ErrorAction does not alter excerpt content. |
+| All | Stop / Throw final error (same types above) | As per error type | Same | Same | ErrorAction does not alter stored excerpt content. In Throw mode the emitted InvalidDataException message includes " | excerpt: {excerpt}" when available. |
 
 #### 6.2.2 CSV Excerpt Styles
 
@@ -946,9 +1020,9 @@ The default configuration triggers progress whichever comes first: every 5 secon
 ## 8. Known Limitations
 
 **CSV**:
-  - **`CsvSchemaInferenceWarning` is not yet implemented.** .(no emission occurs today).
+  - **`CsvSchemaInferenceWarning` is not yet implemented.** (no emission occurs today).
   - Column indices are not included in error records (only line and record numbers).
-  - Type inference is limited to a fixed primitive set t and uses current culture Parse methods;there is no culture-override hook. Use `FieldTypeInference.Custom` for custom parsing.
+  - Type inference is limited to a fixed primitive set and uses current culture Parse methods; there is no culture-override hook. Use `FieldTypeInference.Custom` for custom parsing.
   -  Raw record capture (`CaptureRawRecord`) increases allocations; prefer `RawRecordObserver` for streaming audit pipelines.
   -  `MaxRawRecordLength` counts raw character length including quotes and line terminators; if you normalize newlines post-parse the measured length may appear larger than the final stored representation.
 **JSON**:
@@ -975,6 +1049,14 @@ The default configuration triggers progress whichever comes first: every 5 secon
 | JSON   | `Read.Json<T>(path)` | `JsonReadOptions<T>` | Streaming Utf8JsonReader, single-or-array root, element validation, percentage progress |
 | YAML   | `Read.Yaml<T>(path)` | `YamlReadOptions<T>` | Auto sequence vs multi-doc detection, type restriction, streaming security hardening (depth, alias, tag control)                        |
 
+Stream Equivalents (options-based; file overloads delegate internally):
+
+| Format | Stream Overload Signature |
+|--------|---------------------------|
+| CSV  | `Read.Csv<T>(Stream stream, CsvReadOptions options, string? filePath = null, CancellationToken ct = default)` |
+| JSON | `Read.Json<T>(Stream stream, JsonReadOptions<T> options, string? filePath = null, CancellationToken ct = default)` |
+| YAML | `Read.Yaml<T>(Stream stream, YamlReadOptions<T> options, string? filePath = null, CancellationToken ct = default)` |
+| TEXT | `Read.Text(Stream stream, CancellationToken ct = default)` / `Read.TextSync(Stream stream, CancellationToken ct = default)` |
 ---
 
 ## 10. Full Integration Examples (Pipeline Style)

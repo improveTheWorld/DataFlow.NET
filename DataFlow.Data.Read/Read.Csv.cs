@@ -12,530 +12,52 @@ namespace DataFlow.Data;
 /// </summary>
 public static partial class Read
 {
-
-    // ---  RFC 4180 CSV (options-based) ---
-
+    // ---------------------------------------------------------
+    // PUBLIC OPTION-BASED ASYNC (FILE)  -> delegates to stream
+    // ---------------------------------------------------------
     public static async IAsyncEnumerable<T> Csv<T>(string path, CsvReadOptions options, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (options == null) throw new ArgumentNullException(nameof(options));
-        options.FilePath = path;
-
-        // Local state / helpers
-        T? CurrentInstance = default;
-
         await using var fs = File.OpenRead(path);
-        using var reader = new StreamReader(fs, leaveOpen: false);
-
-        string[]? schema = options.Schema;
-        bool headerConsumed = false;
-
-        var inferenceBuffer = options.InferSchema ? new List<string[]>(options.SchemaInferenceSampleRows) : null;
-        bool inferenceCompleted = !options.InferSchema;
-
-        await foreach (var rawFields in CsvRfc4180Parser.ParseAsync(reader, options, ct: cancellationToken))
-        {
-            
-            if (schema == null && options.HasHeader && !headerConsumed)
-            {
-                schema = ProcessHeader(rawFields, options);
-                headerConsumed = true;
-                continue;
-            }
-
-            if (schema == null && options.InferSchema && !headerConsumed && !options.HasHeader)
-            {
-                inferenceBuffer!.Add(rawFields);
-                if (inferenceBuffer.Count >= options.SchemaInferenceSampleRows)
-                {
-                    schema = GenerateSyntheticSchema(inferenceBuffer, options, path);
-                    InferTypesIfRequested(inferenceBuffer, schema, options, path);
-                    inferenceCompleted = true;
-                    foreach (var buffered in inferenceBuffer)
-                        if (YieldMapped(buffered)) { options.Metrics.RecordsEmitted++; yield return CurrentInstance!; }
-                    inferenceBuffer.Clear();
-                }
-                continue;
-            }
-
-            if (options.InferSchema && !inferenceCompleted && schema != null)
-            {
-                inferenceBuffer!.Add(rawFields);
-                if (inferenceBuffer.Count >= options.SchemaInferenceSampleRows)
-                {
-                    InferTypesIfRequested(inferenceBuffer, schema, options, path);
-                    inferenceCompleted = true;
-                    foreach (var buffered in inferenceBuffer)
-                        if (YieldMapped(buffered)) { options.Metrics.RecordsEmitted++; yield return CurrentInstance!; }
-                    inferenceBuffer.Clear();
-                }
-                continue;
-            }
-
-            if (options.InferSchema && !inferenceCompleted)
-            {
-                inferenceBuffer!.Add(rawFields);
-                continue;
-            }
-
-            if (schema == null)
-            {
-                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, path,
-                    "SchemaError", "Schema is null (no header and none supplied).", string.Join(",", rawFields)))
-                    yield break;
-                continue;
-            }
-
-            if (YieldMapped(rawFields))
-            {
-                options.Metrics.RecordsEmitted++;
-                yield return CurrentInstance!;
-            }
-
-            // Only short-circuit here for Stop. For Throw we must allow the inner enumerator
-            // to advance so the stored fatal exception (guard rail, etc.) is actually thrown.
-            if (options.Metrics.TerminatedEarly && options.ErrorAction == ReaderErrorAction.Stop)
-                yield break;
-        }
-
-        if (options.InferSchema && !inferenceCompleted)
-        {
-            if (schema == null)
-                schema = GenerateSyntheticSchema(inferenceBuffer!, options, path);
-
-            InferTypesIfRequested(inferenceBuffer!, schema, options, path);
-
-            foreach (var buffered in inferenceBuffer!)
-            {
-                if (YieldMapped(buffered))
-                {
-                    options.Metrics.RecordsEmitted++;
-                    yield return CurrentInstance!;
-                }
-                // Removed per-record progress emission here as well.
-            }
-        }
-
-        options.Complete();
-
-        // ---- Local helper functions restored ----
-
-        string[] ProcessHeader(string[] headerRow, CsvReadOptions opts)
-        {
-            var hdr = new string[headerRow.Length];
-            for (int i = 0; i < headerRow.Length; i++)
-            {
-                var raw = headerRow[i];
-                var def = $"Column{i + 1}";
-                hdr[i] = opts.GenerateColumnName?.Invoke(raw, path, i, def) as string ?? raw ?? def;
-            }
-            opts.Schema = hdr;
-            return hdr;
-        }
-
-        string[] GenerateSyntheticSchema(List<string[]> samples, CsvReadOptions opts, string file)
-        {
-            int maxCols = samples.Count == 0 ? 0 : samples.Max(r => r.Length);
-            if (maxCols == 0) return Array.Empty<string>();
-            var cols = new string[maxCols];
-            for (int i = 0; i < maxCols; i++)
-            {
-                cols[i] = opts.GenerateColumnName?.Invoke("", file, i, $"Column{i + 1}") as string ?? $"Column{i + 1}";
-            }
-            opts.Schema = cols;
-            return cols;
-        }
-
-        void InferTypesIfRequested(List<string[]> samples, string[] sch, CsvReadOptions opts, string file)
-        {
-            if (opts.SchemaInferenceMode == SchemaInferenceMode.ColumnNamesOnly) return;
-
-            int cols = sch.Length;
-            var candidateLists = new List<Type>[cols];
-            var failureCounts = new Dictionary<Type, int>[cols];
-
-            Type[] precedence = new[]
-            {
-            typeof(bool), typeof(int), typeof(long), typeof(decimal),
-            typeof(double), typeof(DateTime), typeof(Guid)
-        };
-
-            for (int c = 0; c < cols; c++)
-            {
-                candidateLists[c] = new List<Type>(precedence);
-                failureCounts[c] = new Dictionary<Type, int>();
-            }
-
-            foreach (var row in samples)
-            {
-                for (int c = 0; c < cols; c++)
-                {
-                    string val = c < row.Length ? row[c] : "";
-                    if (string.IsNullOrEmpty(val))
-                        continue;
-
-                    if (opts.PreserveNumericStringsWithLeadingZeros &&
-                        val.Length > 1 && val[0] == '0' && AllDigits(val))
-                    {
-                        candidateLists[c].RemoveAll(t =>
-                            t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
-                        continue;
-                    }
-                    if (opts.PreserveLargeIntegerStrings &&
-                        val.Length > 18 && AllDigits(val))
-                    {
-                        candidateLists[c].RemoveAll(t =>
-                            t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
-                        continue;
-                    }
-
-                    for (int k = candidateLists[c].Count - 1; k >= 0; k--)
-                    {
-                        var type = candidateLists[c][k];
-                        if (!TryParseAs(val, type))
-                        {
-                            if (!failureCounts[c].TryGetValue(type, out var f))
-                                f = 0;
-                            f++;
-                            failureCounts[c][type] = f;
-                            if (f >= 2)
-                                candidateLists[c].RemoveAt(k);
-                        }
-                    }
-                }
-            }
-
-            var inferred = new Type[cols];
-            for (int c = 0; c < cols; c++)
-                inferred[c] = candidateLists[c].FirstOrDefault() ?? typeof(string);
-
-            opts.InferredTypes = inferred;
-            // Initialize finalization tracking array for demotion bookkeeping.
-            opts.InferredTypeFinalized = new bool[inferred.Length];
-        }
-
-        bool YieldMapped(string[] rawFields)
-        {
-            if (options.Schema == null)
-                return false;
-
-            var schemaLocal = options.Schema;
-            if (rawFields.Length > schemaLocal.Length && !options.AllowExtraFields)
-            {
-                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, path,
-                    "SchemaError", $"Row has {rawFields.Length} fields but schema has {schemaLocal.Length}.", string.Join(",", rawFields.Take(8))))
-                    return false;
-            }
-
-            var values = new object?[schemaLocal.Length];
-            int upTo = Math.Min(schemaLocal.Length, rawFields.Length);
-
-            for (int i = 0; i < upTo; i++)
-            {
-                values[i] = options.ConvertFieldValue(rawFields[i], i);
-            }
-            for (int i = upTo; i < schemaLocal.Length; i++)
-            {
-                if (!options.AllowMissingTrailingFields)
-                {
-                    if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, path,
-                        "SchemaError", $"Missing field '{schemaLocal[i]}'", ""))
-                        return false;
-                    return false;
-                }
-                values[i] = default;
-            }
-
-            try
-            {
-                CurrentInstance = DataFlow.Framework.ObjectMaterializer.Create<T>(schemaLocal, values);
-                return CurrentInstance != null;
-            }
-            catch (Exception ex)
-            {
-                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, path,
-                    ex.GetType().Name, ex.Message, string.Join(",", rawFields.Take(8))))
-                    return false;
-                return false;
-            }
-        }
-
-        static bool TryParseAs(string val, Type t) =>
-        t == typeof(bool) ? bool.TryParse(val, out _) :
-        t == typeof(int) ? int.TryParse(val, out _) :
-        t == typeof(long) ? long.TryParse(val, out _) :
-        t == typeof(decimal) ? decimal.TryParse(val, out _) :
-        t == typeof(double) ? double.TryParse(val, out _) :
-        t == typeof(DateTime) ? DateTime.TryParse(val, out _) :
-        t == typeof(Guid) ? Guid.TryParse(val, out _) :
-        false;
-
-        static bool AllDigits(string s)
-        {
-            for (int i = 0; i < s.Length; i++)
-                if (s[i] < '0' || s[i] > '9') return false;
-            return true;
-        }
-
+        await foreach (var rec in Csv<T>(fs, options, filePath: path, cancellationToken))
+            yield return rec;
     }
 
-    public static IEnumerable<T> CsvSync<T>(string path, CsvReadOptions options, CancellationToken cancellationToken = default)
+    // ---------------------------------------------------------
+    // PUBLIC OPTION-BASED ASYNC (STREAM)
+    // ---------------------------------------------------------
+    public static IAsyncEnumerable<T> Csv<T>(Stream stream, CsvReadOptions options, string? filePath = null, CancellationToken cancellationToken = default)
     {
         if (options == null) throw new ArgumentNullException(nameof(options));
-        options.FilePath = path;
-
-        using var reader = new StreamReader(File.OpenRead(path));
-
-        T? CurrentInstance = default;
-        string[]? schema = options.Schema;
-        bool headerConsumed = false;
-        var inferenceBuffer = options.InferSchema ? new List<string[]>(options.SchemaInferenceSampleRows) : null;
-        bool inferenceCompleted = !options.InferSchema;
-
-        foreach (var rawFields in CsvRfc4180Parser.Parse(reader, options, ct: cancellationToken))
-        {
-            if (schema == null && options.HasHeader && !headerConsumed)
-            {
-                schema = ProcessHeader(rawFields, options);
-                headerConsumed = true;
-                continue;
-            }
-
-            if (schema == null && options.InferSchema && !headerConsumed && !options.HasHeader)
-            {
-                inferenceBuffer!.Add(rawFields);
-                if (inferenceBuffer.Count >= options.SchemaInferenceSampleRows)
-                {
-                    schema = GenerateSyntheticSchema(inferenceBuffer, options, path);
-                    InferTypesIfRequested(inferenceBuffer, schema, options, path);
-                    inferenceCompleted = true;
-                    foreach (var buffered in inferenceBuffer)
-                        if (YieldMapped(buffered))
-                        {
-                            options.Metrics.RecordsEmitted++;
-                            yield return CurrentInstance!;
-                        }
-                    inferenceBuffer.Clear();
-                }
-                continue;
-            }
-
-            if (options.InferSchema && !inferenceCompleted && schema != null)
-            {
-                inferenceBuffer!.Add(rawFields);
-                if (inferenceBuffer.Count >= options.SchemaInferenceSampleRows)
-                {
-                    InferTypesIfRequested(inferenceBuffer, schema, options, path);
-                    inferenceCompleted = true;
-                    foreach (var buffered in inferenceBuffer)
-                        if (YieldMapped(buffered))
-                        {
-                            options.Metrics.RecordsEmitted++;
-                            yield return CurrentInstance!;
-                        }
-                    inferenceBuffer.Clear();
-                }
-                continue;
-            }
-
-            if (options.InferSchema && !inferenceCompleted)
-            {
-                inferenceBuffer!.Add(rawFields);
-                continue;
-            }
-
-            if (schema == null)
-            {
-                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, path,
-                    "SchemaError", "Schema is null (no header and none supplied).", string.Join(",", rawFields)))
-                    yield break;
-                continue;
-            }
-
-            if (YieldMapped(rawFields))
-            {
-                options.Metrics.RecordsEmitted++;
-                yield return CurrentInstance!;
-            }
-
-            if (options.Metrics.TerminatedEarly) yield break;
-        }
-
-        if (options.InferSchema && !inferenceCompleted)
-        {
-            if (schema == null)
-                schema = GenerateSyntheticSchema(inferenceBuffer!, options, path);
-            InferTypesIfRequested(inferenceBuffer!, schema, options, path);
-            foreach (var buffered in inferenceBuffer!)
-            {
-                if (YieldMapped(buffered))
-                {
-                    options.Metrics.RecordsEmitted++;
-                    yield return CurrentInstance!;
-                }
-                // Progress emission removed.
-            }
-        }
-
-        options.Complete();
-
-        // ---- Local helper functions restored ----
-
-        string[] ProcessHeader(string[] headerRow, CsvReadOptions opts)
-        {
-            var hdr = new string[headerRow.Length];
-            for (int i = 0; i < headerRow.Length; i++)
-            {
-                var raw = headerRow[i];
-                var def = $"Column{i + 1}";
-                hdr[i] = opts.GenerateColumnName?.Invoke(raw, path, i, def) as string ?? raw ?? def;
-            }
-            opts.Schema = hdr;
-            return hdr;
-        }
-
-
-        string[] GenerateSyntheticSchema(List<string[]> samples, CsvReadOptions opts, string file)
-        {
-            int maxCols = samples.Count == 0 ? 0 : samples.Max(r => r.Length);
-            if (maxCols == 0) return Array.Empty<string>();
-            var cols = new string[maxCols];
-            for (int i = 0; i < maxCols; i++)
-                cols[i] = opts.GenerateColumnName?.Invoke("", file, i, $"Column{i + 1}") as string ?? $"Column{i + 1}";
-            opts.Schema = cols;
-            return cols;
-        }
-
-        void InferTypesIfRequested(List<string[]> samples, string[] sch, CsvReadOptions opts, string file)
-        {
-            if (opts.SchemaInferenceMode == SchemaInferenceMode.ColumnNamesOnly) return;
-
-            int cols = sch.Length;
-            var candidateLists = new List<Type>[cols];
-            var failureCounts = new Dictionary<Type, int>[cols];
-
-            Type[] precedence = new[]
-            {
-            typeof(bool), typeof(int), typeof(long), typeof(decimal),
-            typeof(double), typeof(DateTime), typeof(Guid)
-        };
-
-            for (int c = 0; c < cols; c++)
-            {
-                candidateLists[c] = new List<Type>(precedence);
-                failureCounts[c] = new Dictionary<Type, int>();
-            }
-
-            foreach (var row in samples)
-            {
-                for (int c = 0; c < cols; c++)
-                {
-                    string val = c < row.Length ? row[c] : "";
-                    if (string.IsNullOrEmpty(val))
-                        continue;
-
-                    if (opts.PreserveNumericStringsWithLeadingZeros &&
-                        val.Length > 1 && val[0] == '0' && AllDigits(val))
-                    {
-                        candidateLists[c].RemoveAll(t =>
-                            t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
-                        continue;
-                    }
-                    if (opts.PreserveLargeIntegerStrings &&
-                        val.Length > 18 && AllDigits(val))
-                    {
-                        candidateLists[c].RemoveAll(t =>
-                            t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
-                        continue;
-                    }
-
-                    for (int k = candidateLists[c].Count - 1; k >= 0; k--)
-                    {
-                        var type = candidateLists[c][k];
-                        if (!TryParseAs(val, type))
-                        {
-                            if (!failureCounts[c].TryGetValue(type, out var f))
-                                f = 0;
-                            f++;
-                            failureCounts[c][type] = f;
-                            if (f >= 2)
-                                candidateLists[c].RemoveAt(k);
-                        }
-                    }
-                }
-            }
-
-            var inferred = new Type[cols];
-            for (int c = 0; c < cols; c++)
-                inferred[c] = candidateLists[c].FirstOrDefault() ?? typeof(string);
-
-            opts.InferredTypes = inferred;
-            opts.InferredTypeFinalized = new bool[inferred.Length];
-        }
-
-        bool YieldMapped(string[] rawFields)
-        {
-            if (options.Schema == null)
-                return false;
-
-            var schemaLocal = options.Schema;
-            if (rawFields.Length > schemaLocal.Length && !options.AllowExtraFields)
-            {
-                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, path,
-                    "SchemaError", $"Row has {rawFields.Length} fields but schema has {schemaLocal.Length}.", string.Join(",", rawFields.Take(8))))
-                    return false;
-            }
-
-            var values = new object?[schemaLocal.Length];
-            int upTo = Math.Min(schemaLocal.Length, rawFields.Length);
-
-            for (int i = 0; i < upTo; i++)
-            {
-                values[i] = options.ConvertFieldValue(rawFields[i], i);
-            }
-            for (int i = upTo; i < schemaLocal.Length; i++)
-            {
-                if (!options.AllowMissingTrailingFields)
-                {
-                    if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, path,
-                        "SchemaError", $"Missing field '{schemaLocal[i]}'", ""))
-                        return false;
-                    return false;
-                }
-                values[i] = default;
-            }
-
-            try
-            {
-                CurrentInstance = DataFlow.Framework.ObjectMaterializer.Create<T>(schemaLocal, values);
-                return CurrentInstance != null;
-            }
-            catch (Exception ex)
-            {
-                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, path,
-                    ex.GetType().Name, ex.Message, string.Join(",", rawFields.Take(8))))
-                    return false;
-                return false;
-            }
-        }
-
-        static bool TryParseAs(string val, Type t) =>
-           t == typeof(bool) ? bool.TryParse(val, out _) :
-           t == typeof(int) ? int.TryParse(val, out _) :
-           t == typeof(long) ? long.TryParse(val, out _) :
-           t == typeof(decimal) ? decimal.TryParse(val, out _) :
-           t == typeof(double) ? double.TryParse(val, out _) :
-           t == typeof(DateTime) ? DateTime.TryParse(val, out _) :
-           t == typeof(Guid) ? Guid.TryParse(val, out _) :
-           false;
-
-        static bool AllDigits(string s)
-        {
-            for (int i = 0; i < s.Length; i++)
-                if (s[i] < '0' || s[i] > '9') return false;
-            return true;
-        }
+        options.FilePath = filePath ?? options.FilePath ?? StreamPseudoPath;
+        var reader = new StreamReader(stream, leaveOpen: true);
+        return CsvCoreAsync<T>(reader, options, options.FilePath!, cancellationToken);
     }
-    // Simple CSV APIs
+
+    // ---------------------------------------------------------
+    // PUBLIC OPTION-BASED SYNC (FILE) -> delegates
+    // ---------------------------------------------------------
+    public static IEnumerable<T> CsvSync<T>(string path, CsvReadOptions options, CancellationToken cancellationToken = default)
+    {
+        using var fs = File.OpenRead(path);
+        foreach (var row in CsvSync<T>(fs, options, filePath: path, cancellationToken))
+            yield return row;
+    }
+
+    // ---------------------------------------------------------
+    // PUBLIC OPTION-BASED SYNC (STREAM)
+    // ---------------------------------------------------------
+    public static IEnumerable<T> CsvSync<T>(Stream stream, CsvReadOptions options, string? filePath = null, CancellationToken cancellationToken = default)
+    {
+        if (options == null) throw new ArgumentNullException(nameof(options));
+        options.FilePath = filePath ?? options.FilePath ?? StreamPseudoPath;
+        using var reader = new StreamReader(stream, leaveOpen: true);
+        foreach (var r in CsvCoreSync<T>(reader, options, options.FilePath!, cancellationToken))
+            yield return r;
+    }
+
+    // ---------------------------------------------------------
+    // SIMPLE CSV (async) existing
+    // ---------------------------------------------------------
     public static IAsyncEnumerable<T> Csv<T>(string path, string separator = ",", Action<string, Exception>? onError = null, params string[] schema)
     {
         var options = new CsvReadOptions
@@ -560,6 +82,533 @@ public static partial class Read
         return CsvSync<T>(path, options);
     }
 
- 
+    // ---------------------------------------------------------
+    // SIMPLE CSV with CancellationToken (NEW)
+    // ---------------------------------------------------------
+    public static IAsyncEnumerable<T> Csv<T>(string path, string separator, Action<string, Exception>? onError, CancellationToken cancellationToken, params string[] schema)
+        => Csv<T>(path,
+            new CsvReadOptions
+            {
+                Separator = separator.FirstOrDefault(','),
+                Schema = schema == null || schema.Length == 0 ? null : schema,
+                ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+                ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, path)
+            },
+            cancellationToken);
 
+    public static IEnumerable<T> CsvSync<T>(string path, string separator, Action<string, Exception>? onError, CancellationToken cancellationToken, params string[] schema)
+        => CsvSync<T>(path,
+            new CsvReadOptions
+            {
+                Separator = separator.FirstOrDefault(','),
+                Schema = schema == null || schema.Length == 0 ? null : schema,
+                ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+                ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, path)
+            },
+            cancellationToken);
+
+    // ---------------------------------------------------------
+    // SIMPLE CSV (STREAM) async/sync
+    // ---------------------------------------------------------
+    public static IAsyncEnumerable<T> Csv<T>(Stream stream, string separator = ",", Action<string, Exception>? onError = null, string? filePath = null, CancellationToken cancellationToken = default, params string[] schema)
+        => Csv<T>(
+            stream,
+            new CsvReadOptions
+            {
+                Separator = separator.FirstOrDefault(','),
+                Schema = schema == null || schema.Length == 0 ? null : schema,
+                ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+                ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, filePath ?? StreamPseudoPath)
+            },
+            filePath,
+            cancellationToken);
+
+    public static IEnumerable<T> CsvSync<T>(Stream stream, string separator = ",", Action<string, Exception>? onError = null, string? filePath = null, CancellationToken cancellationToken = default, params string[] schema)
+        => CsvSync<T>(
+            stream,
+            new CsvReadOptions
+            {
+                Separator = separator.FirstOrDefault(','),
+                Schema = schema == null || schema.Length == 0 ? null : schema,
+                ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+                ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, filePath ?? StreamPseudoPath)
+            },
+            filePath,
+            cancellationToken);
+
+    // =========================================================
+    // INTERNAL CORE (Async)
+    // =========================================================
+    private static async IAsyncEnumerable<T> CsvCoreAsync<T>(
+        TextReader reader,
+        CsvReadOptions options,
+        string filePath,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        T? current = default;
+        string[]? schema = options.Schema;
+        bool headerConsumed = false;
+        var inferenceBuffer = options.InferSchema ? new List<string[]>(options.SchemaInferenceSampleRows) : null;
+        bool inferenceCompleted = !options.InferSchema;
+
+        await foreach (var rawFields in CsvRfc4180Parser.ParseAsync(reader, options, ct: ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            options.CancellationToken.ThrowIfCancellationRequested();
+
+            if (schema == null && options.HasHeader && !headerConsumed)
+            {
+                schema = ProcessHeader(rawFields);
+                headerConsumed = true;
+                continue;
+            }
+
+            if (schema == null && options.InferSchema && !headerConsumed && !options.HasHeader)
+            {
+                inferenceBuffer!.Add(rawFields);
+                if (inferenceBuffer.Count >= options.SchemaInferenceSampleRows)
+                {
+                    schema = GenerateSyntheticSchema(inferenceBuffer);
+                    InferTypesIfRequested(inferenceBuffer, schema);
+                    inferenceCompleted = true;
+                    foreach (var buffered in inferenceBuffer)
+                        if (YieldMapped(buffered)) { options.Metrics.RecordsEmitted++; yield return current!; }
+                    inferenceBuffer.Clear();
+                }
+                continue;
+            }
+
+            if (options.InferSchema && !inferenceCompleted && schema != null)
+            {
+                inferenceBuffer!.Add(rawFields);
+                if (inferenceBuffer.Count >= options.SchemaInferenceSampleRows)
+                {
+                    InferTypesIfRequested(inferenceBuffer, schema);
+                    inferenceCompleted = true;
+                    foreach (var buffered in inferenceBuffer)
+                        if (YieldMapped(buffered)) { options.Metrics.RecordsEmitted++; yield return current!; }
+                    inferenceBuffer.Clear();
+                }
+                continue;
+            }
+
+            if (options.InferSchema && !inferenceCompleted)
+            {
+                inferenceBuffer!.Add(rawFields);
+                continue;
+            }
+
+            if (schema == null)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                        "SchemaError", "Schema is null (no header and none supplied).", string.Join(",", rawFields)))
+                    yield break;
+                continue;
+            }
+
+            if (YieldMapped(rawFields))
+            {
+                options.Metrics.RecordsEmitted++;
+                yield return current!;
+            }
+
+            if (options.Metrics.TerminatedEarly && options.ErrorAction == ReaderErrorAction.Stop)
+                yield break;
+        }
+
+        if (options.InferSchema && !inferenceCompleted)
+        {
+            if (schema == null)
+                schema = GenerateSyntheticSchema(inferenceBuffer!);
+            InferTypesIfRequested(inferenceBuffer!, schema);
+            foreach (var buffered in inferenceBuffer!)
+            {
+                ct.ThrowIfCancellationRequested();
+                options.CancellationToken.ThrowIfCancellationRequested();
+                if (YieldMapped(buffered))
+                {
+                    options.Metrics.RecordsEmitted++;
+                    yield return current!;
+                }
+            }
+        }
+
+        options.Complete();
+
+        // ---- Local helpers (async core) ----
+        string[] ProcessHeader(string[] headerRow)
+        {
+            var hdr = new string[headerRow.Length];
+            for (int i = 0; i < headerRow.Length; i++)
+            {
+                var raw = headerRow[i];
+                var def = $"Column{i + 1}";
+                hdr[i] = options.GenerateColumnName?.Invoke(raw, filePath, i, def) as string ?? raw ?? def;
+            }
+            options.Schema = hdr;
+            return hdr;
+        }
+
+        string[] GenerateSyntheticSchema(List<string[]> samples)
+        {
+            int maxCols = samples.Count == 0 ? 0 : samples.Max(r => r.Length);
+            if (maxCols == 0) return Array.Empty<string>();
+            var cols = new string[maxCols];
+            for (int i = 0; i < maxCols; i++)
+                cols[i] = options.GenerateColumnName?.Invoke("", filePath, i, $"Column{i + 1}") as string ?? $"Column{i + 1}";
+            options.Schema = cols;
+            return cols;
+        }
+
+        void InferTypesIfRequested(List<string[]> samples, string[] sch)
+        {
+            if (options.SchemaInferenceMode == SchemaInferenceMode.ColumnNamesOnly) return;
+            int cols = sch.Length;
+            var candidateLists = new List<Type>[cols];
+            var failureCounts = new Dictionary<Type, int>[cols];
+            Type[] precedence = new[]
+            {
+                typeof(bool), typeof(int), typeof(long), typeof(decimal),
+                typeof(double), typeof(DateTime), typeof(Guid)
+            };
+            for (int c = 0; c < cols; c++)
+            {
+                candidateLists[c] = new List<Type>(precedence);
+                failureCounts[c] = new Dictionary<Type, int>();
+            }
+            foreach (var row in samples)
+            {
+                ct.ThrowIfCancellationRequested();
+                options.CancellationToken.ThrowIfCancellationRequested();
+                for (int c = 0; c < cols; c++)
+                {
+                    string val = c < row.Length ? row[c] : "";
+                    if (string.IsNullOrEmpty(val)) continue;
+                    if (options.PreserveNumericStringsWithLeadingZeros &&
+                        val.Length > 1 && val[0] == '0' && AllDigits(val))
+                    {
+                        candidateLists[c].RemoveAll(t =>
+                            t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
+                        continue;
+                    }
+                    if (options.PreserveLargeIntegerStrings && val.Length > 18 && AllDigits(val))
+                    {
+                        candidateLists[c].RemoveAll(t =>
+                            t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
+                        continue;
+                    }
+                    for (int k = candidateLists[c].Count - 1; k >= 0; k--)
+                    {
+                        var type = candidateLists[c][k];
+                        if (!TryParseAs(val, type))
+                        {
+                            if (!failureCounts[c].TryGetValue(type, out var f))
+                                f = 0;
+                            f++;
+                            failureCounts[c][type] = f;
+                            if (f >= 2)
+                                candidateLists[c].RemoveAt(k);
+                        }
+                    }
+                }
+            }
+            var inferred = new Type[cols];
+            for (int c = 0; c < cols; c++)
+                inferred[c] = candidateLists[c].FirstOrDefault() ?? typeof(string);
+            options.InferredTypes = inferred;
+            options.InferredTypeFinalized = new bool[inferred.Length];
+        }
+
+        bool YieldMapped(string[] rawFields)
+        {
+            if (options.Schema == null)
+                return false;
+            var schemaLocal = options.Schema;
+            if (rawFields.Length > schemaLocal.Length && !options.AllowExtraFields)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                        "SchemaError", $"Row has {rawFields.Length} fields but schema has {schemaLocal.Length}.",
+                        string.Join(",", rawFields.Take(8))))
+                    return false;
+            }
+            var values = new object?[schemaLocal.Length];
+            int upTo = Math.Min(schemaLocal.Length, rawFields.Length);
+            for (int i = 0; i < upTo; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                options.CancellationToken.ThrowIfCancellationRequested();
+                values[i] = options.ConvertFieldValue(rawFields[i], i);
+            }
+            for (int i = upTo; i < schemaLocal.Length; i++)
+            {
+                if (!options.AllowMissingTrailingFields)
+                {
+                    if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                            "SchemaError", $"Missing field '{schemaLocal[i]}'", ""))
+                        return false;
+                    return false;
+                }
+                values[i] = default;
+            }
+            try
+            {
+                current = DataFlow.Framework.ObjectMaterializer.Create<T>(schemaLocal, values);
+                return current != null;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                        ex.GetType().Name, ex.Message, string.Join(",", rawFields.Take(8))))
+                    return false;
+                return false;
+            }
+        }
+    }
+
+    // =========================================================
+    // INTERNAL CORE (Sync)
+    // =========================================================
+    private static IEnumerable<T> CsvCoreSync<T>(
+        TextReader reader,
+        CsvReadOptions options,
+        string filePath,
+        CancellationToken ct)
+    {
+        T? current = default;
+        string[]? schema = options.Schema;
+        bool headerConsumed = false;
+        var inferenceBuffer = options.InferSchema ? new List<string[]>(options.SchemaInferenceSampleRows) : null;
+        bool inferenceCompleted = !options.InferSchema;
+
+        foreach (var rawFields in CsvRfc4180Parser.Parse(reader, options, ct: ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            options.CancellationToken.ThrowIfCancellationRequested();
+
+            if (schema == null && options.HasHeader && !headerConsumed)
+            {
+                schema = ProcessHeader(rawFields);
+                headerConsumed = true;
+                continue;
+            }
+
+            if (schema == null && options.InferSchema && !headerConsumed && !options.HasHeader)
+            {
+                inferenceBuffer!.Add(rawFields);
+                if (inferenceBuffer.Count >= options.SchemaInferenceSampleRows)
+                {
+                    schema = GenerateSyntheticSchema(inferenceBuffer);
+                    InferTypesIfRequested(inferenceBuffer, schema);
+                    inferenceCompleted = true;
+                    foreach (var buffered in inferenceBuffer)
+                        if (YieldMapped(buffered)) { options.Metrics.RecordsEmitted++; yield return current!; }
+                    inferenceBuffer.Clear();
+                }
+                continue;
+            }
+
+            if (options.InferSchema && !inferenceCompleted && schema != null)
+            {
+                inferenceBuffer!.Add(rawFields);
+                if (inferenceBuffer.Count >= options.SchemaInferenceSampleRows)
+                {
+                    InferTypesIfRequested(inferenceBuffer, schema);
+                    inferenceCompleted = true;
+                    foreach (var buffered in inferenceBuffer)
+                        if (YieldMapped(buffered)) { options.Metrics.RecordsEmitted++; yield return current!; }
+                    inferenceBuffer.Clear();
+                }
+                continue;
+            }
+
+            if (options.InferSchema && !inferenceCompleted)
+            {
+                inferenceBuffer!.Add(rawFields);
+                continue;
+            }
+
+            if (schema == null)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                        "SchemaError", "Schema is null (no header and none supplied).", string.Join(",", rawFields)))
+                    yield break;
+                continue;
+            }
+
+            if (YieldMapped(rawFields))
+            {
+                options.Metrics.RecordsEmitted++;
+                yield return current!;
+            }
+
+            if (options.Metrics.TerminatedEarly) yield break;
+        }
+
+        if (options.InferSchema && !inferenceCompleted)
+        {
+            if (schema == null)
+                schema = GenerateSyntheticSchema(inferenceBuffer!);
+            InferTypesIfRequested(inferenceBuffer!, schema);
+            foreach (var buffered in inferenceBuffer!)
+            {
+                ct.ThrowIfCancellationRequested();
+                options.CancellationToken.ThrowIfCancellationRequested();
+                if (YieldMapped(buffered))
+                {
+                    options.Metrics.RecordsEmitted++;
+                    yield return current!;
+                }
+            }
+        }
+
+        options.Complete();
+
+        // Local helpers identical to async core (duplicated minimally)
+        string[] ProcessHeader(string[] headerRow)
+        {
+            var hdr = new string[headerRow.Length];
+            for (int i = 0; i < headerRow.Length; i++)
+            {
+                var raw = headerRow[i];
+                var def = $"Column{i + 1}";
+                hdr[i] = options.GenerateColumnName?.Invoke(raw, filePath, i, def) as string ?? raw ?? def;
+            }
+            options.Schema = hdr;
+            return hdr;
+        }
+
+        string[] GenerateSyntheticSchema(List<string[]> samples)
+        {
+            int maxCols = samples.Count == 0 ? 0 : samples.Max(r => r.Length);
+            if (maxCols == 0) return Array.Empty<string>();
+            var cols = new string[maxCols];
+            for (int i = 0; i < maxCols; i++)
+                cols[i] = options.GenerateColumnName?.Invoke("", filePath, i, $"Column{i + 1}") as string ?? $"Column{i + 1}";
+            options.Schema = cols;
+            return cols;
+        }
+
+        void InferTypesIfRequested(List<string[]> samples, string[] sch)
+        {
+            if (options.SchemaInferenceMode == SchemaInferenceMode.ColumnNamesOnly) return;
+            int cols = sch.Length;
+            var candidateLists = new List<Type>[cols];
+            var failureCounts = new Dictionary<Type, int>[cols];
+            Type[] precedence = new[]
+            {
+                typeof(bool), typeof(int), typeof(long), typeof(decimal),
+                typeof(double), typeof(DateTime), typeof(Guid)
+            };
+            for (int c = 0; c < cols; c++)
+            {
+                candidateLists[c] = new List<Type>(precedence);
+                failureCounts[c] = new Dictionary<Type, int>();
+            }
+            foreach (var row in samples)
+            {
+                for (int c = 0; c < cols; c++)
+                {
+                    string val = c < row.Length ? row[c] : "";
+                    if (string.IsNullOrEmpty(val)) continue;
+                    if (options.PreserveNumericStringsWithLeadingZeros &&
+                        val.Length > 1 && val[0] == '0' && AllDigits(val))
+                    {
+                        candidateLists[c].RemoveAll(t =>
+                            t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
+                        continue;
+                    }
+                    if (options.PreserveLargeIntegerStrings && val.Length > 18 && AllDigits(val))
+                    {
+                        candidateLists[c].RemoveAll(t =>
+                            t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
+                        continue;
+                    }
+                    for (int k = candidateLists[c].Count - 1; k >= 0; k--)
+                    {
+                        var type = candidateLists[c][k];
+                        if (!TryParseAs(val, type))
+                        {
+                            if (!failureCounts[c].TryGetValue(type, out var f))
+                                f = 0;
+                            f++;
+                            failureCounts[c][type] = f;
+                            if (f >= 2)
+                                candidateLists[c].RemoveAt(k);
+                        }
+                    }
+                }
+            }
+            var inferred = new Type[cols];
+            for (int c = 0; c < cols; c++)
+                inferred[c] = candidateLists[c].FirstOrDefault() ?? typeof(string);
+            options.InferredTypes = inferred;
+            options.InferredTypeFinalized = new bool[inferred.Length];
+        }
+
+        bool YieldMapped(string[] rawFields)
+        {
+            if (options.Schema == null) return false;
+            var schemaLocal = options.Schema;
+            if (rawFields.Length > schemaLocal.Length && !options.AllowExtraFields)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                        "SchemaError", $"Row has {rawFields.Length} fields but schema has {schemaLocal.Length}.",
+                        string.Join(",", rawFields.Take(8))))
+                    return false;
+            }
+            var values = new object?[schemaLocal.Length];
+            int upTo = Math.Min(schemaLocal.Length, rawFields.Length);
+            for (int i = 0; i < upTo; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                options.CancellationToken.ThrowIfCancellationRequested();
+                values[i] = options.ConvertFieldValue(rawFields[i], i);
+            }
+            for (int i = upTo; i < schemaLocal.Length; i++)
+            {
+                if (!options.AllowMissingTrailingFields)
+                {
+                    if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                            "SchemaError", $"Missing field '{schemaLocal[i]}'", ""))
+                        return false;
+                    return false;
+                }
+                values[i] = default;
+            }
+            try
+            {
+                current = DataFlow.Framework.ObjectMaterializer.Create<T>(schemaLocal, values);
+                return current != null;
+            }
+            catch (OperationCanceledException) { throw; }   
+            catch (Exception ex)
+            {
+                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                        ex.GetType().Name, ex.Message, string.Join(",", rawFields.Take(8))))
+                    return false;
+                return false;
+            }
+        }
+    }
+
+    // ---------------------------------------------------------
+    // Shared tiny helpers
+    // ---------------------------------------------------------
+    private static bool AllDigits(string s)
+    {
+        for (int i = 0; i < s.Length; i++)
+            if (s[i] < '0' || s[i] > '9') return false;
+        return true;
+    }
+    private static bool TryParseAs(string val, Type t) =>
+       t == typeof(bool) ? bool.TryParse(val, out _) :
+       t == typeof(int) ? int.TryParse(val, out _) :
+       t == typeof(long) ? long.TryParse(val, out _) :
+       t == typeof(decimal) ? decimal.TryParse(val, out _) :
+       t == typeof(double) ? double.TryParse(val, out _) :
+       t == typeof(DateTime) ? DateTime.TryParse(val, out _) :
+       t == typeof(Guid) ? Guid.TryParse(val, out _) :
+       false;
 }
+

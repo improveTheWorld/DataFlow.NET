@@ -304,7 +304,7 @@ public abstract record ReadOptions
             Metrics.TerminatedEarly = true;
             Metrics.TerminationErrorMessage = message;
             // Include error type so tests (and users) can distinguish failures.
-            throw new InvalidDataException($"{errorType}: {message}");
+            throw new InvalidDataException($"{errorType}: {message} {(string.IsNullOrEmpty(excerpt) ? "" : " | excerpt: " + excerpt)}");
         }
         if (ErrorAction == ReaderErrorAction.Stop)
         {
