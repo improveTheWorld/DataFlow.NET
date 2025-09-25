@@ -302,8 +302,8 @@ public abstract record ReadOptions
             // Mark early termination also for Throw (documentation: fatal errors set TerminatedEarly)
             Metrics.TerminatedEarly = true;
             Metrics.TerminationErrorMessage = message;
-            // Include error type so tests (and users) can distinguish failures.
-            throw new InvalidDataException($"{errorType}: {message} {(string.IsNullOrEmpty(excerpt) ? "" : " | excerpt: " + excerpt)}");
+            // Include errorType and excerpt in the InvalidDataException message.
+            throw new InvalidDataException($"{errorType}: {message}{(string.IsNullOrEmpty(excerpt) ? "" : " | excerpt: " + excerpt)}");
         }
         if (ErrorAction == ReaderErrorAction.Stop)
         {

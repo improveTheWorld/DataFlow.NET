@@ -523,7 +523,7 @@ Fallback Behavior:
 
 - `CaptureRawRecord` (bool): If true, original record text (as read, including separators and original line endings if preserved) is captured per logical record.
 - `RawRecordObserver` `(recordNumber, rawLine)` delegate: Observes each raw record (useful for auditing, lineage, compliance).
-- Raw capture occurs after unescaping doubled quotes but before trimming (since TrimWhitespace default is false).
+- Raw capture is literal; doubled quotes remain doubled.
 - Large files: prefer `RawRecordObserver` streaming rather than setting `CaptureRawRecord` just to gather the data—observer avoids extra retention.
 
 ### 3.7 Legacy Behavior Emulation (Migration Guidance)
@@ -1038,7 +1038,6 @@ The default configuration triggers progress whichever comes first: every 5 secon
 - LinesRead metric is not populated for YAML (remains 0).
 
 **General**:
-- `IReaderErrorSink.Report` exceptions are not caught; a sink failure can terminate the read.
 - `CompletedUtc` remains `null` if the read terminates early due to Stop, Throw, cancellation, or an unhandled exception.
 - Simple overloads (CSV/JSON/YAML) implicitly set `ErrorAction = Skip` when an `onError` delegate is supplied; you cannot override `ErrorAction` or attach a custom sink through those overloads.
 - DelegatingErrorSink wraps all reported errors in a new InvalidDataException (original stack / type discarded). Use options + custom sink to retain richer context.

@@ -17,9 +17,9 @@ namespace DataFlow.Data;
 /// </summary>
 public static partial class Read
 {
-  
-    // Helper sink wrapping old onError callback
-    private sealed class DelegatingErrorSink : IReaderErrorSink
+
+    // Helper sink wrapping onError callback
+    internal sealed class DelegatingErrorSink : IReaderErrorSink
     {
         private readonly Action<string, Exception>? _csvAction;
         private readonly Action<Exception>? _exAction;
@@ -38,13 +38,20 @@ public static partial class Read
 
         public void Report(ReaderError error)
         {
+            // Build message consistent with Throw-mode formatting:
+            // "{errorType}: {message}" and append excerpt when available.
+            var msg = $"{error.ErrorType}: {error.Message}" +
+                      (string.IsNullOrEmpty(error.RawExcerpt) ? "" : " | excerpt: " + error.RawExcerpt);
+
             if (_csvAction != null)
             {
-                _csvAction(error.RawExcerpt, new InvalidDataException(error.Message));
+                // CSV simple overload passes raw excerpt separately as first parameter.
+                _csvAction(error.RawExcerpt, new InvalidDataException(msg));
             }
             else if (_exAction != null)
             {
-                _exAction(new InvalidDataException(error.Message));
+                // JSON/YAML simple overloads receive the enriched message (with excerpt).
+                _exAction(new InvalidDataException(msg));
             }
         }
 
