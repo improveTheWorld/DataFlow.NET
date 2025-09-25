@@ -166,7 +166,12 @@ internal static class CsvRfc4180Parser
 
         private readonly List<string> _fields = new List<string>(32);
         private readonly StringBuilder _fieldSb = new StringBuilder(256);
-        private readonly StringBuilder? _rawRecordSb;
+        // Full/raw capture toggle and buffers
+        private readonly bool _enableFullRaw;
+        private StringBuilder? _rawFull;              // only allocated when full capture is enabled
+        private readonly char[] _rawPrefix = new char[128];
+        private int _rawPrefixLen = 0;
+        private int _rawLength = 0;
 
         private bool _inQuotes;
         private bool _afterClosingQuote;
@@ -197,7 +202,10 @@ internal static class CsvRfc4180Parser
             _options = options;
             _externalToken = externalToken;
             // Always allocate for consistent excerpts (guard rails & quote errors)
-            _rawRecordSb = new StringBuilder(512);
+            // Enable full capture only when an observer is provided.
+            _enableFullRaw = options.RawRecordObserver != null;
+            if (_enableFullRaw)
+                _rawFull = new StringBuilder(512);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -230,7 +238,11 @@ internal static class CsvRfc4180Parser
                     CheckCancel();
 
                 char c = span[idx];
-                if (_rawRecordSb != null) _rawRecordSb.Append(c);
+                // Raw accumulation (prefix + optional full)
+                _rawLength++;
+                if (_rawPrefixLen < _rawPrefix.Length)
+                    _rawPrefix[_rawPrefixLen++] = c;
+                if (_enableFullRaw) _rawFull!.Append(c);
 
                 bool suppressedLfThisChar = false;
 
@@ -282,7 +294,11 @@ internal static class CsvRfc4180Parser
                         if (idx + 1 < span.Length && span[idx + 1] == '"')
                         {
                             _fieldSb.Append('"');
-                            if (_rawRecordSb != null) _rawRecordSb.Append(span[idx + 1]);
+                            // Also reflect doubled quote into raw accumulators
+                            _rawLength++;
+                            if (_rawPrefixLen < _rawPrefix.Length)
+                                _rawPrefix[_rawPrefixLen++] = span[idx + 1];
+                            if (_enableFullRaw) _rawFull!.Append(span[idx + 1]);
                             idx++;
                             continue;
                         }
@@ -316,7 +332,7 @@ internal static class CsvRfc4180Parser
                                 _options.FilePath ?? "",
                                 "CsvQuoteError",
                                 $"Illegal character '{Printable(c)}' after closing quote.",
-                                GetExcerpt(_rawRecordSb)))
+                                GetExcerpt()))
                             return;
                     }
                     _fieldSb.Append(c);
@@ -344,7 +360,7 @@ internal static class CsvRfc4180Parser
                                         _options.FilePath ?? "",
                                         "CsvQuoteError",
                                         "Illegal quote character inside unquoted field.",
-                                        GetExcerpt(_rawRecordSb)))
+                                        GetExcerpt()))
                                     return;
                                 if (_options.QuoteMode == CsvQuoteMode.RfcStrict)
                                     _fieldSb.Append('"');
@@ -405,7 +421,7 @@ internal static class CsvRfc4180Parser
                             _options.FilePath ?? "",
                             "CsvQuoteError",
                             "Unterminated quoted field at EOF.",
-                            GetExcerpt(_rawRecordSb)))
+                            GetExcerpt()))
                         return;
                 }
 
@@ -445,10 +461,10 @@ internal static class CsvRfc4180Parser
                 return;
             }
 
-            if (_options.MaxRawRecordLength > 0 && _rawRecordSb != null && _rawRecordSb.Length > _options.MaxRawRecordLength)
+            if (_options.MaxRawRecordLength > 0 && _rawLength > _options.MaxRawRecordLength)
             {
                 GuardRailError(logicalNumber,
-                    "Raw record length " + _rawRecordSb.Length + " exceeds limit " + _options.MaxRawRecordLength + ".");
+                    "Raw record length " + _rawLength + " exceeds limit " + _options.MaxRawRecordLength + ".");
                 ResetRecordState();
                 return;
             }
@@ -456,20 +472,22 @@ internal static class CsvRfc4180Parser
             var arr = _fields.ToArray();
             _pendingRecord = arr;
 
-            if (_rawRecordSb != null)
+            if (_enableFullRaw && _rawFull != null)
             {
-                string raw = _rawRecordSb.ToString();
+                string raw = _rawFull.ToString();
                 if (!_options.PreserveLineEndings && _options.NormalizeNewlinesInFields)
                     raw = raw.Replace("\r\n", "\n");
                 if (logicalNumber > 0) // skip header
                     _options.RawRecordObserver?.Invoke(logicalNumber, raw);
-                _rawRecordSb.Clear();
+                _rawFull.Clear();
             }
 
             _fields.Clear();
             _fieldSb.Clear();
             _atStartOfField = true;
             _afterClosingQuote = false;
+            _rawPrefixLen = 0;
+            _rawLength = 0;
 
             if (_options.ShouldEmitProgress())
                 _options.EmitProgress();
@@ -490,7 +508,7 @@ internal static class CsvRfc4180Parser
                     _options.FilePath ?? "",
                     "CsvLimitExceeded",
                     message,
-                    GetExcerpt(_rawRecordSb));
+                    GetExcerpt());
 
                 if (!continueParsing)
                 {
@@ -511,7 +529,9 @@ internal static class CsvRfc4180Parser
             _fieldSb.Clear();
             _afterClosingQuote = false;
             _atStartOfField = true;
-            _rawRecordSb?.Clear();
+            _rawFull?.Clear();
+            _rawPrefixLen = 0;
+            _rawLength = 0;
             _pendingRecord = null;
         }
 
@@ -525,6 +545,11 @@ internal static class CsvRfc4180Parser
                 _pendingRecord = null;
             }
         }
+        private string GetExcerpt()
+        {
+            if (_rawPrefixLen == 0) return "";
+            return new string (_rawPrefix, 0, _rawPrefixLen);
+        }
     }
 
     private static string Printable(char c) => c switch
@@ -535,11 +560,4 @@ internal static class CsvRfc4180Parser
         _ => c < ' ' ? $"0x{(int)c:X2}" : c.ToString()
     };
 
-    private static string? GetExcerpt(StringBuilder? sb)
-    {
-        if (sb == null) return null;
-        const int MaxExcerpt = 128;
-        int max = sb.Length <= MaxExcerpt ? sb.Length : MaxExcerpt;
-        return sb.ToString(0, max);
-    }
 }

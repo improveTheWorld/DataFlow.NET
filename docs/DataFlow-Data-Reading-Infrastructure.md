@@ -130,11 +130,15 @@ for (int i = 0; i < infOpts.InferredTypes!.Length; i++)
 ```csharp
 var auditOpts = new CsvReadOptions {
     HasHeader = true,
-    CaptureRawRecord = true,
     RawRecordObserver = (n, raw) => AuditLog.WriteLine($"{n}:{raw}")
 };
 await foreach (var r in Read.Csv<MyRow>("audited.csv", auditOpts)) { }
 ```
+
+Notes:
+- Full raw record capture is enabled automatically when RawRecordObserver is non-null. 
+- Even when no observer is set, a small always-on 0..128 char raw prefix buffer is kept for error excerpts and guard-rail checks (CsvQuoteError, CsvLimitExceeded) without incurring full per-record memory costs.
+
 
 ### 0.5 Full CSV with Options (Strict ingestion)
 
@@ -256,7 +260,7 @@ JSON Single-Root (Non-Array) Progress Nuance:
 - Fast path (no validation / guard rails): a percentage update can occur after the single value is fully deserialized (may appear as a direct jump from a very low initial percentage to 100% for small files).
 - Validation / guard-rail path (`ValidateElements` = `true` OR `GuardRailsEnabled` OR `MaxStringLength` > 0): the implementation loads and processes the entire file in `HandleSingleRootFullFile` without intermediate progress callbacks; you typically see only an initial (near 0%) event (if any) and a final completion (100%). This is by design to avoid partial metrics while the full element is being materialized.
 
-### 1.5 HandleError Workflow
+### 1.5 HandleError Workflowf
 
 1. Increment `ErrorCount`
 2. Produce `ReaderError` -> `ErrorSink.Report`

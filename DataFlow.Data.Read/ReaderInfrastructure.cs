@@ -22,7 +22,6 @@ public sealed record CsvReadOptions : ReadOptions
     public bool ErrorOnTrailingGarbageAfterClosingQuote { get; init; } = true;
     public bool PreserveLineEndings { get; init; } = true;              // Preserve CRLF vs normalizing
     public bool NormalizeNewlinesInFields { get; init; } = false;       // If true (and PreserveLineEndings=false) CRLF -> \n inside quoted fields
-    public bool CaptureRawRecord { get; init; } = false;                // Capture original raw record text (post-unescaping)
     public Action<long, string>? RawRecordObserver { get; init; }       // Callback(recordNumber, rawRecord)
 
     // Schema / type inference
