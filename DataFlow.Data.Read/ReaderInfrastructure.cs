@@ -351,3 +351,18 @@ public sealed record YamlReadOptions<T> : ReadOptions
     public int MaxNodeScalarLength { get; init; } = 0;
 
 }
+// ============ Text Options ============
+public sealed record TextReadOptions : ReadOptions
+{
+    // Encoding for StreamReader. If null, use UTF8 (with BOM detection if DetectEncodingFromByteOrderMarks is true).
+    public Encoding? Encoding { get; set; } = null;
+
+    // If true, StreamReader will detect UTF BOMs (UTF-8/UTF-16/UTF-32). Defaults to true for parity with typical readers.
+    public bool DetectEncodingFromByteOrderMarks { get; set; } = true;
+
+    // Buffer size for the StreamReader. Defaults to 64 KiB.
+    public int BufferSize { get; set; } = 64 * 1024;
+
+    // Optional: include line numbers in progress events by mapping RecordsRead to logical line count.
+    // This is implicit because each emitted line increments RecordsEmitted which feeds RecordsRead in ReaderProgress.
+}
