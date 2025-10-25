@@ -14,7 +14,6 @@
     <ProjectReference Include="..\DataFlow.Extensions.ParallelAsyncQueryExtensions\DataFlow.Extensions.ParallelAsyncQueryExtensions.csproj" />
     <ProjectReference Include="..\DataFlow.Extensions.ParallelQueryExtensions\DataFlow.Extensions.ParallelQueryExtensions.csproj" />
     <ProjectReference Include="..\DataFlow.Framework.DataFlow\DataFlow.Framework.DataFlow.csproj" />
-    <ProjectReference Include="..\DataFlow.Framework\DataFlow.Framework.csproj" />
   </ItemGroup>
 
 </Project>

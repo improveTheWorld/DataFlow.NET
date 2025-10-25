@@ -8,10 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DataFlow.Data.StringMapper\DataFlow.Data.StringMapper.csproj" />
     <ProjectReference Include="..\DataFlow.Extensions.AsyncEnumerableExtensions\DataFlow.Extensions.AsyncEnumerableExtensions.csproj" />
     <ProjectReference Include="..\DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj" />
     <ProjectReference Include="..\DataFlow.Extensions.StringExtensions\DataFlow.Extentions.StringExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.AutomizedFeeding\DataFlow.Framework.ObjectMaterialization.csproj" />
   </ItemGroup>
 
   <ItemGroup>

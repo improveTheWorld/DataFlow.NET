@@ -1,9 +1,10 @@
 ﻿using DataFlow.Framework;
+
 using System.Text;
 using System.Text.RegularExpressions;
 
 
-namespace DataFlow.Extensions;
+using DataFlow.Extensions;
 
 /// <summary>
 /// Provides a set of extension methods for processing sequences of strings (both IEnumerable and IAsyncEnumerable)

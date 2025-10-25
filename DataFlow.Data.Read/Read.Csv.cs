@@ -1,5 +1,7 @@
 ﻿using DataFlow.Extensions;
 using System.Runtime.CompilerServices;
+using System.Text;
+using DataFlow.Framework;
 
 
 namespace DataFlow.Data;
@@ -9,9 +11,70 @@ namespace DataFlow.Data;
 /// with full support for both synchronous (IEnumerable) and asynchronous (IAsyncEnumerable) streaming.
 /// The method sync/async suffixes convention is inverted (default is asynchronous) to encourage the asynchronous file reading reflex.
 /// Simple API for nominal cases + Option-based APIs: Csv / CsvSync, Json, Yaml.
+/// 
+/// CSV Reading Behavior:
+/// 
+/// LENIENT MODE (default):
+/// - Empty strings for numeric fields → default values (0, 0.0, etc.)
+/// - Missing trailing fields → default values
+/// - Invalid conversions → field kept as string, no error
+/// 
+/// STRICT MODE:
+/// - Set AllowMissingTrailingFields = false
+/// - Set ErrorAction = Throw
+/// - Invalid conversions will throw InvalidDataException
+/// 
+/// Example:
+/// CSV: "Name,Age\nJohn,\n"
+/// 
+/// Lenient: { Name = "John", Age = 0 }  ← Empty age becomes 0
+/// Strict:  Throws InvalidDataException  ← Empty age causes error
 /// </summary>
 public static partial class Read
 {
+   
+    // ==========================================
+    // CSV from string (SYNC - with Sync suffix)
+    // ==========================================
+
+    /// <summary>
+    /// Parse CSV content from a string (synchronous, options-based).
+    /// </summary>
+    public static IEnumerable<T> AsCsvSync<T>(
+        string csvContent,
+        CsvReadOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        if (csvContent == null) throw new ArgumentNullException(nameof(csvContent));
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csvContent));
+        foreach (var item in CsvSync<T>(stream, options, filePath: "(string)", cancellationToken))
+            yield return item;
+    }
+
+    /// <summary>
+    /// Parse CSV content from a string (synchronous, simple overload).
+    /// </summary>
+    public static IEnumerable<T> AsCsvSync<T>(
+        string csvContent,
+        string separator = ",",
+        Action<string, Exception>? onError = null,
+        CancellationToken cancellationToken = default,
+        params string[] schema)
+    {
+        if (csvContent == null) throw new ArgumentNullException(nameof(csvContent));
+
+        var options = new CsvReadOptions
+        {
+            Separator = separator.FirstOrDefault(','),
+            Schema = schema == null || schema.Length == 0 ? null : schema,
+            ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+            ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, "(string)")
+        };
+
+        return AsCsvSync<T>(csvContent, options, cancellationToken);
+    }
+
     // ---------------------------------------------------------
     // PUBLIC OPTION-BASED ASYNC (FILE)  -> delegates to stream
     // ---------------------------------------------------------
@@ -243,7 +306,7 @@ public static partial class Read
             {
                 var raw = headerRow[i];
                 var def = $"Column{i + 1}";
-                hdr[i] = options.GenerateColumnName?.Invoke(raw, filePath, i, def) as string ?? raw ?? def;
+                hdr[i] = options.GenerateColumnName?.Invoke(raw, filePath, i) ?? raw ?? def;
             }
             options.Schema = hdr;
             return hdr;
@@ -255,7 +318,7 @@ public static partial class Read
             if (maxCols == 0) return Array.Empty<string>();
             var cols = new string[maxCols];
             for (int i = 0; i < maxCols; i++)
-                cols[i] = options.GenerateColumnName?.Invoke("", filePath, i, $"Column{i + 1}") as string ?? $"Column{i + 1}";
+                cols[i] = options.GenerateColumnName?.Invoke("", filePath, i) ?? $"Column{i + 1}";
             options.Schema = cols;
             return cols;
         }
@@ -285,13 +348,13 @@ public static partial class Read
                     string val = c < row.Length ? row[c] : "";
                     if (string.IsNullOrEmpty(val)) continue;
                     if (options.PreserveNumericStringsWithLeadingZeros &&
-                        val.Length > 1 && val[0] == '0' && AllDigits(val))
+                        val.Length > 1 && val[0] == '0' && val.IsAllDigits())
                     {
                         candidateLists[c].RemoveAll(t =>
                             t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
                         continue;
                     }
-                    if (options.PreserveLargeIntegerStrings && val.Length > 18 && AllDigits(val))
+                    if (options.PreserveLargeIntegerStrings && val.Length > 18 && val.IsAllDigits())
                     {
                         candidateLists[c].RemoveAll(t =>
                             t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
@@ -300,7 +363,7 @@ public static partial class Read
                     for (int k = candidateLists[c].Count - 1; k >= 0; k--)
                     {
                         var type = candidateLists[c][k];
-                        if (!TryParseAs(val, type))
+                        if (!val.TryParseAs( type, out _))
                         {
                             if (!failureCounts[c].TryGetValue(type, out var f))
                                 f = 0;
@@ -352,7 +415,7 @@ public static partial class Read
             }
             try
             {
-                current = DataFlow.Framework.ObjectMaterializer.Create<T>(schemaLocal, values);
+                current = ObjectMaterializer.Create<T>(schemaLocal, values);
                 return current != null;
             }
             catch (OperationCanceledException) { throw; }
@@ -472,7 +535,7 @@ public static partial class Read
             {
                 var raw = headerRow[i];
                 var def = $"Column{i + 1}";
-                hdr[i] = options.GenerateColumnName?.Invoke(raw, filePath, i, def) as string ?? raw ?? def;
+                hdr[i] = options.GenerateColumnName?.Invoke(raw, filePath, i) ?? raw ?? def;
             }
             options.Schema = hdr;
             return hdr;
@@ -484,7 +547,7 @@ public static partial class Read
             if (maxCols == 0) return Array.Empty<string>();
             var cols = new string[maxCols];
             for (int i = 0; i < maxCols; i++)
-                cols[i] = options.GenerateColumnName?.Invoke("", filePath, i, $"Column{i + 1}") as string ?? $"Column{i + 1}";
+                cols[i] = options.GenerateColumnName?.Invoke("", filePath, i) ?? $"Column{i + 1}";
             options.Schema = cols;
             return cols;
         }
@@ -512,13 +575,13 @@ public static partial class Read
                     string val = c < row.Length ? row[c] : "";
                     if (string.IsNullOrEmpty(val)) continue;
                     if (options.PreserveNumericStringsWithLeadingZeros &&
-                        val.Length > 1 && val[0] == '0' && AllDigits(val))
+                        val.Length > 1 && val[0] == '0' && val.IsAllDigits())
                     {
                         candidateLists[c].RemoveAll(t =>
                             t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
                         continue;
                     }
-                    if (options.PreserveLargeIntegerStrings && val.Length > 18 && AllDigits(val))
+                    if (options.PreserveLargeIntegerStrings && val.Length > 18 && val.IsAllDigits())
                     {
                         candidateLists[c].RemoveAll(t =>
                             t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double));
@@ -527,7 +590,7 @@ public static partial class Read
                     for (int k = candidateLists[c].Count - 1; k >= 0; k--)
                     {
                         var type = candidateLists[c][k];
-                        if (!TryParseAs(val, type))
+                        if (!val.TryParseAs(type, out _))
                         {
                             if (!failureCounts[c].TryGetValue(type, out var f))
                                 f = 0;
@@ -578,7 +641,7 @@ public static partial class Read
             }
             try
             {
-                current = DataFlow.Framework.ObjectMaterializer.Create<T>(schemaLocal, values);
+                current = ObjectMaterializer.Create<T>(schemaLocal, values);
                 return current != null;
             }
             catch (OperationCanceledException) { throw; }   
@@ -590,25 +653,7 @@ public static partial class Read
                 return false;
             }
         }
-    }
-
-    // ---------------------------------------------------------
-    // Shared tiny helpers
-    // ---------------------------------------------------------
-    private static bool AllDigits(string s)
-    {
-        for (int i = 0; i < s.Length; i++)
-            if (s[i] < '0' || s[i] > '9') return false;
-        return true;
-    }
-    private static bool TryParseAs(string val, Type t) =>
-       t == typeof(bool) ? bool.TryParse(val, out _) :
-       t == typeof(int) ? int.TryParse(val, out _) :
-       t == typeof(long) ? long.TryParse(val, out _) :
-       t == typeof(decimal) ? decimal.TryParse(val, out _) :
-       t == typeof(double) ? double.TryParse(val, out _) :
-       t == typeof(DateTime) ? DateTime.TryParse(val, out _) :
-       t == typeof(Guid) ? Guid.TryParse(val, out _) :
-       false;
+    } 
+  
 }
 

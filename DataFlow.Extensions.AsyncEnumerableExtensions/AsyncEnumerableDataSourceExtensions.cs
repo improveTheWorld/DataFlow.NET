@@ -14,7 +14,7 @@ namespace DataFlow.Extensions
     /// <list type="bullet">
     ///   <item>
     ///     <description>Creating a named <see cref="IDataSource{T}"/> from any <see cref="IAsyncEnumerable{T}"/>
-    ///     so it can participate in a <see cref="DataFlow{T}"/> multi-source aggregation.</description>
+    ///     so it can participate in a <see cref="AsyncEnumerable{T}"/> multi-source aggregation.</description>
     ///   </item>
     ///   <item>
     ///     <description>Throttling emission rate to introduce a minimum delay between items (useful for
@@ -134,51 +134,27 @@ namespace DataFlow.Extensions
             }
         }
 
-        /// <summary>
-        /// Wraps an <see cref="IAsyncEnumerable{T}"/> into a named <see cref="IDataSource{T}"/> so it can
-        /// be registered with a <see cref="DataFlow{T}"/> pipeline.
-        /// </summary>
-        /// <typeparam name="T">The element type produced by the asynchronous sequence.</typeparam>
-        /// <param name="sourceEnumerable">The source asynchronous sequence to adapt.</param>
-        /// <param name="name">A human-readable, unique name used for diagnostics and identification.</param>
-        /// <returns>
-        /// An <see cref="IDataSource{T}"/> that streams the elements of <paramref name="sourceEnumerable"/>.
-        /// </returns>
-        /// <remarks>
-        /// <para>
-        /// This method does not enumerate the source immediately. Enumeration occurs when the
-        /// resulting data source is consumed by a <see cref="DataFlow{T}"/> or when its writers
-        /// are invoked downstream.
-        /// </para>
-        /// <para>
-        /// Naming: The <paramref name="name"/> should be unique within a given <see cref="DataFlow{T}"/>
-        /// instance to simplify logging and diagnostics. No uniqueness enforcement is performed here.
-        /// </para>
-        /// <para>
-        /// Thread-safety: The returned data source assumes single logical consumption pattern orchestrated
-        /// by the DataFlow framework and is not intended for concurrent multi-consumer enumeration outside that context.
-        /// </para>
-        /// </remarks>
-        /// <exception cref="ArgumentNullException">
-        /// Thrown if <paramref name="sourceEnumerable"/> or <paramref name="name"/> is <c>null</c>.
-        /// </exception>
-        /// <example>
-        /// <code>
-        /// var liveCpu = cpuReadingsAsync.ToDataSource("CpuMetrics");
-        /// var flow = new DataFlow&lt;Metric&gt;(liveCpu);
-        /// await foreach (var m in flow) { /* process */ }
-        /// </code>
-        /// </example>
-        public static IDataSource<T> ToDataSource<T>(
-            this IAsyncEnumerable<T> sourceEnumerable,
-            string name)
+        // Convenience unifier for two sources into an AsyncEnumerable<T>
+        public static AsyncEnumerable<T> Unify<T>(
+            this (IAsyncEnumerable<T> source, string name) source1,
+            IAsyncEnumerable<T> source2,
+            string name2,
+            UnifyErrorMode errorMode = UnifyErrorMode.FailFast,
+            UnifyFairness fairness = UnifyFairness.RoundRobin)
         {
-            if (sourceEnumerable is null)
-                throw new ArgumentNullException(nameof(sourceEnumerable));
-            if (name is null)
-                throw new ArgumentNullException(nameof(name));
-
-            return new DataSource<T>(sourceEnumerable, name);
+            return new AsyncEnumerable<T>(new UnifyOptions { Fairness = fairness, ErrorMode = errorMode })
+                .Unify(source1.source, source1.name)
+                .Unify(source2, name2);
         }
+
+        // Add a named source to an existing AsyncEnumerable<T>
+        public static AsyncEnumerable<T> Unify<T>(
+            this (IAsyncEnumerable<T> source, string name) source1,
+            AsyncEnumerable<T> target)
+        {
+            if (target is null) throw new ArgumentNullException(nameof(target));
+            return target.Unify(source1.source, source1.name);
+        }
+
     }
 }

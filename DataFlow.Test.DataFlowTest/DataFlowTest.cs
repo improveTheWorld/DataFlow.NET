@@ -2,7 +2,7 @@
 using DataFlow.Extensions;
 using DataFlow.Framework;
 
-namespace DataFlow.Test;
+namespace DataFlow.App;
 
 public class DataFlowPlaygroundExamples
 {
@@ -19,10 +19,6 @@ public class DataFlowPlaygroundExamples
         var cacheLogsList = TestDataGenerators.GenerateLogEntries(10).ToList();
 
         // ✅ Create and name test data sources
-        // CORRECTED: Ensured each source uses its corresponding data list.
-        var webServerLogs = webLogs.Async().ToDataSource("WebServerLogs");
-        var databaseLogs = dbLogs.Async().ToDataSource("DatabaseLogs");
-        var cacheLogs = cacheLogsList.Async().ToDataSource("CacheLogs");
 
         Console.WriteLine("📊 Generated test data:");
         Console.WriteLine($"   • WebServer: {webLogs.Count} logs");
@@ -30,9 +26,11 @@ public class DataFlowPlaygroundExamples
         Console.WriteLine($"   • Cache: {cacheLogsList.Count} logs\n");
 
         // ✅ Create a single DataFlow merger for all log sources
-        var logMerger = new DataFlow<LogEntry>(null, null,
-            webServerLogs, databaseLogs, cacheLogs
-        );
+        var logMerger = new AsyncEnumerable<LogEntry>().
+            Unify(webLogs.Async(),"WebServerLogs").
+            Unify(dbLogs.Async(),"DatabaseLogs").
+            Unify(cacheLogsList.Async(),"CacheLogs");
+
 
         Console.WriteLine("🔄 Streaming started with different intervals...\n");
 
@@ -53,8 +51,7 @@ public class DataFlowPlaygroundExamples
 
         Console.WriteLine("\n\n✅ Log Processing Pipeline completed!\n");
 
-        // Clean up
-        logMerger.Dispose();
+        
     }
 
     /// <summary>
@@ -71,13 +68,12 @@ public class DataFlowPlaygroundExamples
 
         // ✅ Create and name metrics sources
         // UPDATED: Added names to each data source.
-        var cpuMetrics = cpuData.Async().ToDataSource("CpuMetrics");
-        var memoryMetrics = memoryData.Async().ToDataSource("MemoryMetrics");
-        var networkMetrics = networkData.Async().ToDataSource("NetworkMetrics");
 
-        var merger = new DataFlow<MetricEntry>(null, null,
-            cpuMetrics, memoryMetrics, networkMetrics
-        );
+
+        var merger = new AsyncEnumerable<MetricEntry>().Unify(cpuData.Async(), "CpuMetrics").
+            Unify(memoryData.Async(), "MemoryMetrics").
+            Unify(networkData.Async(), "NetworkMetrics");
+    
 
         Console.WriteLine("📈 Generated metrics data:");
         Console.WriteLine($"   • CPU metrics: {cpuData.Count} readings");
@@ -103,8 +99,6 @@ public class DataFlowPlaygroundExamples
 
         Console.WriteLine("\n\n✅ Metrics Monitoring completed!\n");
 
-        // Clean up
-        merger.Dispose();
     }
 
     /// <summary>
@@ -118,13 +112,9 @@ public class DataFlowPlaygroundExamples
         var orders = TestDataGenerators.GenerateOrderEvents(15).ToList();
         var sensors = TestDataGenerators.GenerateSensorReadings(12).ToList();
 
-        // ✅ Create and name different data sources
-        // UPDATED: Added names to each data source.
-        var orderSource = orders.Async().ToDataSource("OrderEvents");
-        var sensorSource = sensors.Async().ToDataSource("SensorReadings");
 
-        var orderMerger = new DataFlow<OrderEvent>(orderSource);
-        var sensorMerger = new DataFlow<SensorReading>(sensorSource);
+        var orderMerger = new AsyncEnumerable<OrderEvent>().Unify(orders.Async(), "OrderEvents");
+        var sensorMerger = new AsyncEnumerable<SensorReading>().Unify(sensors.Async(), "SensorReadings");
 
         Console.WriteLine("📦 Generated mixed data:");
         Console.WriteLine($"   • Orders: {orders.Count} events");
@@ -167,9 +157,7 @@ public class DataFlowPlaygroundExamples
 
         Console.WriteLine("\n\n✅ Mixed Data Types Processing completed!\n");
 
-        // Clean up
-        orderMerger.Dispose();
-        sensorMerger.Dispose();
+       
     }
 
     public static async Task RunAllPlaygrounds()

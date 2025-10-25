@@ -4,7 +4,7 @@ This document provides a deep-dive into the reading infrastructure of the `DataF
 
 ## 0. Fast Usage Overview
 
-### Asynchrony Convention (IMPORTANT)
+### 0.1 Asynchrony Convention (IMPORTANT)
 
 Default method names are ASYNCHRONOUS. Synchronous variants use the `Sync` suffix.
 
@@ -14,10 +14,45 @@ Default method names are ASYNCHRONOUS. Synchronous variants use the `Sync` suffi
 - Sync: `Read.YamlSync<T>()` returns `IEnumerable<T>`
 - Async: `Read.Json<T>()` returns `IAsyncEnumerable<T>`
 - Sync: `Read.JsonSync<T>()` returns `IEnumerable<T>`
-- Async: `Read.Text<T>()` returns `IAsyncEnumerable<T>`
-- Sync: `Read.TextSync<T>()` returns `IEnumerable<T>`
+- Async: `Read.Text()` returns `IAsyncEnumerable<string>`
+- Sync: `Read.TextSync()` returns `IEnumerable<string>`
 
-### 0.0a Stream-Based APIs
+Note: From-string helpers are exposed as string extension methods. They are excluded from this naming convention ( see next Paragraph for details).
+
+### 0.2 String-Based Sync APIs
+
+Quick parsing directly from an in-memory string. These are synchronous and delegate to the stream-based cores; diagnostics use file="(string)".  These are exposed as string extension methods on string.
+ 
+
+```csharp
+// CSV (options-based and simple)
+IEnumerable<T> rows = csvText.AsCsv<T>(csvOptions, ct);
+IEnumerable<T> rows2 = csvText.AsCsv<T>(separator: ",", onError: (raw, ex) => { }, ct);
+
+// JSON
+IEnumerable<T> items = jsonText.AsJson<T>(jsonOptions, ct);
+IEnumerable<T> items2 = jsonText.AsJsonSync<T>(serializerOptions: null, onError: ex => { }, ct);
+
+// YAML
+IEnumerable<T> docs = yamlText.AsYaml<T>(yamlOptions, ct);
+IEnumerable<T> docs2 = yamlText.AsYaml<T>(onError: ex => { }, ct);
+```
+
+
+| Format | From-string sync overload (string extensions) |
+| ------ | --------------------------------------------- |
+| CSV    | `string.AsCsv<T>(CsvReadOptions, CancellationToken)`; `string.AsCsv<T>(string separator=",", Action<string,Exception>? onError=null, CancellationToken ct=default, params string[] schema)` |
+| JSON   | `string.AsJson<T>(JsonReadOptions<T>, CancellationToken)`; `string.AsJsonSync<T>(JsonSerializerOptions? serializerOptions=null, Action<Exception>? onError=null, CancellationToken ct=default)` |
+| YAML   | `string.AsYaml<T>(YamlReadOptions<T>, CancellationToken)`; `string.AsYaml<T>(Action<Exception>? onError=null, CancellationToken ct=default)` |
+
+Diagnostics use `file="(string)"`. Error handling, guard rails, and metrics mirror the stream/file sync paths.
+
+Note: 
+- the from-string overloads allocate a byte[] roughly equal to UTF‑8 length of the string.
+- UTF‑8 is only an internal transport for string inputs; file encodings remain controlled by the file/stream path.
+
+
+### 0.3 Stream-Based APIs
 
 Every file-based reader now has a stream-based counterpart that the file overload delegates to.  
 Use these when you already have an open `Stream` (e.g., memory streams, network streams, zip entries) to avoid temporary files and to keep ownership / lifetime under your control.
@@ -44,6 +79,9 @@ await foreach (var line in Read.Text(myStream)) { /* ... */ }
 Notes:
 * `filePath` is optional; supplying it improves error diagnostics (`file` field in error records). If omitted, an internal placeholder `"(stream)"` is used.
 * The passed `Stream` is NOT disposed by the reader; the caller retains lifecycle responsibility.
+* String-based sync overloads internally create a UTF‑8 `MemoryStream` and set `file="(string)"`. They honor both the per-call CancellationToken and options.CancellationToken downstream. For large inputs prefer stream/file APIs.
+* CSV string simple overload takes `separator` as string; only the first character is used.
+* Cancellation: both the per-call token and the options-level token are honored.
 * Progress percentage for JSON is only computed when the stream is seekable (`CanSeek == true`). Otherwise `Percentage` is `null`.
 * Guard rails, inference, error handling, and cancellation semantics are identical to file-based usage.
 * Simple (delegate-based) also has overloads that accept a `CancellationToken` and stream:
@@ -54,7 +92,7 @@ await foreach (var r in Read.Csv<MyRow>(myStream, ",", onError: (raw, ex) => Con
 { }
 ```
 
-### 0.1 Read Raw Text Lines
+### 0.4 Read Raw Text Lines
 
 ```csharp
 // Async
@@ -64,7 +102,7 @@ IAsyncEnumerable<string> lines = Read.Text("file.txt");
 IEnumerable<string> linesSync = Read.TextSync("file.txt");
 ```
 
-### 0.2 Simple CSV (Default RFC-leaning behavior)
+### 0.5 Simple CSV (Default RFC-leaning behavior)
 
 Behavior: If no schema is provided and HasHeader = true (default), the first row is treated as a header. Errors throw by default unless you change ErrorAction or use the simple overload with an onError delegate.
 
@@ -102,7 +140,7 @@ Notes:
 - You can ONLY adjust separator, schema and onError via the simple CSV overload. All advanced behaviors (inference, quoting modes, auditing, custom sinks, progress) require the options-based overload.
 - To print structured error info when using the options-based API, implement a small custom IReaderErrorSink (see Section 2.5).
  
-### 0.3 CSV With Schema & Type Inference
+### 0.6 CSV With Schema & Type Inference
 
 ```csharp
 var infOpts = new CsvReadOptions {
@@ -125,7 +163,7 @@ for (int i = 0; i < infOpts.InferredTypes!.Length; i++)
  
 ```
 
-### 0.4 CSV Capturing Raw Records (Auditing)
+### 0.7 CSV Capturing Raw Records (Auditing)
 
 ```csharp
 var auditOpts = new CsvReadOptions {
@@ -136,11 +174,11 @@ await foreach (var r in Read.Csv<MyRow>("audited.csv", auditOpts)) { }
 ```
 
 Notes:
-- Full raw record capture is enabled automatically when RawRecordObserver is non-null. 
-- Even when no observer is set, a small always-on 0..128 char raw prefix buffer is kept for error excerpts and guard-rail checks (CsvQuoteError, CsvLimitExceeded) without incurring full per-record memory costs.
+- Full raw record capture is enabled automatically when `RawRecordObserver` is non-null.
+- Without an observer, only a lightweight 0..128 char raw prefix is retained for error diagnostics.
 
 
-### 0.5 Full CSV with Options (Strict ingestion)
+### 0.8 Full CSV with Options (Strict ingestion)
 
 ```csharp
 var options = new CsvReadOptions {
@@ -163,7 +201,7 @@ await foreach (var rec in Read.Csv<MyRow>("data.csv", options))
 ```
 Note: When ErrorAction = Throw, the first error will raise an InvalidDataException and terminate enumeration. In that fail-fast mode an ErrorSink is optional. Configure an ErrorSink only if you want a persisted record of the first (and only) failure or are switching to Skip/Stop later.
 
-### 0.6 Simple JSON
+### 0.9 Simple JSON
 
 Defaults: `RequireArrayRoot = true`, `AllowSingleObject = true`
 
@@ -171,7 +209,7 @@ Defaults: `RequireArrayRoot = true`, `AllowSingleObject = true`
 await foreach (var item in Read.Json<MyDoc>("data.json")) { /* ... */ }
 ```
 
-### 0.7 JSON with Validation / Progress / Single Object Handling
+### 0.10 JSON with Validation / Progress / Single Object Handling
 
 ```csharp
 var jsonOpts = new JsonReadOptions<MyDoc> {
@@ -193,13 +231,13 @@ await foreach (var d in Read.Json<MyDoc>(
 }
 ```
 
-### 0.8 Simple YAML
+### 0.11 Simple YAML
 
 ```csharp
 await foreach (var obj in Read.Yaml<MyType>("file.yaml")) { /* ... */ }
 ```
 
-### 0.9 YAML with Type Restrictions
+### 0.12 YAML with Type Restrictions
 
 ```csharp
 var yOpts = new YamlReadOptions<MyType> {
@@ -211,7 +249,7 @@ var yOpts = new YamlReadOptions<MyType> {
 
 await foreach (var obj in Read.Yaml<MyType>("file.yaml", yOpts)) { /* ... */ }
 ```
-
+    
 ---
 
 ## 1. ReadOptions & Error Strategy
@@ -258,9 +296,9 @@ Triggers when:
 
 JSON Single-Root (Non-Array) Progress Nuance:
 - Fast path (no validation / guard rails): a percentage update can occur after the single value is fully deserialized (may appear as a direct jump from a very low initial percentage to 100% for small files).
-- Validation / guard-rail path (`ValidateElements` = `true` OR `GuardRailsEnabled` OR `MaxStringLength` > 0): the implementation loads and processes the entire file in `HandleSingleRootFullFile` without intermediate progress callbacks; you typically see only an initial (near 0%) event (if any) and a final completion (100%). This is by design to avoid partial metrics while the full element is being materialized.
+- Validation / guard-rail path (`ValidateElements` = `true` OR `GuardRailsEnabled` OR `MaxStringLength` > 0): the implementation loads and processes the entire file in `ProcessSingleRootValidationFromStream` without intermediate progress callbacks; you typically see only an initial (near 0%) event (if any) and a final completion (100%). This is by design to avoid partial metrics while the full element is being materialized.
 
-### 1.5 HandleError Workflowf
+### 1.5 HandleError Workflow
 
 1. Increment `ErrorCount`
 2. Produce `ReaderError` -> `ErrorSink.Report`
@@ -485,7 +523,7 @@ Behavior:
 - If no header and no schema: synthetic names generated `Column1..N`.
 - Optional `GenerateColumnName` delegate `(rawHeaderCell, filePath, index, defaultName)` allows custom naming (e.g., sanitize, deduplicate).
 - Sampling: up to `SchemaInferenceSampleRows` (default 100 unless changed) records buffered for inference; beyond that streaming resumes.
-- Warnings: Anomalies in inference may emit `CsvSchemaInferenceWarning` (governed by `ErrorAction`). **Note: This warning is planned and not yet implemented.** Sinks should be designed to handle it as an ordinary error with that `errorType` in the future.
+
 
 ### 3.5 Type Inference & Field Conversion
 
@@ -521,10 +559,10 @@ Fallback Behavior:
 
 ### 3.6 Raw Record Capture & Auditing
 
-- `CaptureRawRecord` (bool): If true, original record text (as read, including separators and original line endings if preserved) is captured per logical record.
-- `RawRecordObserver` `(recordNumber, rawLine)` delegate: Observes each raw record (useful for auditing, lineage, compliance).
+- `RawRecordObserver` (recordNumber, rawLine): When set, full raw record accumulation is enabled and the original record text (as read, including separators and original line endings if preserved) is streamed to the observer for each logical record.
 - Raw capture is literal; doubled quotes remain doubled.
-- Large files: prefer `RawRecordObserver` streaming rather than setting `CaptureRawRecord` just to gather the data—observer avoids extra retention.
+- Even when no observer is set, a small always-on 0..128 character raw prefix buffer is kept solely for error excerpts and guard-rail checks (CsvQuoteError, CsvLimitExceeded) to avoid full per-record memory costs.
+- For large files, prefer RawRecordObserver for streaming audit pipelines.
 
 ### 3.7 Legacy Behavior Emulation (Migration Guidance)
 
@@ -560,10 +598,9 @@ The CSV reader can produce several distinct error types, which are reported to t
 
 - `SchemaError`
 - `CsvQuoteError`
-- `CsvSchemaInferenceWarning` (Planned)
 - `CsvLimitExceeded`: A configured guard rail (MaxColumnsPerRow or MaxRawRecordLength) was exceeded. Row skipped or ingestion terminated per ErrorAction.
 
-See **Section 6.2 Common Error Types** for detailed descriptions.
+See **Section 6.3 Common Error Types** for detailed descriptions.
 
 ### 3.10 Field Mapping Pipeline
 
@@ -580,7 +617,7 @@ Order in row processing:
 - `LinesRead` increments with each completed physical line delimiter (CR, LF, or CRLF).
 - `RecordsEmitted` increments after each successfully emitted logical record (post-mapping). This is the value reported as `RecordsRead` in `ReaderProgress` events.
 - `RawRecordsParsed` increments for each logical row processed from the file, including those that are later skipped due to errors.
-- Percentage not computed (file length not consulted).
+- In CSV parsing, percentage is not computed (file length not consulted).
 - Raw record capture does not affect metrics.
 
 ---
@@ -714,7 +751,7 @@ Edge Cases & Notes:
 
 ### 4.3. Fast Path vs. Validation Path
 
-- **Fast Path** (default): Uses `JsonSerializer.Deserialize<T>(ref reader)` for direct, high-throughput streaming. The fast path is also disabled when `GuardRailsEnabled = true or MaxStringLength > 0`, even if `ValidateElements` is false.
+- **Fast Path** (default): Uses `JsonSerializer.Deserialize<T>(ref reader)` for direct, high-throughput streaming. The fast path is also disabled when `GuardRailsEnabled = true OR MaxStringLength > 0`, even if `ValidateElements` is false.
 - **Validation Path** (if `ValidateElements` is true): Each element is parsed into a `JsonDocument` to be validated by `ElementValidator` before deserialization. This path has higher overhead.
 
 ### 4.4. Progress Percentage
@@ -723,7 +760,7 @@ The JSON reader is the only one that currently reports `Percentage` (when the un
 
 Single Root (Non-Array) Clarification:
 - Fast path: Percentage can update after deserialization of the single value (may appear as a jump).
-- Validation / guard-rail path: The entire file is read in a single pass (HandleSingleRootFullFile). No intermediate progress callbacks are emitted; expect an initial (optional) and final (100%) report only.
+- Validation / guard-rail path: The entire file is read in a single pass (`ProcessSingleRootValidationFromStream`). No intermediate progress callbacks are emitted; expect an initial (optional) and final (100%) report only.
 
 ### 4.5. ElementValidator Usage Example
 
@@ -863,7 +900,7 @@ The JSON-serialized record includes the following fields:
 - **`file`**: The file path provided in the read options.
 - **`line`**: The line number where the error occurred. This is most reliable for line-based formats like CSV. For other formats, it may be `-1`.
 - **`record`**: The logical record index (1-based) being processed when the error occurred. This corresponds to the `RawRecordsParsed` metric.
-- **`errorType`**: A string classifying the error (e.g., `SchemaError`, `CsvQuoteError`). See Section 6.2 for common types.
+- **`errorType`**: A string classifying the error (e.g., `SchemaError`, `CsvQuoteError`). See Section 6.3 for common types.
 - **`message`**: A human-readable description of the error.
 - **`excerpt`**: A snippet of the source data related to the error. The content and truncation policy of this field vary by reader (see Section 6.1).
 - **`action`**: The `ReaderErrorAction` that was taken in response to the error (`Skip`, `Stop`, or `Throw`).
@@ -899,9 +936,8 @@ This revision clarifies (a) how excerpts are produced per format and error type,
 | CSV | SchemaError | Field summary | First N (currently 8) parsed fields, post‑quote normalization | No further char truncation (only field count) | Extra or missing field situations; joined with commas. |
 | CSV | CsvQuoteError | Raw prefix | Raw record text as accumulated (including quotes, separators) | 128 chars (current) | Fired on illegal quotes, trailing garbage, unterminated quotes. |
 | CSV | CsvLimitExceeded | Raw prefix | Raw record text (same as above) | 128 chars (current) | Guard rails (MaxColumnsPerRow / MaxRawRecordLength). |
-| CSV | CsvSchemaInferenceWarning (Planned) | Field summary | Sample row’s fields | Planned: first 8 fields | Not yet emitted; treat like SchemaError when it appears. |
 | CSV | Conversion / Materialization Exceptions (exType name in errorType) | Field summary | First 8 fields | No char truncation of those 8 fields | Arises during type conversion or object materialization. |
-| CSV | Generic / Other Internal (rare) | Raw prefix | Raw record | 120 chars (fallback) | Safety fallback if no specific mapping rule applies. |
+| CSV | Generic / Other Internal (rare) | Raw prefix | Raw record | 128 chars (fallback) | Safety fallback if no specific mapping rule applies. |
 | JSON | JsonException / JsonRootError | Raw element | Token or root fragment | 128 chars | Raw UTF‑8 slice re‑materialized as text. |
 | JSON | JsonValidationError / JsonValidationFailed | Raw element | Element’s GetRawText() | 128 chars | Provided only if element fully buffered. |
 | JSON | JsonSizeLimit | Raw element (if available) else empty | Offending value (when captured) | 128 chars | Over‑limit element may sometimes have empty excerpt if length guard triggers early. |
@@ -977,7 +1013,6 @@ The `errorType` field helps categorize issues programmatically. While any except
 | --------------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
 | `SchemaError`               | CSV       | The number of fields in a row does not match the schema, or a required field is missing.                |
 | `CsvQuoteError`             | CSV       | A violation of quoting rules, such as an unclosed quote, a stray quote mid-field, or trailing characters after a closing quote. |
-| `CsvSchemaInferenceWarning` | CSV       | **(Planned)** An anomaly was detected during schema inference. This error is not yet implemented.       |
 | `CsvLimitExceeded`          | CSV       | A CSV guard rail limit (MaxColumnsPerRow or MaxRawRecordLength) was exceeded; the offending row was not emitted. |
 | `JsonRootError`             | JSON      | The root of the JSON document is not an array, and the configuration forbids single-object roots.       |
 | `JsonException`             | JSON      | General JSON syntax / structural error.                                                                 |
@@ -1024,10 +1059,8 @@ The default configuration triggers progress whichever comes first: every 5 secon
 ## 8. Known Limitations
 
 **CSV**:
-  - **`CsvSchemaInferenceWarning` is not yet implemented.** (no emission occurs today).
   - Column indices are not included in error records (only line and record numbers).
   - Type inference is limited to a fixed primitive set and uses current culture Parse methods; there is no culture-override hook. Use `FieldTypeInference.Custom` for custom parsing.
-  -  Raw record capture (`CaptureRawRecord`) increases allocations; prefer `RawRecordObserver` for streaming audit pipelines.
   -  `MaxRawRecordLength` counts raw character length including quotes and line terminators; if you normalize newlines post-parse the measured length may appear larger than the final stored representation.
 **JSON**:
 - Element validation mode (`ValidateElements = true`) is slower and more memory-intensive due to per-element JsonDocument materialization.
@@ -1284,7 +1317,6 @@ for (int i = 0; i < opts.InferredTypes!.Length; i++)
 ```csharp
 var audit = new CsvReadOptions {
     HasHeader = true,
-    CaptureRawRecord = true,
     RawRecordObserver = (n, raw) => RawRecordStore.Enqueue(new RawAuditRow(n, raw))
 };
 await foreach (var r in Read.Csv<MyRow>("inbound.csv", audit)) { }

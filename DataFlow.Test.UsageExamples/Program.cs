@@ -144,7 +144,7 @@ namespace DataFlow.IEnumerableExtensions.UsageExamples
 
 
             // Read the log file and analyze each line
-            Read.TextSync(log)
+            Read.TextSync(log.BaseStream)
                 // Define regex patterns for different log entry types
                 .TokenAndFlatten($"Received Response : {NUMS.As("ErrorCode")} {WORDS.As("errorMessage")}")
                 .Cases(

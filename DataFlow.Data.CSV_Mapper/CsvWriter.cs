@@ -1,8 +1,8 @@
-﻿using System.Reflection;
+﻿
 
 namespace DataFlow.Data;
 
-public static class CsvMapper
+public static class CsvWriter
 {
     // Added: cache for property arrays per type for performance
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, System.Reflection.PropertyInfo[]> _propCache

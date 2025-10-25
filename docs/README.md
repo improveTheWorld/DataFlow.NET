@@ -16,94 +16,237 @@
 9. [Best Practices](#best-practices)
 10. [Performance Guide](#performance-guide)
 
-## Framework Overview
+## 1. Framework Overview
 
-DataFlow.NET is a revolutionary open-source framework that **unifies batch and streaming data processing** in C#. The framework's core innovation is providing **identical syntax** for processing static files and real-time data streams, enabling developers to write processing logic once and deploy it across different data paradigms without code changes.
+DataFlow.NET is an open-source framework that **unifies batch and streaming data processing** in C#. The framework's core innovation is providing **identical fluent and composable syntax** for processing static files and real-time data streams, enabling developers to write processing logic once and deploy it across different data paradigms without code changes.
 
-### Key Features
+Beyond transformation, **DataFlow.NET provides production-grade data ingestion** with sophisticated async readers featuring enterprise-level error handling, security hardening, and observability.
+
+### 1.1 Key Features
 
 - **🔄 Unified Processing Model**: Identical APIs for `IEnumerable<T>` and `IAsyncEnumerable<T>`
 - **⚡ Stream-First Architecture**: Built on async enumeration with sync compatibility
 - **🎯 Intelligent Category Processing**: Sophisticated "Supra Category" pattern for selective data handling
-- **📊 Multi-Source Stream Merging**: `DataFlow<T>` for combining real-time data sources
+- **📊 Multi-Source Stream Merging**: `AsyncEnumerable<T>` for unifying multiple async sources
 - **🚀 Lazy Evaluation**: Process data streams efficiently with minimal memory footprint
 - **💡 Fluent API**: Chain operations using intuitive, readable syntax
+- **📖 Production-Grade Readers**: CSV, JSON, YAML with error management, metrics, security hardening, schema inference, guard rails, and progress reporting ([full documentation](DataFlow-Data-Reading-Infrastructure.md))
 - **📁 Multi-format Support**: Handle CSV, text, JSON, YAML, and custom data formats seamlessly
 - **🔍 Regular Expression Integration**: Simplified regex patterns with powerful matching capabilities
 - **🛡️ Type Safety**: Strong typing with compile-time validation
 - **⚡ Performance Optimized**: Efficient algorithms for large dataset processing
 
-## Unified Processing Architecture
+### 1.2 Design Philosophy
 
-### The Revolutionary Vision: Write Once, Process Anywhere
+DataFlow.NET makes **streaming as simple as working with lists**. The framework uses **pull-based, non-buffering streams** where data flows only when consumed. All complexity—backpressure, buffering, error handling—is managed at the **data entry boundary** through reader configuration. Once data enters your pipeline, processing is just LINQ-compatible operations on `IAsyncEnumerable<T>`. Configure the hard parts once at the readers, then enjoy simple, readable transformation logic.
 
-DataFlow.NET's most groundbreaking feature is the **unified processing model** that makes streaming and batch processing identical from a developer perspective. The same Cases/SelectCase/ForEachCase patterns work seamlessly across both paradigms.
+## 2. Unified Processing Architecture
 
-#### Core Concept: Identical Syntax
+### 2.1 Configuration-Driven Transformation Trees
+
+DataFlow.NET introduces a revolutionary **Cases/SelectCase/ForEachCase pattern** that lets you configure complex, multi-branch transformation trees **declaratively**. Despite defining multiple transformation paths upfront, the framework executes them **lazily and efficiently**—each item flows through the pipeline **exactly once**, with **zero buffering** and **minimal memory footprint**.
+
+```csharp
+// Configure a complete transformation tree ONCE
+await dataSource
+    .Cases(
+        data => data.Type == "Customer",
+        data => data.Type == "Order", 
+        data => data.Type == "Product"
+    )
+    .SelectCase(
+        customer => EnrichCustomer(customer),      // Branch 1: Transform
+        order => CalculateOrderTotal(order),       // Branch 2: Transform
+        product => NormalizeProduct(product),      // Branch 3: Transform
+        unknown => LogUnknownType(unknown)         // Supra: Catch-all
+    )
+    .ForEachCase(
+        customer => await customerDB.SaveAsync(customer),   // Branch 1: Side-effect
+        order => await orderDB.SaveAsync(order),            // Branch 2: Side-effect
+        product => await productDB.SaveAsync(product),      // Branch 3: Side-effect
+        unknown => await errorLogger.LogAsync(unknown)      // Supra: Error handling
+    )
+    .AllCases()
+    .WriteCsv("processed_output.csv");
+
+// ✅ Tree configured once, executed lazily
+// ✅ Each item processed exactly once
+// ✅ No intermediate collections
+// ✅ Constant memory usage
+```
+
+**Key Benefits:**
+
+- **🎯 Declarative Configuration**: Define all transformation branches upfront in a readable, maintainable way
+- **⚡ Single-Pass Execution**: Despite multiple branches, each item flows through the pipeline exactly once
+- **💾 Memory Efficient**: Lazy evaluation means zero buffering—process gigabytes with constant memory
+- **🔧 Developer-Friendly**: Simple, configuration-like syntax that reads like a decision tree
+
+---
+
+### 2.2 Write Once, Process Anywhere
+
+The framework's **unified processing model** delivers on a revolutionary promise: **write your processing logic once, deploy it across batch and streaming paradigms without code changes**.
+
+#### Identical Syntax Across Paradigms
 
 ```csharp
 // Define processing logic ONCE
-public static async Task<IEnumerable<ProcessedData>> ProcessBusinessLogic<T>(T dataSource) 
-    where T : IAsyncEnumerable<RawData>
+public static async Task ProcessBusinessLogic<T>(T dataSource) 
+    where T : IAsyncEnumerable<Transaction>
 {
-    return await dataSource
+    await dataSource
         .Cases(
-            data => data.Type == "Customer",
-            data => data.Type == "Order", 
-            data => data.Type == "Product"
+            tx => tx.Amount > 10000,
+            tx => tx.IsFlagged,
+            tx => tx.Country != "US"
         )
         .SelectCase(
-            customer => ProcessCustomer(customer),
-            order => ProcessOrder(order),
-            product => ProcessProduct(product),
-            unknown => LogUnknownType(unknown)
+            highValue => ProcessHighValue(highValue),
+            suspicious => ProcessSuspicious(suspicious),
+            international => ProcessInternational(international),
+            standard => ProcessStandard(standard)
         )
         .ForEachCase(
-            customer => await customerDB.SaveAsync(customer),
-            order => await orderDB.SaveAsync(order),
-            product => await productDB.SaveAsync(product),
-            unknown => await errorLogger.LogAsync(unknown)
+            highValue => await complianceDB.SaveAsync(highValue),
+            suspicious => await fraudDB.SaveAsync(suspicious),
+            international => await forexDB.SaveAsync(international),
+            standard => await standardDB.SaveAsync(standard)
         )
         .AllCases()
-        .ToListAsync();
+        .WriteCsv("processed_transactions.csv");
 }
 
-// BATCH PROCESSING: Use with files
-var batchResults = await ProcessBusinessLogic(
-    Read.Csv<RawData>("historical_data.csv").AsAsyncEnumerable()
+// BATCH: Historical file processing
+await ProcessBusinessLogic(
+    Read.Csv<Transaction>("historical_data.csv")
 );
 
-// STREAM PROCESSING: Use with live data (IDENTICAL CODE!)
-var streamResults = await ProcessBusinessLogic(liveDataStream);
+// STREAMING: Real-time event processing (IDENTICAL CODE!)
+await ProcessBusinessLogic(liveTransactionStream);
 ```
 
-#### Stream Collection with DataFlow
-
-The `DataFlow<T>` serves as your **streaming data collector**, aggregating multiple real-time sources into a single processable stream:
+#### Zero-Cost Migration Path
 
 ```csharp
-// 1. Set up multiple data sources
-var webServerLogs = new DataPublisher<LogEntry>();
-var databaseLogs = new DataPublisher<LogEntry>();  
-var authServiceLogs = new DataPublisher<LogEntry>();
+// DEVELOPMENT: Start with in-memory data
+var testData = new[] { 
+    new Order { Id = 1, IsUrgent = true },
+    new Order { Id = 2, IsUrgent = false }
+}.Async(); // Async is a DataFlow.Net Extension to expose a Stream like interface ( IAsycEnumerable) for In-memory data:(Type=Table, List Or any other IEnumerable  )
 
-// 2. Merge streams with DataFlow
-var unifiedLogStream = new DataFlow<LogEntry>(
-    webServerLogs, databaseLogs, authServiceLogs
-);
+// VALIDATION: Test with static files
+var devPipeline = Read.Csv<Order>("test_orders.csv")
+    .Cases(IsUrgent, IsInternational, IsHighValue)
+    .SelectCase(
+        urgent => ProcessUrgent(urgent),
+        international => ProcessInternational(international),
+        highValue => ProcessHighValue(highValue),
+        standard => ProcessStandard(standard)
+    )
+    .AllCases();
 
-// 3. Process with familiar Cases pattern (streaming in real-time!)
-await unifiedLogStream
+await devPipeline.WriteJson("dev_results.json");
+
+// PRODUCTION: Deploy to live streams (ZERO CODE CHANGES!)
+var prodPipeline = liveOrderStream
+    .Cases(IsUrgent, IsInternational, IsHighValue)     // Same predicates
+    .SelectCase(
+        urgent => ProcessUrgent(urgent),                // Same transforms
+        international => ProcessInternational(international),
+        highValue => ProcessHighValue(highValue),
+        standard => ProcessStandard(standard)
+    )
+    .AllCases();
+
+await prodPipeline.WriteJson("prod_results.json");
+```
+
+**Migration Benefits:**
+
+- ✅ **Develop with in-memory tables**: Test and debug directly in your IDE
+- ✅ **Validate performance with files**: Benchmark with realistic datasets using CSV/JSON files
+- ✅ **Deploy to streams**: Switch to Kafka/EventHub/SignalR without refactoring
+- ✅ **Zero code changes**: Same predicates, same transformations, same side-effects
+- ✅ **Risk-free evolution**: Validate logic in batch before streaming deployment
+
+---
+
+### 2.3 Forget Data Parsing Complexity
+
+**Format changes? Change one word.** DataFlow.NET eliminates parsing boilerplate—no manual stream handling, no scattered try-catch blocks, no custom error logging.
+
+```csharp
+// JSON today
+var data = Read.Json<Order>("orders.json");
+
+// YAML tomorrow (same business logic)
+var data = Read.Yaml<Order>("orders.yaml");
+
+// CSV next week (still same logic)
+var data = Read.Csv<Order>("orders.csv");
+
+// Processing stays identical
+await data
+    .Cases(IsUrgent, IsStandard)
+    .SelectCase(urgent => ProcessUrgent(urgent), standard => ProcessStandard(standard))
+    .AllCases()
+    .WriteJson("output.json");
+```
+
+**Error handling? Configure once at the boundary.**
+
+```csharp
+var options = new CsvReadOptions {
+    ErrorAction = ReaderErrorAction.Skip,
+    ErrorSink = new JsonLinesFileErrorSink("errors.ndjson"),
+    Progress = new Progress<ReaderProgress>(p => Console.WriteLine($"{p.RecordsRead} rows"))
+};
+
+await Read.Csv<Order>("orders.csv", options)
+    .Select(order => EnrichOrder(order))      // Clean transformation
+    .Where(order => order.IsValid)            // No try-catch needed
+    .Cases(IsUrgent, IsStandard)              // Pure business logic
+    .ForEachCase(
+        urgent => await ProcessUrgent(urgent),
+        standard => await ProcessStandard(standard)
+    )
+    .AllCases()
+    .WriteCsv("processed.csv");
+
+// Check metrics after
+Console.WriteLine($"Processed: {options.Metrics.RecordsEmitted}, Errors: {options.Metrics.ErrorCount}");
+```
+
+**Stop writing parsing code. Start writing business logic.**
+
+### 2.4 And more : Multi-Source Stream? manage it as one!
+
+The `AsyncEnumerable<T>` class provides **declarative configuration** for merging multiple real-time data sources into a single unified stream. Configure once, process with familiar syntax.
+
+```csharp
+// Configure unified stream (declarative, simple)
+var unifiedLogs = new AsyncEnumerable<LogEntry>(new UnifyOptions
+{
+    Fairness = UnifyFairness.RoundRobin,      // Fair scheduling across sources
+    ErrorMode = UnifyErrorMode.ContinueOnError // Resilient to source failures
+})
+.Unify(webServerLogs,  name: "web",  predicate: log => log.Level >= LogLevel.Info)
+.Unify(databaseLogs,   name: "db",   predicate: log => log.Level >= LogLevel.Warning)
+.Unify(authServiceLogs, name: "auth", predicate: log => log.Level >= LogLevel.Error);
+
+// Process with standard Cases pattern (identical to single-source)
+await unifiedLogs
     .Cases(
         log => log.Level == LogLevel.Error,
         log => log.Level == LogLevel.Warning,
         log => log.Service == "Database"
     )
     .SelectCase(
-        error => $"🚨 CRITICAL ERROR from {error.Service}: {error.Message}",
-        warning => $"⚠️ WARNING from {warning.Service}: {warning.Message}",
-        dbLog => $"📊 DB Operation: {dbLog.Message}",
-        other => $"ℹ️ INFO: {other.Message}"
+        error => $"CRITICAL: {error.Service} - {error.Message}",
+        warning => $"WARN: {warning.Service} - {warning.Message}",
+        dbLog => $"DB: {dbLog.Message}",
+        other => $"INFO: {other.Message}"
     )
     .ForEachCase(
         error => await alertSystem.SendCriticalAsync(error),
@@ -112,165 +255,53 @@ await unifiedLogStream
         other => await generalLogger.LogAsync(other)
     )
     .AllCases()
-    .WriteText("real_time_processed.log");
+    .WriteText("unified_logs.txt");
 ```
 
-### Migration Path: Zero-Cost Batch-to-Stream Conversion
+**Key Features:**
 
-```csharp
-// DEVELOPMENT: Start with batch processing using test files
-var developmentPipeline = Read.Csv<Transaction>("test_transactions.csv")
-    .Cases(IsHighValue, IsSuspicious, IsInternational)
-    .SelectCase(
-        highValue => ProcessHighValueTransaction(highValue),
-        suspicious => ProcessSuspiciousTransaction(suspicious), 
-        international => ProcessInternationalTransaction(international),
-        standard => ProcessStandardTransaction(standard)
-    )
-    .ForEachCase(
-        highValue => await complianceSystem.ReviewAsync(highValue),
-        suspicious => await fraudDetection.InvestigateAsync(suspicious),
-        international => await currencyService.ConvertAsync(international),
-        standard => await standardProcessor.ProcessAsync(standard)
-    )
-    .AllCases();
+- **🔌 Declarative Source Registration**: `Unify()` calls configure sources with optional per-source filtering
+- **⚖️ Fairness Policies**: `FirstAvailable` (performance) or `RoundRobin` (fairness)
+- **🛡️ Error Resilience**: `FailFast` (strict) or `ContinueOnError` (drop failing sources)
+- **🔄 Zero Buffering**: Pull-based streaming with no built-in buffering (opt-in via extensions)
+- **📊 Identical Processing**: Once unified, process with same Cases/SelectCase/ForEachCase patterns
 
-// PRODUCTION: Deploy with live streams (ZERO CODE CHANGES!)
-var productionPipeline = await liveTransactionStream
-    .Cases(IsHighValue, IsSuspicious, IsInternational)     // Same predicates
-    .SelectCase(
-        highValue => ProcessHighValueTransaction(highValue),    // Same transformations
-        suspicious => ProcessSuspiciousTransaction(suspicious), // Same logic
-        international => ProcessInternationalTransaction(international),
-        standard => ProcessStandardTransaction(standard)
-    )
-    .ForEachCase(
-        highValue => await complianceSystem.ReviewAsync(highValue),    // Same actions
-        suspicious => await fraudDetection.InvestigateAsync(suspicious),
-        international => await currencyService.ConvertAsync(international),
-        standard => await standardProcessor.ProcessAsync(standard)
-    )
-    .AllCases();
-```
-
-### Advanced Multi-Source Stream Processing
-
-```csharp
-public class RealTimeAnalyticsEngine
-{
-    public async Task ProcessMultiSourceAnalytics()
-    {
-        // Collect sensor data from IoT devices
-        var sensorStream = new DataFlow<SensorReading>(
-            condition: reading => reading.IsValid && reading.Timestamp > DateTime.Now.AddMinutes(-5),
-            temperatureSensors, humiditySensors, pressureSensors, vibrationSensors
-        );
-        
-        // Collect system events from multiple services
-        var systemEventStream = new DataFlow<SystemEvent>(
-            condition: evt => evt.Severity >= EventSeverity.Warning,
-            webServerEvents, databaseEvents, cacheEvents, authEvents
-        );
-        
-        // Collect user activity from all platforms
-        var userActivityStream = new DataFlow<UserActivity>(
-            webUserActions, mobileUserActions, apiUserActions, adminActions
-        );
-
-        // Process all streams simultaneously with identical syntax
-        var sensorTask = ProcessSensorAnalytics(sensorStream);
-        var eventsTask = ProcessSystemAnalytics(systemEventStream);
-        var activityTask = ProcessUserAnalytics(userActivityStream);
-
-        await Task.WhenAll(sensorTask, eventsTask, activityTask);
-    }
-
-    private async Task ProcessSensorAnalytics(IAsyncEnumerable<SensorReading> stream)
-    {
-        await stream
-            .Cases(
-                reading => reading.Value > reading.CriticalThreshold,
-                reading => reading.Value > reading.WarningThreshold,
-                reading => reading.SensorType == SensorType.Temperature,
-                reading => reading.SensorType == SensorType.Vibration
-            )
-            .SelectCase(
-                critical => new CriticalAlert 
-                { 
-                    Level = AlertLevel.Critical, 
-                    Message = $"Sensor {critical.SensorId} CRITICAL: {critical.Value}",
-                    RequiresImmediate = true
-                },
-                warning => new WarningAlert 
-                { 
-                    Level = AlertLevel.Warning, 
-                    Message = $"Sensor {warning.SensorId} WARNING: {warning.Value}",
-                    RequiresReview = true
-                },
-                temp => new TemperatureReading 
-                { 
-                    SensorId = temp.SensorId, 
-                    Value = temp.Value, 
-                    Timestamp = temp.Timestamp,
-                    ProcessedAt = DateTime.UtcNow
-                },
-                vibration => new VibrationReading 
-                { 
-                    SensorId = vibration.SensorId, 
-                    Frequency = vibration.Value, 
-                    Amplitude = vibration.SecondaryValue
-                },
-                normal => new StandardReading 
-                { 
-                    SensorId = normal.SensorId, 
-                    Value = normal.Value,
-                    Category = "Normal"
-                }
-            )
-            .ForEachCase(
-                critical => await emergencySystem.TriggerAsync(critical),
-                warning => await maintenanceSystem.ScheduleAsync(warning),
-                temp => await climateControl.AdjustAsync(temp),
-                vibration => await mechanicalAnalyzer.AnalyzeAsync(vibration),
-                normal => await dataWarehouse.StoreAsync(normal)
-            )
-            .AllCases()
-            .WriteCsv($"sensor_analytics_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
-    }
-}
-```
-
-## Architecture
+## 3. Architecture
 
 The DataFlow.NET framework follows a **three-layer architecture** optimized for unified batch and streaming processing:
 
-### Layer 1: DataFlow.Data
+### 3.1 DataFlow.Data
+
 **Unified Data Access Layer**
+
 - File I/O operations (Read, Write) with async support
 - Data format handling (CSV, Text, JSON, YAML) for both files and streams
 - Data mapping and transformation utilities
 - **Stream-aware readers** that work with both files and live data sources
 
-### Layer 2: DataFlow.Extensions
+### 3.2 DataFlow.Extensions
+
 **Unified Extension Methods Layer**
+
 - **Dual IEnumerable/IAsyncEnumerable extensions** for data manipulation
 - String processing utilities with async support
 - File system extensions for streaming scenarios
 - Type conversion and parsing extensions
 - **Cases/SelectCase/ForEachCase pattern** for both sync and async
 
-### Layer 3: DataFlow.Framework
+### 3.3 DataFlow.Framework
+
 **Stream Processing Infrastructure Layer**
-- **DataFlow<T>** for multi-source stream collection
-- **DataPublisher<T>** for real-time data distribution
+
+- **AsyncEnumerable<T>** for multi-source stream union/merging
 - Channel-based async communication
 - Regular expression utilities with stream support
-- Guard clauses and validation for async scenarios
 - Syntax parsing capabilities
 
-## Quick Start Guide
+## 4. Quick Start Guide
 
-### Installation
+### 4.1 Installation
+
 ```bash
 # Add reference to your project
 dotnet add reference DataFlow.NET
@@ -279,7 +310,8 @@ dotnet add reference DataFlow.NET
 dotnet add package DataFlow.NET
 ```
 
-### Basic Unified Processing Example
+### 4.2 Basic Unified Processing Example
+
 ```csharp
 using DataFlow.Data;
 using DataFlow.Extensions;
@@ -308,10 +340,12 @@ var batchResults = Read.Csv<LogEntry>("historical_logs.csv", ",")
     .AllCases()
     .WriteText("processed_batch.log");
 
-// STREAMING PROCESSING: Same logic, different source
-var liveLogStream = new DataFlow<LogEntry>(
-    webServerLogs, databaseLogs, authServiceLogs
-);
+// STREAMING PROCESSING: Same logic, different sources via AsyncEnumerable merger
+var liveLogStream = new AsyncEnumerable<LogEntry>()
+    .Unify(webServerLogs, "web")
+    .Unify(databaseLogs, "db")
+    .Unify(authServiceLogs, "auth");
+ 
 
 var streamResults = await liveLogStream
     .Cases(
@@ -327,16 +361,21 @@ var streamResults = await liveLogStream
     .WriteText("processed_stream.log");  // Async version for streaming
 ```
 
-### Advanced Stream Processing Example
-```csharp
-// Set up multiple data publishers
-var orderStream = new DataPublisher<Order>();
-var inventoryStream = new DataPublisher<InventoryUpdate>();
-var customerStream = new DataPublisher<CustomerAction>();
+### 4.3 Advanced Stream Processing Example
 
-// Merge heterogeneous streams (different types require separate processing)
-var orderProcessor = new DataFlow<Order>(orderStream);
-var inventoryProcessor = new DataFlow<InventoryUpdate>(inventoryStream);
+```csharp
+// Set up assumption: multiple async sources (IAsyncEnumerable<T>)
+// IAsyncEnumerable<Order> GetLiveOrdersAsync();
+// IAsyncEnumerable<InventoryUpdate> GetInventoryUpdatesAsync();
+
+var orders = GetLiveOrdersAsync();
+var inventory = GetInventoryUpdatesAsync();
+
+// Merge homogeneous streams (per type) using AsyncEnumerable
+var orderProcessor = new AsyncEnumerable<Order>()
+    .Unify(orders, "Orders");
+var inventoryProcessor = new AsyncEnumerable<InventoryUpdate>()
+    .Unify(inventory, "Inventory");
 
 // Process orders in real-time
 var orderTask = orderProcessor
@@ -352,10 +391,10 @@ var orderTask = orderProcessor
         standard => ProcessStandardOrder(standard)
     )
     .ForEachCase(
-        highValue => await complianceSystem.ReviewAsync(highValue),
-        international => await currencyService.ProcessAsync(international),
-        vip => await vipService.PrioritizeAsync(vip),
-        standard => await standardQueue.EnqueueAsync(standard)
+        async highValue => await complianceSystem.ReviewAsync(highValue),
+        async international => await currencyService.ProcessAsync(international),
+        async vip => await vipService.PrioritizeAsync(vip),
+        async standard => await standardQueue.EnqueueAsync(standard)
     )
     .AllCases()
     .WriteCsv("processed_orders.csv");
@@ -363,8 +402,8 @@ var orderTask = orderProcessor
 // Process inventory updates simultaneously
 var inventoryTask = inventoryProcessor
     .Cases(
-        update => update.NewQuantity == 0,     // Out of stock
-        update => update.NewQuantity < 10      // Low stock
+        update => update.NewQuantity == 0,   // Out of stock
+        update => update.NewQuantity < 10    // Low stock
     )
     .SelectCase(
         outOfStock => CreateRestockOrder(outOfStock),
@@ -372,9 +411,9 @@ var inventoryTask = inventoryProcessor
         normal => LogInventoryChange(normal)
     )
     .ForEachCase(
-        restock => await purchasingSystem.OrderAsync(restock),
-        alert => await alertSystem.NotifyAsync(alert),
-        log => await auditLogger.LogAsync(log)
+        async restock => await purchasingSystem.OrderAsync(restock),
+        async alert => await alertSystem.NotifyAsync(alert),
+        async log => await auditLogger.LogAsync(log)
     )
     .AllCases()
     .WriteJson("inventory_updates.json");
@@ -383,19 +422,22 @@ var inventoryTask = inventoryProcessor
 await Task.WhenAll(orderTask, inventoryTask);
 ```
 
-## Layer Documentation
+## 5. Layers Description
 
-### DataFlow.Data Layer
+### 5.1 DataFlow.Data Layer
 
 *Note: Default method names are **ASYNCHRONOUS**. Synchronous variants use the `Sync` suffix.*
+
 #### Read Class - Unified Data Reading
+
 The `Read` class provides static methods for reading data from various sources with **lazy evaluation** and **stream compatibility**. It offers a unified API for handling different data formats like Text, CSV, JSON, and YAML, with robust error handling and configuration options.
 
 For a comprehensive guide on advanced configuration, error handling strategies, format-specific options, and known limitations, please refer to the detailed documentation:
+
 - **[Deep Dive: DataFlow.Data Reading Infrastructure](DataFlow-Data-Reading-Infrastructure.md)**
 
-
 **Key Methods:**
+
 ```csharp
 // Text file reading (works with both files and streams)
 public static IEnumerable<string> TextSync(string path)
@@ -414,6 +456,7 @@ public static IAsyncEnumerable<T> Json<T>(string path)
 ```
 
 **Example:**
+
 ```csharp
 // Batch reading
 var lines = Read.TextSync("data.txt");
@@ -431,9 +474,11 @@ var streamResult = await Read.Csv<Order>("live_orders.csv").Cases(IsUrgent, IsSt
 ```
 
 #### Writers Class - Unified Data Writing
+
 Extension methods for writing data to various formats with **async support**.
 
 **Key Methods:**
+
 ```csharp
 // Synchronous writing
 public static void WriteTextSync(this IEnumerable<string> lines, string path, CancellationToken ct = default);
@@ -457,12 +502,14 @@ public static Task WriteYaml<T>(this IAsyncEnumerable<T> items, string path, boo
 
 ```
 
-### DataFlow.Extensions Layer
+### 5.2 DataFlow.Extensions Layer
 
 #### Unified IEnumerable/IAsyncEnumerable Extensions
+
 **The core innovation**: Identical extension methods for both `IEnumerable<T>` and `IAsyncEnumerable<T>`.
 
 **Core Processing Extensions:**
+
 ```csharp
 // Categorization (works for both sync and async)
 public static IEnumerable<(int category, T item)> Cases<T>(
@@ -494,6 +541,7 @@ public static IAsyncEnumerable<R> AllCases<T, R>(
 ```
 
 **Utility Extensions:**
+
 ```csharp
 // Conditional processing
 public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, bool> condition)
@@ -515,20 +563,23 @@ The **Supra Category Pattern** is DataFlow.NET's signature feature for intellige
 ##### How It Works
 
 When using `Cases()` to categorize data:
+
 1. Items matching the first predicate get category `0`
-2. Items matching the second predicate get category `1`  
+2. Items matching the second predicate get category `1`
 3. Items matching the nth predicate get category `n-1`
 4. **Items not matching ANY predicate get category `n` (the "supra category")**
 
 ##### Selective Processing Philosophy
 
 The supra category enables a **"selective processing"** approach:
+
 - **Express Intent**: Provide selectors/actions only for categories you care about
 - **Graceful Ignoring**: Missing selectors return `default(T)`, enabling natural filtering
 - **Future-Proof**: New data patterns don't break existing processing pipelines
 - **Performance Optimized**: Single-pass processing with minimal overhead
 
 ##### Batch Processing Example
+
 ```csharp
 // Process only ERROR and WARNING logs, ignore everything else
 var processedLogs = Read.Text("application.log")
@@ -547,6 +598,7 @@ var processedLogs = Read.Text("application.log")
 ```
 
 ##### Streaming Processing Example
+
 ```csharp
 // Same logic works for streaming data!
 var processedStream = await liveLogStream
@@ -570,6 +622,7 @@ var processedStream = await liveLogStream
 ```
 
 ##### Advanced Multi-Category Stream Processing
+
 ```csharp
 // Complex streaming scenario with multiple selective stages
 var transactionAlerts = await liveTransactionStream
@@ -598,120 +651,71 @@ var transactionAlerts = await liveTransactionStream
     .WriteCsv("special_transactions.csv");
 ```
 
-### DataFlow.Framework Layer
+### 5.3 DataFlow.Framework Layer
 
-#### DataFlow<T> - Stream Collection Engine
-The **heart of DataFlow.NET's streaming capabilities**. Merges multiple `IAsyncEnumerable<T>` sources into a single processable stream.
+#### AsyncEnumerable<T> - Stream Union/Merger (IAsyncEnumerable)
 
-**Key Features:**
-- **Multiple data source subscription** with automatic channel management
-- **Conditional filtering** at the merger level for performance
-- **Backpressure handling** and proper disposal patterns
-- **Thread-safe operations** for concurrent data publishing
+Implements `IAsyncEnumerable<T>` and merges multiple child `IAsyncEnumerable<T>` sources into a single stream. It manages concurrent MoveNextAsync calls, synchronization, and source lifecycle during enumeration. It does not include built-in buffering; use opt-in buffering extensions when needed.
 
-**Constructor Overloads:**
+Key types:
+
 ```csharp
-// Basic merger - combines all data from sources
-public DataFlow(params IAsyncEnumerable<T>[] sources)
+public enum UnifyErrorMode { FailFast, ContinueOnError }
+public enum UnifyFairness { FirstAvailable, RoundRobin }
 
-// Conditional merger - only items matching condition are included
-public DataFlow(Func<T, bool> condition, params IAsyncEnumerable<T>[] sources)
-
-// Publisher-based merger - for real-time data sources
-public DataFlow(params DataPublisher<T>[] publishers)
+public sealed class UnifyOptions
+{
+    public UnifyErrorMode ErrorMode { get; init; } = UnifyErrorMode.FailFast;
+    public UnifyFairness Fairness { get; init; } = UnifyFairness.FirstAvailable;
+}
 ```
 
-**Usage Examples:**
+Construction and source registration:
+
 ```csharp
-// Merge multiple log sources
-var logMerger = new DataFlow<LogEntry>(
-    webServerLogs, databaseLogs, authServiceLogs
-);
-
-// Merge with filtering for performance
-var criticalLogMerger = new DataFlow<LogEntry>(
-    condition: log => log.Level == LogLevel.Error || log.Level == LogLevel.Warning,
-    webServerLogs, databaseLogs, authServiceLogs
-);
-
-// Process merged stream with Cases pattern
-await logMerger
-    .Cases(IsError, IsWarning)
-    .SelectCase(ProcessError, ProcessWarning)
-    .AllCases()
-    .WriteText("merged_logs.txt");
-```
-
-#### DataPublisher<T> - Real-Time Data Distribution
-Implements the **publisher-subscriber pattern** for real-time data distribution with conditional filtering.
-
-**Key Features:**
-- **Multiple subscriber support** with individual filtering conditions
-- **Thread-safe publishing** for concurrent scenarios
-- **Automatic cleanup** and proper disposal patterns
-- **Conditional subscription** for performance optimization
-
-**Core Methods:**
-```csharp
-public void AddWriter(ChannelWriter<T> writer, Func<T, bool>? condition = null)
-public void RemoveWriter(ChannelWriter<T> writer)
-public async Task PublishDataAsync(T data)
-public void Dispose()
-```
-
-**Real-Time Processing Example:**
-```csharp
-// Set up real-time data publishers
-var sensorPublisher = new DataPublisher<SensorReading>();
-var eventPublisher = new DataPublisher<SystemEvent>();
-
-// Create conditional subscribers
-var criticalSensorChannel = Channel.CreateUnbounded<SensorReading>();
-sensorPublisher.AddWriter(
-    criticalSensorChannel.Writer, 
-    reading => reading.Value > reading.CriticalThreshold
-);
-
-var warningEventChannel = Channel.CreateUnbounded<SystemEvent>();
-eventPublisher.AddWriter(
-    warningEventChannel.Writer,
-    evt => evt.Severity >= EventSeverity.Warning
-);
-
-// Process critical sensors in real-time
-var criticalSensorTask = criticalSensorChannel.Reader.ReadAllAsync()
-    .Cases(reading => reading.SensorType == SensorType.Temperature)
-    .SelectCase(temp => $"CRITICAL TEMP: {temp.Value}°C at {temp.Location}")
-    .ForEachCase(alert => await emergencySystem.AlertAsync(alert))
-    .AllCases()
-    .WriteText("critical_sensors.log");
-
-// Simulate real-time data
-await sensorPublisher.PublishDataAsync(new SensorReading 
-{ 
-    SensorId = "TEMP001", 
-    Value = 85.5, 
-    CriticalThreshold = 80.0,
-    SensorType = SensorType.Temperature,
-    Location = "Server Room A"
+var unified = new AsyncEnumerable<MyEvent>(new UnifyOptions
+{
+    ErrorMode = UnifyErrorMode.ContinueOnError,
+    Fairness  = UnifyFairness.RoundRobin
 });
+
+// Register sources before enumeration
+unified.Unify(sourceA, "A")
+       .Unify(sourceB, "B", evt => evt.IsImportant)
+       .Unify(sourceC, "C");
+ 
+
+// Optional: remove a source before starting
+unified.Unlisten("B");
 ```
 
-#### Guard Class - Defensive Programming
-Provides comprehensive argument validation for both sync and async scenarios.
+Enumeration semantics:
 
-**Key Methods:**
+- The merger starts enumeration by creating async enumerators for each source and scheduling their MoveNextAsync calls.
+- FirstAvailable: yields whichever source completes next.
+- RoundRobin: cycles sources, awaiting or consuming whichever is ready to reduce starvation (still zero buffering).
+- Error handling:
+  - FailFast: any source MoveNextAsync exception fails the whole unified stream with a wrapped InvalidOperationException("DataFlow source 'name' failed.", ex).
+  - ContinueOnError: drop the failing source and continue others.
+- Per-source predicates are applied before yielding items.
+- Once enumeration starts, the set of sources is frozen; Unify/Unlisten after start throws InvalidOperationException.
+- For high-throughput or bursty producers, compose buffering explicitly via WithBoundedBuffer on each source or on the unified stream.
+
+Example:
+
 ```csharp
-public static void AgainstNullArgument<T>(string parameterName, T argument) where T : class
-public static void AgainstOutOfRange(string parameterName, int value, int min, int max)
-public static void AgainstNullArgumentProperty<T>(string parameterName, string propertyName, T property) where T : class
-public static async Task AgainstNullArgumentAsync<T>(string parameterName, Task<T> argumentTask) where T : class
+await foreach (var item in unified)
+{
+    // process merged items
+}
 ```
 
 #### Regex and RegexTokenizer Classes - Stream-Aware Regex
+
 Simplified regular expression utilities with **streaming support** and fluent syntax.
 
 **Regex Constants:**
+
 ```csharp
 public static readonly Regex NUMS = new(@"\d+");
 public static readonly Regex ALPHAS = new(@"[a-zA-Z]+");
@@ -721,6 +725,7 @@ public static readonly Regex MAYBE_SPACES = new(@"\s*");
 ```
 
 **Streaming Regex Example:**
+
 ```csharp
 // Extract HTTP status codes from streaming log data
 await liveAccessLogStream
@@ -735,27 +740,31 @@ await liveAccessLogStream
     .WriteJson("http_responses.json");
 ```
 
-## Stream Processing Deep Dive
+## 6. Stream Processing Deep Dive
 
-### Multi-Source Stream Architecture
+### 6.1 Multi-Source Stream Architecture
 
 DataFlow.NET excels at **multi-source stream processing**, where data arrives from various sources simultaneously and needs unified processing.
 
 #### Heterogeneous Stream Processing
+
 ```csharp
 public class MultiSourceProcessor
 {
-    private readonly DataPublisher<OrderEvent> _orderPublisher;
-    private readonly DataPublisher<InventoryEvent> _inventoryPublisher;
-    private readonly DataPublisher<CustomerEvent> _customerPublisher;
-    
+    private readonly Channel<OrderEvent> _orderChannel = Channel.CreateUnbounded<OrderEvent>();
+    private readonly Channel<InventoryEvent> _inventoryChannel = Channel.CreateUnbounded<InventoryEvent>();
+    private readonly Channel<CustomerEvent> _customerChannel = Channel.CreateUnbounded<CustomerEvent>();
+  
     public async Task ProcessBusinessEvents()
     {
         // Create separate mergers for different event types
-        var orderStream = new DataFlow<OrderEvent>(_orderPublisher);
-        var inventoryStream = new DataFlow<InventoryEvent>(_inventoryPublisher);
-        var customerStream = new DataFlow<CustomerEvent>(_customerPublisher);
-        
+        var orderStream = new AsyncEnumerable<OrderEvent>()
+            .Unify(_orderChannel.Reader.ReadAllAsync(), "orders");
+        var inventoryStream = new AsyncEnumerable<InventoryEvent>()
+            .Unify(_inventoryChannel.Reader.ReadAllAsync(), "inventory");
+        var customerStream = new AsyncEnumerable<CustomerEvent>()
+            .Unify(_customerChannel.Reader.ReadAllAsync(), "customers");
+  
         // Process each stream type with specialized logic
         var orderTask = ProcessOrderEvents(orderStream);
         var inventoryTask = ProcessInventoryEvents(inventoryStream);
@@ -764,7 +773,7 @@ public class MultiSourceProcessor
         // Run all processors concurrently
         await Task.WhenAll(orderTask, inventoryTask, customerTask);
     }
-    
+  
     private async Task ProcessOrderEvents(IAsyncEnumerable<OrderEvent> stream)
     {
         await stream
@@ -810,7 +819,7 @@ public class MultiSourceProcessor
             .AllCases()
             .WriteJson($"order_processing_{DateTime.Now:yyyyMMdd}.json");
     }
-    
+  
     private async Task ProcessInventoryEvents(IAsyncEnumerable<InventoryEvent> stream)
     {
         await stream
@@ -858,35 +867,34 @@ public class MultiSourceProcessor
 ```
 
 #### Advanced Stream Merging with Conditional Processing
+
 ```csharp
-public class ConditionalStreamProcessor
-{
-    public async Task ProcessConditionalStreams()
-    {
-        // Create conditional mergers for different priority levels
-        var criticalEventsMerger = new DataFlow<SystemEvent>(
-            condition: evt => evt.Severity == EventSeverity.Critical,
-            webServerEvents, databaseEvents, authEvents, paymentEvents
-        );
-        
-        var warningEventsMerger = new DataFlow<SystemEvent>(
-            condition: evt => evt.Severity == EventSeverity.Warning,
-            webServerEvents, databaseEvents, authEvents, paymentEvents
-        );
-        
-        var infoEventsMerger = new DataFlow<SystemEvent>(
-            condition: evt => evt.Severity == EventSeverity.Info,
-            webServerEvents, databaseEvents, authEvents, paymentEvents
-        );
-        
-        // Process each severity level with different strategies
-        var criticalTask = ProcessCriticalEvents(criticalEventsMerger);
-        var warningTask = ProcessWarningEvents(warningEventsMerger);
-        var infoTask = ProcessInfoEvents(infoEventsMerger);
-        
-        await Task.WhenAll(criticalTask, warningTask, infoTask);
-    }
-    
+
+    // Create conditional mergers for different priority levels
+    var criticalEventsMerger = new AsyncEnumerable<SystemEvent>()
+        .Unify(webServerEvents.Where(evt => evt.Severity == EventSeverity.Critical), "web")
+        .Unify(databaseEvents.Where(evt => evt.Severity == EventSeverity.Critical), "db")
+        .Unify(authEvents.Where(evt => evt.Severity == EventSeverity.Critical), "auth")
+        .Unify(paymentEvents.Where(evt => evt.Severity == EventSeverity.Critical), "pay");
+  
+    var warningEventsMerger = new AsyncEnumerable<SystemEvent>()
+        .Unify(webServerEvents.Where(evt => evt.Severity == EventSeverity.Warning), "web")
+        .Unify(databaseEvents.Where(evt => evt.Severity == EventSeverity.Warning), "db")
+        .Unify(authEvents.Where(evt => evt.Severity == EventSeverity.Warning), "auth")
+        .Unify(paymentEvents.Where(evt => evt.Severity == EventSeverity.Warning), "pay");
+  
+    var infoEventsMerger = new AsyncEnumerable<SystemEvent>()
+        .Unify(webServerEvents.Where(evt => evt.Severity == EventSeverity.Info), "web")
+        .Unify(databaseEvents.Where(evt => evt.Severity == EventSeverity.Info), "db")
+        .Unify(authEvents.Where(evt => evt.Severity == EventSeverity.Info), "auth")
+        .Unify(paymentEvents.Where(evt => evt.Severity == EventSeverity.Info), "pay");
+
+    criticalEventsMerger.ForEach(/* evt=> critical events treatment */);
+    warningEventsMerger.ForEach(/* evt=> warnng events treatment */);
+    infoEventsMerger.ForEach(/* evt=> info events treatment */);
+
+    ...
+
     private async Task ProcessCriticalEvents(IAsyncEnumerable<SystemEvent> stream)
     {
         await stream
@@ -932,9 +940,10 @@ public class ConditionalStreamProcessor
 }
 ```
 
-### Performance Optimization for Streaming
+### 6.2 Performance Optimization for Streaming
 
 #### Channel Configuration and Backpressure Management
+
 ```csharp
 public class OptimizedStreamProcessor
 {
@@ -945,20 +954,17 @@ public class OptimizedStreamProcessor
         SingleWriter = false,
         AllowSynchronousContinuations = false
     };
-    
+  
     public async Task ProcessHighThroughputStream()
     {
         // Configure high-performance channels
         var highThroughputChannel = Channel.CreateBounded<DataPoint>(_channelOptions);
-        var publisher = new DataPublisher<DataPoint>();
-        
-        publisher.AddWriter(
-            highThroughputChannel.Writer,
-            condition: data => data.IsValid && data.Timestamp > DateTime.Now.AddMinutes(-1)
-        );
-        
+
+        // Producer writes to channel.Writer ...
+  
         // Process with optimized pipeline
         await highThroughputChannel.Reader.ReadAllAsync()
+            .Where(data => data.IsValid && data.Timestamp > DateTime.Now.AddMinutes(-1))
             .Cases(
                 data => data.Priority == Priority.High,
                 data => data.Priority == Priority.Medium
@@ -979,36 +985,35 @@ public class OptimizedStreamProcessor
 }
 ```
 
-## API Reference
+## 7. API Reference
 
-### Core Interfaces
+### 7.1 Core Types
 
-#### IDataSource<T>
+#### AsyncEnumerable<T>
+
 ```csharp
-public interface IDataSource<T>
+public sealed class AsyncEnumerable<T> : IAsyncEnumerable<T>
 {
-    void AddWriter(ChannelWriter<T> writer, Func<T, bool>? condition = null);
-    void RemoveWriter(ChannelWriter<T> writer);
-    Task PublishDataAsync(T data);
-    void Dispose();
+    public AsyncEnumerable(UnifyOptions? options = null);
+    public AsyncEnumerable<T> Unify(IAsyncEnumerable<T> source, string name, Func<T, bool>? predicate = null);
+    public bool Unlisten(string name);
+    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default);
+}
+
+public enum UnifyErrorMode { FailFast, ContinueOnError }
+public enum UnifyFairness { FirstAvailable, RoundRobin }
+
+public sealed class UnifyOptions
+{
+    public UnifyErrorMode ErrorMode { get; init; } = UnifyErrorMode.FailFast;
+    public UnifyFairness Fairness { get; init; } = UnifyFairness.FirstAvailable;
 }
 ```
 
-#### EnumerableWithNote<T, TNote>
-```csharp
-public class EnumerableWithNote<T, TNote> : IEnumerable<T>
-{
-    public TNote Note { get; set; }
-    public IEnumerable<T> Enumerable { get; }
-    
-    // Async equivalent
-    public IAsyncEnumerable<T> AsyncEnumerable { get; }
-}
-```
-
-### Extension Method Categories
+### 7.2 Extension Method Categories
 
 #### Unified Processing Extensions
+
 ```csharp
 // Core categorization methods (both sync and async versions)
 public static IEnumerable<(int category, T item)> Cases<T>(
@@ -1040,7 +1045,15 @@ public static IAsyncEnumerable<R> AllCases<T, R>(
 ```
 
 #### Utility Extensions
+
 ```csharp
+
+// Producer/consumer and buffering helpers
+public static async IAsyncEnumerable<T> Async<T>(this IEnumerable<T> items, long yieldThresholdMs = 15, [EnumeratorCancellation] CancellationToken ct = default);
+public static async IAsyncEnumerable<T> BufferAsync<T>(this IEnumerable<T> source, long yieldThresholdMs = 15, bool runOnBackgroundThread = false, BoundedChannelOptions? options = null, [EnumeratorCancellation] CancellationToken ct = default);
+public static IAsyncEnumerable<T> WithBoundedBuffer<T>(this IAsyncEnumerable<T> source, BoundedChannelOptions? options = null, CancellationToken ct = default);
+public static IAsyncEnumerable<T> WithBoundedBuffer<T>(this IAsyncEnumerable<T> source, int capacity, BoundedChannelFullMode fullMode = BoundedChannelFullMode.Wait, CancellationToken ct = default);
+
 // Conditional processing
 public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, bool> condition);
 public static IAsyncEnumerable<T> Until<T>(this IAsyncEnumerable<T> items, Func<T, bool> condition);
@@ -1071,9 +1084,10 @@ public static Task WriteYaml<T>(this IAsyncEnumerable<T> items, string path);
 
 ```
 
-## Advanced Topics
+## 8. Advanced Topics
 
-### Lazy Evaluation Strategy
+### 8.1 Lazy Evaluation Strategy
+
 DataFlow.NET uses **lazy evaluation** throughout the pipeline for both batch and streaming scenarios:
 
 ```csharp
@@ -1093,19 +1107,21 @@ await foreach (var result in pipeline.AllCases())
 }
 ```
 
-### Async Processing Patterns
+### 8.2 Async Processing Patterns
+
 The framework supports multiple async processing patterns:
 
 #### Fire-and-Forget Processing
+
 ```csharp
 public async Task ProcessFireAndForget()
 {
-    var publisher = new DataPublisher<LogEntry>();
-    
     // Set up background processing
     _ = Task.Run(async () =>
     {
-        var merger = new DataFlow<LogEntry>(publisher);
+       // Producer writes into a channel from anywhere
+        var channel = Channel.CreateUnbounded<LogEntry>();
+        var merger = new AsyncEnumerable<LogEntry>().Unify(channel.Reader.ReadAllAsync(), "logs");
         await merger
             .Cases(IsError, IsWarning)
             .SelectCase(ProcessError, ProcessWarning)
@@ -1116,13 +1132,14 @@ public async Task ProcessFireAndForget()
             .AllCases()
             .WriteText("background_processing.log");
     });
-    
+  
     // Continue with main processing while background task runs
-    await publisher.PublishDataAsync(new LogEntry { Level = "ERROR", Message = "Critical error" });
+    // Example producer path (not shown): channel.Writer.TryWrite(...)
 }
 ```
 
 #### Backpressure-Aware Processing
+
 ```csharp
 public async Task ProcessWithBackpressure()
 {
@@ -1132,12 +1149,10 @@ public async Task ProcessWithBackpressure()
         SingleReader = true,
         SingleWriter = false
     };
-    
+  
     var channel = Channel.CreateBounded<DataPoint>(options);
-    var publisher = new DataPublisher<DataPoint>();
-    
-    publisher.AddWriter(channel.Writer);
-    
+
+  
     // Consumer respects backpressure
     await channel.Reader.ReadAllAsync()
         .Cases(IsHighPriority, IsMediumPriority)
@@ -1151,31 +1166,35 @@ public async Task ProcessWithBackpressure()
 }
 ```
 
-### Memory Management and Resource Cleanup
+### 8.3 Memory Management and Resource Cleanup
 
 #### Proper Disposal Patterns
+
 ```csharp
 public class ResourceAwareProcessor : IAsyncDisposable
 {
-    private readonly DataPublisher<SensorData> _publisher;
-    private readonly DataFlow<SensorData> _merger;
     private readonly List<StreamWriter> _writers;
-    
+  
     public ResourceAwareProcessor()
     {
-        _publisher = new DataPublisher<SensorData>();
-        _merger = new DataFlow<SensorData>(_publisher);
         _writers = new List<StreamWriter>();
     }
-    
+  
     public async Task ProcessWithProperCleanup()
     {
         var errorWriter = new StreamWriter("errors.txt");
         var warningWriter = new StreamWriter("warnings.txt");
         _writers.AddRange(new[] { errorWriter, warningWriter });
-        
+  
         try
         {
+            // Example: merge two channels into one stream for processing
+            var ch1 = Channel.CreateUnbounded<SensorData>();
+            var ch2 = Channel.CreateUnbounded<SensorData>();
+            var merger = new AsyncEnumerable<SensorData>()
+                .Unify(ch1.Reader.ReadAllAsync(), "ch1")
+                .Unify(ch2.Reader.ReadAllAsync(), "ch2");
+
             await _merger
                 .Cases(
                     data => data.IsError,
@@ -1204,12 +1223,10 @@ public class ResourceAwareProcessor : IAsyncDisposable
             }
         }
     }
-    
+  
     public async ValueTask DisposeAsync()
     {
-        _publisher?.Dispose();
-        _merger?.Dispose();
-        
+  
         foreach (var writer in _writers)
         {
             if (writer != null)
@@ -1218,15 +1235,16 @@ public class ResourceAwareProcessor : IAsyncDisposable
                 writer.Dispose();
             }
         }
-        
+  
         _writers.Clear();
     }
 }
 ```
 
-### Regular Expression Integration with Streaming
+### 8.4 Regular Expression Integration with Streaming
 
 #### Stream-Aware Pattern Matching
+
 ```csharp
 public async Task ProcessLogStreamWithRegex()
 {
@@ -1234,7 +1252,7 @@ public async Task ProcessLogStreamWithRegex()
     var webLogPattern = $"{WORDS.As("Method")} {WORDS.As("Path")} HTTP/1.1\" {NUMS.As("Status")} {NUMS.As("Size")}";
     var dbLogPattern = $"DB Query: {WORDS.As("Operation")} on {WORDS.As("Table")} took {NUMS.As("Duration")}ms";
     var authLogPattern = $"Auth: User {WORDS.As("Username")} {WORDS.As("Action")} from {WORDS.As("IP")}";
-    
+  
     await liveLogStream
         .Map(webLogPattern, dbLogPattern, authLogPattern)
         .Cases(
@@ -1275,11 +1293,12 @@ public async Task ProcessLogStreamWithRegex()
 }
 ```
 
-## Best Practices
+## 9. Best Practices
 
-### Unified Processing Design Patterns
+### 9.1 Unified Processing Design Patterns
 
 #### 1. **Write Processing Logic Once, Deploy Everywhere**
+
 ```csharp
 // Define reusable processing logic
 public static class OrderProcessingLogic
@@ -1320,6 +1339,7 @@ var streamResults = await OrderProcessingLogic.ProcessOrders(liveOrderStream);
 ```
 
 #### 2. **Leverage the Supra Category Pattern for Robust Processing**
+
 ```csharp
 // ✅ Good: Express intent clearly, ignore unrecognized data gracefully
 public async Task ProcessBusinessEvents(IAsyncEnumerable<BusinessEvent> events)
@@ -1350,9 +1370,10 @@ public async Task ProcessBusinessEvents(IAsyncEnumerable<BusinessEvent> events)
 ```
 
 #### 3. **Use Conditional Mergers for Performance**
+
 ```csharp
 // ✅ Good: Filter at merger level for better performance
-var criticalEventsMerger = new DataFlow<SystemEvent>(
+var criticalEventsMerger = new AsyncEnumerable<SystemEvent>(
     condition: evt => evt.Severity >= EventSeverity.Warning,  // Pre-filter
     webServerEvents, databaseEvents, authEvents
 );
@@ -1365,9 +1386,10 @@ await criticalEventsMerger
     .WriteText("critical_events.log");
 ```
 
-### Performance Optimization
+### 9.2 Performance Optimization
 
 #### 1. **Stream Processing Best Practices**
+
 ```csharp
 // ✅ Good: Process data as it arrives, don't buffer unnecessarily
 await dataStream
@@ -1387,6 +1409,7 @@ foreach (var result in allResults) { /* process */ }
 ```
 
 #### 2. **Channel Configuration for High-Throughput Scenarios**
+
 ```csharp
 // ✅ Good: Configure channels appropriately for your scenario
 public class HighThroughputProcessor
@@ -1398,14 +1421,14 @@ public class HighThroughputProcessor
         SingleWriter = false,                          // Multiple producers
         AllowSynchronousContinuations = false         // Prevent blocking
     };
-    
+  
     public async Task ProcessHighThroughput()
     {
         var channel = Channel.CreateBounded<DataPoint>(_options);
         var publisher = new DataPublisher<DataPoint>();
-        
+  
         publisher.AddWriter(channel.Writer);
-        
+  
         await channel.Reader.ReadAllAsync()
             .Cases(IsUrgent, IsStandard)
             .SelectCase(ProcessUrgent, ProcessStandard)
@@ -1415,16 +1438,19 @@ public class HighThroughputProcessor
 }
 ```
 
-### Code Organization
+### 9.3 Code Organization
 
 #### 1. **Separate Concerns with Layer Architecture**
+
 ```csharp
 // Data Layer - Handle data access
 public static class DataSources
 {
     public static IAsyncEnumerable<Order> GetLiveOrders() => 
-        new DataFlow<Order>(orderPublisher);
-    
+        new AsyncEnumerable<Order>()
+            .Unify(GetLiveOrdersAsync(), "live-orders");
+   
+  
     public static IAsyncEnumerable<Order> GetHistoricalOrders() => 
         Read.Csv<Order>("orders.csv");
 }
@@ -1461,6 +1487,7 @@ public class OrderProcessingService
 ```
 
 #### 2. **Create Reusable Processing Components**
+
 ```csharp
 // Reusable processing patterns
 public static class CommonProcessingPatterns
@@ -1486,7 +1513,7 @@ public static class CommonProcessingPatterns
             throw new InvalidOperationException($"Failed after {maxRetries} retries");
         });
     }
-    
+  
     public static IAsyncEnumerable<T> ProcessWithCircuitBreaker<T>(
         this IAsyncEnumerable<T> items,
         Func<T, Task<T>> processor,
@@ -1494,12 +1521,12 @@ public static class CommonProcessingPatterns
     {
         var failureCount = 0;
         var isOpen = false;
-        
+  
         return items.SelectAwait(async item =>
         {
             if (isOpen)
                 throw new InvalidOperationException("Circuit breaker is open");
-                
+          
             try
             {
                 var result = await processor(item);
@@ -1518,11 +1545,12 @@ public static class CommonProcessingPatterns
 }
 ```
 
-## Performance Guide
+## 10. Performance Guide
 
-### Benchmarking Results
+### 10.1 Benchmarking Results
 
 #### Memory Usage Comparison
+
 ```
 Scenario: Processing 1M records
 
@@ -1543,6 +1571,7 @@ DataFlow.NET Streaming:
 ```
 
 #### Throughput Benchmarks
+
 ```
 Stream Processing Throughput:
 - Single source: ~50,000 items/second
@@ -1559,9 +1588,10 @@ Supra Category Overhead:
 - Memory overhead: ~8 bytes per item
 ```
 
-### Optimization Techniques
+### 10.2 Optimization Techniques
 
 #### 1. **Pipeline Optimization**
+
 ```csharp
 // ✅ Good: Combine operations to reduce iterations
 await dataStream
@@ -1579,6 +1609,7 @@ await processed.AllCases().WriteCsv("results.csv");
 ```
 
 #### 2. **Memory Management**
+
 ```csharp
 // ✅ Good: Use streaming for large datasets
 await Read.Csv<LargeRecord>("huge_file.csv")
@@ -1596,6 +1627,7 @@ var processed = allRecords.Cases(IsImportant, IsUrgent)
 ```
 
 #### 3. **Async Optimization**
+
 ```csharp
 // ✅ Good: Proper async/await usage
 public async Task ProcessStreamsOptimally()
@@ -1603,7 +1635,7 @@ public async Task ProcessStreamsOptimally()
     var stream1Task = ProcessStream1();
     var stream2Task = ProcessStream2();
     var stream3Task = ProcessStream3();
-    
+  
     await Task.WhenAll(stream1Task, stream2Task, stream3Task);
 }
 
@@ -1621,9 +1653,10 @@ private async Task ProcessStream1()
 }
 ```
 
-### Common Performance Pitfalls
+### 10.3 Common Performance Pitfalls
 
 #### 1. **Avoid Premature Materialization**
+
 ```csharp
 // ❌ Bad: Breaks lazy evaluation
 var results = await dataStream.Cases(pred1, pred2).ToListAsync();
@@ -1638,6 +1671,7 @@ await dataStream
 ```
 
 #### 2. **Avoid Synchronous Operations in Async Streams**
+
 ```csharp
 // ❌ Bad: Blocking async stream processing
 await asyncStream
@@ -1659,6 +1693,7 @@ await asyncStream
 ```
 
 #### 3. **Avoid Creating Excessive Intermediate Collections**
+
 ```csharp
 // ❌ Bad: Creates multiple intermediate collections
 var step1 = dataStream.Cases(pred1, pred2).ToListAsync();
@@ -1675,13 +1710,14 @@ await dataStream
 ```
 
 #### 4. **Proper Resource Management**
+
 ```csharp
 // ❌ Bad: Not disposing resources properly
 public async Task ProcessWithoutProperCleanup()
 {
-    var publisher = new DataPublisher<Data>();
-    var merger = new DataFlow<Data>(publisher);
-    
+    var channel = Channel.CreateUnbounded<Data>();
+    var merger = new AsyncEnumerable<Data>().Unify(channel.Reader.ReadAllAsync(), "data");
+
     await merger.Cases(pred1, pred2).AllCases().WriteText("output.txt");
     // Resources not disposed - potential memory leaks
 }
@@ -1689,9 +1725,10 @@ public async Task ProcessWithoutProperCleanup()
 // ✅ Good: Proper resource disposal
 public async Task ProcessWithProperCleanup()
 {
-    using var publisher = new DataPublisher<Data>();
-    using var merger = new DataFlow<Data>(publisher);
-    
+    var channel = Channel.CreateUnbounded<Data>();
+    var reader = channel.Reader;
+    var merger = new AsyncEnumerable<Data>().Unify(reader.ReadAllAsync(), "data");
+  
     await merger
         .Cases(pred1, pred2)
         .SelectCase(transform1, transform2)
@@ -1701,26 +1738,27 @@ public async Task ProcessWithProperCleanup()
 }
 ```
 
-### Advanced Performance Patterns
+### 10.4 Advanced Performance Patterns
 
 #### 1. **Parallel Processing with Partitioning**
+
 ```csharp
 public async Task ProcessInParallel()
 {
     const int partitionCount = Environment.ProcessorCount;
-    
+  
     // Partition stream for parallel processing
     var partitions = Partitioner.Create(dataSource, true)
         .GetPartitions(partitionCount)
         .Select(partition => ProcessPartition(partition));
-    
+  
     await Task.WhenAll(partitions);
 }
 
 private async Task ProcessPartition(IEnumerator<DataItem> partition)
 {
     var items = EnumeratePartition(partition);
-    
+  
     await items
         .Cases(IsHighPriority, IsMediumPriority)
         .SelectCase(ProcessHigh, ProcessMedium, ProcessLow)
@@ -1743,11 +1781,12 @@ private async IAsyncEnumerable<DataItem> EnumeratePartition(IEnumerator<DataItem
 ```
 
 #### 2. **Batched Processing for High-Throughput Scenarios**
+
 ```csharp
 public async Task ProcessInBatches()
 {
     const int batchSize = 1000;
-    
+  
     await dataStream
         .Buffer(batchSize)  // Process in batches of 1000
         .SelectAwait(async batch => 
@@ -1776,6 +1815,7 @@ public async Task ProcessInBatches()
 ```
 
 #### 3. **Circuit Breaker Pattern for Resilient Processing**
+
 ```csharp
 public class ResilientStreamProcessor
 {
@@ -1785,11 +1825,11 @@ public class ResilientStreamProcessor
         RecoveryTimeout = TimeSpan.FromMinutes(1),
         SamplingDuration = TimeSpan.FromSeconds(30)
     };
-    
+  
     public async Task ProcessWithCircuitBreaker()
     {
         var circuitBreaker = new CircuitBreaker(_options);
-        
+  
         await dataStream
             .Cases(IsHighRisk, IsMediumRisk)
             .SelectCase(
@@ -1808,16 +1848,17 @@ public class ResilientStreamProcessor
 }
 ```
 
-### Monitoring and Observability
+### 10.5 Monitoring and Observability
 
 #### 1. **Performance Monitoring**
+
 ```csharp
 public async Task ProcessWithMonitoring()
 {
     var stopwatch = Stopwatch.StartNew();
     var processedCount = 0;
     var errorCount = 0;
-    
+  
     await dataStream
         .Spy(async item => 
         {
@@ -1857,7 +1898,7 @@ public async Task ProcessWithMonitoring()
             }
         })
         .WriteCsv("monitored_results.csv");
-    
+  
     Console.WriteLine($"Final Statistics:");
     Console.WriteLine($"Total Processed: {processedCount}");
     Console.WriteLine($"Total Errors: {errorCount}");
@@ -1867,34 +1908,37 @@ public async Task ProcessWithMonitoring()
 ```
 
 #### 2. **Health Checks and Diagnostics**
+
 ```csharp
 public class StreamProcessorHealthCheck : IHealthCheck
 {
-    private readonly DataFlow<HealthData> _merger;
-    private readonly DataPublisher<HealthData> _publisher;
-    
-    public StreamProcessorHealthCheck(DataFlow<HealthData> merger, DataPublisher<HealthData> publisher)
-    {
-        _merger = merger;
-        _publisher = publisher;
-    }
-    
+    private readonly Channel<HealthData> _first_channel = Channel.CreateUnbounded<HealthData>();
+    private readonly Channel<HealthData> _second_channel = Channel.CreateUnbounded<HealthData>();
+
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         try
         {
-            // Test the processing pipeline
-            var testData = new HealthData { Timestamp = DateTime.UtcNow, Status = "Test" };
-            await _publisher.PublishDataAsync(testData);
-            
-            var processed = await _merger
+            // Build a unified async enumerable from both channels
+            var merger = new AsyncEnumerable<HealthData>()
+                .Unify(_first_channel.Reader.ReadAllAsync(),  "Source1")
+                .Unify(_second_channel.Reader.ReadAllAsync(), "Source2");
+
+            // Test the processing pipeline with two items
+            var testData1 = new HealthData { Timestamp = DateTime.UtcNow, Status = "Test1" };
+            _first_channel.Writer.TryWrite(testData1);
+
+            var testData2 = new HealthData { Timestamp = DateTime.UtcNow, Status = "Test2" };
+            _second_channel.Writer.TryWrite(testData2);
+
+            var processed = await merger
                 .Take(1)
-                .Cases(data => data.Status == "Test")
-                .SelectCase(test => $"Health check passed at {test.Timestamp}")
+                .Cases(data => data.Status.StartsWith("Test", StringComparison.OrdinalIgnoreCase))
+                .SelectCase(test => $"Health check passed at {test.Timestamp:O}")
                 .AllCases()
                 .FirstOrDefaultAsync(cancellationToken);
-            
-            return processed != null 
+
+            return processed != null
                 ? HealthCheckResult.Healthy("Stream processing pipeline is operational")
                 : HealthCheckResult.Degraded("Stream processing pipeline may be slow");
         }
@@ -1906,9 +1950,10 @@ public class StreamProcessorHealthCheck : IHealthCheck
 }
 ```
 
-### Testing Strategies
+### 10.6 Testing Strategies
 
 #### 1. **Unit Testing Processing Logic**
+
 ```csharp
 [Test]
 public async Task TestOrderProcessingLogic()
@@ -1920,7 +1965,7 @@ public async Task TestOrderProcessingLogic()
         new Order { Id = 2, Amount = 500, IsInternational = true, Customer = new Customer { IsVIP = false } },
         new Order { Id = 3, Amount = 800, IsInternational = false, Customer = new Customer { IsVIP = true } }
     }.ToAsyncEnumerable();
-    
+  
     // Act
     var results = await testOrders
         .Cases(
@@ -1936,7 +1981,7 @@ public async Task TestOrderProcessingLogic()
         )
         .AllCases()
         .ToListAsync();
-    
+  
     // Assert
     Assert.AreEqual(3, results.Count);
     Assert.AreEqual("HighValue", results.First(r => r.Id == 1).Category);
@@ -1946,15 +1991,17 @@ public async Task TestOrderProcessingLogic()
 ```
 
 #### 2. **Integration Testing with Mock Streams**
+
 ```csharp
 [Test]
 public async Task TestStreamProcessingIntegration()
 {
     // Arrange
-    var mockPublisher = new DataPublisher<LogEntry>();
-    var merger = new DataFlow<LogEntry>(mockPublisher);
+    var ch = Channel.CreateUnbounded<LogEntry>();
+    var merger = new AsyncEnumerable<LogEntry>()
+        .Unify(ch.Reader.ReadAllAsync(), "mock");
     var processedLogs = new List<string>();
-    
+  
     // Set up processing pipeline
     var processingTask = merger
         .Cases(
@@ -1974,14 +2021,14 @@ public async Task TestStreamProcessingIntegration()
         .AllCases()
         .Take(3)  // Only process first 3 items for test
         .ToListAsync();
-    
+  
     // Act - Publish test data
-    await mockPublisher.PublishDataAsync(new LogEntry { Level = "ERROR", Message = "Critical error" });
-    await mockPublisher.PublishDataAsync(new LogEntry { Level = "WARNING", Message = "Warning message" });
-    await mockPublisher.PublishDataAsync(new LogEntry { Level = "INFO", Message = "Info message" });
-    
+    ch.Writer.TryWrite(new LogEntry { Level = "ERROR", Message = "Critical error" });
+    ch.Writer.TryWrite(new LogEntry { Level = "WARNING", Message = "Warning message" });
+    ch.Writer.TryWrite(new LogEntry { Level = "INFO", Message = "Info message" });
+  
     var results = await processingTask;
-    
+  
     // Assert
     Assert.AreEqual(3, results.Count);
     Assert.IsTrue(processedLogs.Any(log => log.Contains("ALERT: Critical error")));
@@ -1991,6 +2038,7 @@ public async Task TestStreamProcessingIntegration()
 ```
 
 #### 3. **Performance Testing**
+
 ```csharp
 [Test]
 public async Task TestStreamProcessingPerformance()
@@ -2000,9 +2048,9 @@ public async Task TestStreamProcessingPerformance()
     var testData = Enumerable.Range(1, itemCount)
         .Select(i => new DataItem { Id = i, Value = i % 10 })
         .ToAsyncEnumerable();
-    
+  
     var stopwatch = Stopwatch.StartNew();
-    
+  
     // Act
     var results = await testData
         .Cases(
@@ -2016,15 +2064,15 @@ public async Task TestStreamProcessingPerformance()
         )
         .AllCases()
         .ToListAsync();
-    
+  
     stopwatch.Stop();
-    
+  
     // Assert
     Assert.AreEqual(itemCount, results.Count);
-    
+  
     var itemsPerSecond = itemCount / stopwatch.Elapsed.TotalSeconds;
     Assert.IsTrue(itemsPerSecond > 10000, $"Processing rate too slow: {itemsPerSecond:F2} items/second");
-    
+  
     Console.WriteLine($"Processed {itemCount} items in {stopwatch.Elapsed}");
     Console.WriteLine($"Rate: {itemsPerSecond:F2} items/second");
 }
@@ -2032,36 +2080,14 @@ public async Task TestStreamProcessingPerformance()
 
 ---
 
----
+## 11. What's Next
 
-## Conclusion
-
-DataFlow.NET represents a **paradigm shift** in .NET data processing by unifying batch and streaming operations under a single, intuitive API. The framework's innovative features - particularly the **Cases/SelectCase/ForEachCase pattern** and the **Supra Category Pattern** - enable developers to write processing logic once and deploy it across different data paradigms without modification.
-
-### Key Takeaways
-
-1. **🔄 Unified Processing**: Write identical code for batch files and real-time streams
-2. **⚡ Stream-First Architecture**: Built on `IAsyncEnumerable<T>` with sync compatibility
-3. **🎯 Intelligent Categorization**: Supra Category Pattern for robust, future-proof processing
-4. **📊 Multi-Source Merging**: `DataFlow<T>` for real-time data collection
-5. **🚀 Performance Optimized**: Lazy evaluation and memory-efficient streaming
-6. **💡 Developer-Friendly**: Intuitive fluent API with comprehensive tooling
-
-### Migration Path
-
-DataFlow.NET provides a **zero-cost migration path** from batch to streaming processing:
-- Start development with familiar file-based processing
-- Test and refine logic using static data sources
-- Deploy to production with live streams using identical processing code
-- Scale horizontally by adding more data sources to existing mergers
-
-The framework's **three-layer architecture** ensures clean separation of concerns while the **unified extension methods** provide consistent behavior across sync and async operations.
-
-Whether you're processing log files, transforming CSV data, analyzing sensor streams, or building real-time analytics pipelines, DataFlow.NET offers the tools and patterns needed to build robust, maintainable, and performant data processing solutions.
+More More connectors !! Even a ** SPARK ** abstraction layer !!
 
 ---
 
 *For detailed API documentation and layer-specific guides, refer to:*
+
 - *[API Reference](API-Reference.md) - Complete method signatures and usage examples*
 - *[DataFlow.Data Layer](DataFlow-Data-Layer.md) - Data access and transformation utilities*
 - *[DataFlow.Extensions Layer](DataFlow-Extensions-Layer.md) - Extension methods and processing patterns*

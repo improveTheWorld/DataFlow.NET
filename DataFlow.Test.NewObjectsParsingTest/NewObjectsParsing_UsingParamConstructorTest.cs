@@ -1,9 +1,7 @@
-using System;
+
 using System.Collections.Generic;
 using Xunit;
 using Xunit.Asserts.Compare;
-using Moq;
-using DataFlow.Extensions;
 using DataFlow.Framework;
 using System.Linq;
 
@@ -17,7 +15,7 @@ namespace DataFlow
                             => new(feedingOrder.Select((x, idx) => new KeyValuePair<string, int>(x.Trim(), idx)));
         }
 
-        class All_Properties : IWithIntenalSchema
+        class All_Properties : IHasSchema
         {
             public int Property { get; set; }
             public int Property1 { get; set; }
@@ -29,7 +27,7 @@ namespace DataFlow
             }
         }
 
-        class All_Fields : IWithIntenalSchema
+        class All_Fields : IHasSchema
         {
             public int Field;
             public int Field1;
@@ -42,7 +40,7 @@ namespace DataFlow
         }
 
 
-        class Mix_Field_Property : IWithIntenalSchema
+        class Mix_Field_Property : IHasSchema
         {
             public int intField;
             public string StringProperty { get; set; }

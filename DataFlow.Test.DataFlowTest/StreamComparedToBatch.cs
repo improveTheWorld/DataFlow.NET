@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using DataFlow.Framework;
 
-namespace DataFlow.Test;
+namespace DataFlow.App;
 
 public class StreamVSBArchPlaygroundExamples
 {
@@ -78,14 +78,11 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("🌊 Processing logs as STREAM...");
         var streamStopwatch = Stopwatch.StartNew();
 
-        // UPDATED: Added names to each data source.
-        var webServerLogs = webLogs.Async().ToDataSource("WebServerLogs");
-        var databaseLogs = dbLogs.Async().ToDataSource("DatabaseLogs");
-        var cacheLogsSource = cacheLogs.Async().ToDataSource("CacheLogs");
+       
 
-        var merger = new DataFlow<LogEntry>(null, null,
-            webServerLogs, databaseLogs, cacheLogsSource
-        );
+        var merger = new AsyncEnumerable<LogEntry>().Unify(webLogs.Async(),"WebServerLogs").
+            Unify(dbLogs.Async(),"DatabaseLogs").Unify(cacheLogs.Async(),"CacheLogs");
+
 
         var streamResults = await merger
             .Cases(
@@ -110,8 +107,7 @@ public class StreamVSBArchPlaygroundExamples
         // ✅ COMPARISON
         CompareResults("LOG PROCESSING", batchResults, streamResults, batchStopwatch.ElapsedMilliseconds, streamStopwatch.ElapsedMilliseconds);
 
-        // Cleanup
-        merger.Dispose();
+       
     }
 
     /// <summary>
@@ -153,14 +149,11 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("🌊 Processing metrics as STREAM...");
         var streamStopwatch = Stopwatch.StartNew();
 
-        // UPDATED: Added names to each data source.
-        var cpuSource = cpuMetrics.Async().ToDataSource("CpuMetrics");
-        var memorySource = memoryMetrics.Async().ToDataSource("MemoryMetrics");
-        var networkSource = networkMetrics.Async().ToDataSource("NetworkMetrics");
-
-        var merger = new DataFlow<MetricEntry>(null, null,
-            cpuSource, memorySource, networkSource
-        );
+       
+        var merger = new AsyncEnumerable<MetricEntry>().Unify(cpuMetrics.Async(), "CpuMetrics").
+            Unify(memoryMetrics.Async(), "MemoryMetrics").
+            Unify(networkMetrics.Async(), "NetworkMetrics");
+ 
 
         var streamResults = await merger
             .Cases(
@@ -185,8 +178,7 @@ public class StreamVSBArchPlaygroundExamples
         // ✅ COMPARISON
         CompareResults("METRICS MONITORING", batchResults, streamResults, batchStopwatch.ElapsedMilliseconds, streamStopwatch.ElapsedMilliseconds);
 
-        // Cleanup
-        merger.Dispose();
+        
     }
 
     /// <summary>
@@ -249,11 +241,11 @@ public class StreamVSBArchPlaygroundExamples
         var streamStopwatch = Stopwatch.StartNew();
 
         // UPDATED: Added names to each data source.
-        var orderSource = orders.Async().ToDataSource("OrderEvents");
-        var sensorSource = sensors.Async().ToDataSource("SensorReadings");
+      
 
-        var orderMerger = new DataFlow<OrderEvent>(orderSource);
-        var sensorMerger = new DataFlow<SensorReading>(sensorSource);
+
+        var orderMerger = new AsyncEnumerable<OrderEvent>().Unify(orders.Async(), "OrderEvents");
+        var sensorMerger = new AsyncEnumerable<SensorReading>().Unify(sensors.Async(), "SensorReadings");
 
         var orderTask = orderMerger
             .Cases(
@@ -301,9 +293,6 @@ public class StreamVSBArchPlaygroundExamples
         CompareResults("SENSOR MONITORING", sensorBatchResults, sensorStreamResults,
             sensorBatchStopwatch.ElapsedMilliseconds, streamStopwatch.ElapsedMilliseconds);
 
-        // Cleanup
-        orderMerger.Dispose();
-        sensorMerger.Dispose();
     }
 
     /// <summary>
@@ -346,13 +335,12 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("Simulating real-time logs from multiple sources (WebServer, Database, Cache)...");
         Console.WriteLine(new string('-', 70));
 
-        // Setup Async data sources to simulate real-time streams
-        var webServerLogs = TestDataGenerators.GenerateLogEntries(15).Async().ToDataSource("WebServerLogs");
-        var databaseLogs = TestDataGenerators.GenerateLogEntries(10).Async().ToDataSource("DatabaseLogs");
-        var cacheLogs = TestDataGenerators.GenerateLogEntries(8).Async().ToDataSource("CacheLogs");
+
 
         // Create a DataFlow merger to process all log entries
-        var merger = new DataFlow<LogEntry>(null, null, webServerLogs, databaseLogs, cacheLogs);
+        var merger = new AsyncEnumerable<LogEntry>().Unify(TestDataGenerators.GenerateLogEntries(15).Async(), "WebServerLogs").
+            Unify(TestDataGenerators.GenerateLogEntries(10).Async(), "DatabaseLogs").
+            Unify(TestDataGenerators.GenerateLogEntries(8).Async(), "CacheLogs");
 
         try
         {
@@ -375,7 +363,7 @@ public class StreamVSBArchPlaygroundExamples
         }
         finally
         {
-            merger.Dispose(); // Clean up resources
+            ; // Clean up resources
         }
 
         Console.WriteLine(new string('-', 70));
@@ -388,12 +376,10 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("Simulating a stream of metrics to generate real-time alerts...");
         Console.WriteLine(new string('-', 70));
 
-        // Setup Async data sources
-        var cpuSource = TestDataGenerators.GenerateMetrics().Async().ToDataSource("CpuMetrics");
-        var memorySource = TestDataGenerators.GenerateMetrics().Async().ToDataSource("MemoryMetrics");
-        var networkSource = TestDataGenerators.GenerateMetrics().Async().ToDataSource("NetworkMetrics");
-
-        var merger = new DataFlow<MetricEntry>(null, null, cpuSource, memorySource, networkSource);
+ 
+        var merger = new AsyncEnumerable<MetricEntry>().Unify(TestDataGenerators.GenerateMetrics().Async(), "CpuMetrics").
+            Unify(TestDataGenerators.GenerateMetrics().Async(), "MemoryMetrics").
+            Unify(TestDataGenerators.GenerateMetrics().Async(), "NetworkMetrics");
 
         try
         {
@@ -416,7 +402,7 @@ public class StreamVSBArchPlaygroundExamples
         }
         finally
         {
-            merger.Dispose();
+            ;
         }
 
         Console.WriteLine(new string('-', 70));
@@ -430,12 +416,10 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine(new string('-', 70));
 
         // Setup sources for two different data types
-        var orderSource = TestDataGenerators.GenerateOrderEvents(15).Async().ToDataSource("OrderEvents");
-        var sensorSource = TestDataGenerators.GenerateSensorReadings(20).Async().ToDataSource("SensorReadings");
 
         // Create a separate DataFlow instance for each data type
-        var orderMerger = new DataFlow<OrderEvent>(orderSource);
-        var sensorMerger = new DataFlow<SensorReading>(sensorSource);
+        var orderMerger = new AsyncEnumerable<OrderEvent>().Unify(TestDataGenerators.GenerateOrderEvents(15).Async(), "OrderEvents");
+        var sensorMerger = new AsyncEnumerable<SensorReading>().Unify(TestDataGenerators.GenerateSensorReadings(20).Async(), "SensorReadings");
 
         try
         {
@@ -469,8 +453,7 @@ public class StreamVSBArchPlaygroundExamples
         }
         finally
         {
-            orderMerger.Dispose();
-            sensorMerger.Dispose();
+            ;
         }
 
         Console.WriteLine(new string('-', 70));

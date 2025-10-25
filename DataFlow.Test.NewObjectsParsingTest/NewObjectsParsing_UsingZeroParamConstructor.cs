@@ -17,7 +17,7 @@ namespace DataFlow.Tests
                 => new(feedingOrder.Select((x, idx) => new KeyValuePair<string, int>(x.Trim(), idx)));
            
         }
-        class All_Properties : IWithIntenalSchema
+        class All_Properties : IHasSchema
         {
             public int Property { get; set; }
             public int Property1 { get; set; }
@@ -29,7 +29,7 @@ namespace DataFlow.Tests
             }
         }
 
-        class All_Fields : IWithIntenalSchema
+        class All_Fields : IHasSchema
         {
             public int Field;
             public int Field1;
@@ -42,7 +42,7 @@ namespace DataFlow.Tests
         }
 
 
-        class Mix_Field_Property : IWithIntenalSchema
+        class Mix_Field_Property : IHasSchema
         {
             public int intField;
             public string StringProperty { get; set; }

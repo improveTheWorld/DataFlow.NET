@@ -1,4 +1,4 @@
-﻿namespace DataFlow.Test;
+﻿namespace DataFlow.App;
 public record LogEntry(DateTime Timestamp, string Level, string Source, string Message, string? Exception = null);
 public record MetricEntry(DateTime Timestamp, string Name, double Value, Dictionary<string, string> Tags);
 public record OrderEvent(DateTime Timestamp, string OrderId, string EventType, decimal Amount, string Status);

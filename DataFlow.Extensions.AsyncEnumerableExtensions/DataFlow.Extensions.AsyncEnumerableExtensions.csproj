@@ -9,7 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DataFlow.Extensions.FileSystemExtensions\DataFlow.Extensions.FileSystemExtensions.csproj" />
     <ProjectReference Include="..\DataFlow.Extensions.StringExtensions\DataFlow.Extentions.StringExtensions.csproj" />
-    <ProjectReference Include="..\DataFlow.Framework.DataSource\DataFlow.Framework.DataSource.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.DataFlow\DataFlow.Framework.DataFlow.csproj" />
   </ItemGroup>
 
 </Project>

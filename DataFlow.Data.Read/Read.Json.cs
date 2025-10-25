@@ -7,6 +7,8 @@ namespace DataFlow.Data;
 
 public static partial class Read
 {
+
+
     // ---------------------------
     // PUBLIC ASYNC (OPTIONS) API
     // ---------------------------

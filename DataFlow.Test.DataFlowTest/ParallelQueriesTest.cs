@@ -9,7 +9,7 @@ using System.Diagnostics;
  * and that you have the ToDataSource<T>(name) extension method.
  */
 
-namespace DataFlow.Test;
+namespace DataFlow.App;
 
 public class ParallelQueriesPlaygroundExamples
 {
@@ -120,14 +120,13 @@ public class ParallelQueriesPlaygroundExamples
         Console.WriteLine("🌊 Path 3: Async Sequential Processing (IAsyncEnumerable)...");
         var asyncSequentialStopwatch = Stopwatch.StartNew();
 
-        // UPDATED: Data sources are now named directly upon creation.
-        var webServerLogs = webLogs.Async().ToDataSource("WebServerLogs");
-        var databaseLogs = dbLogs.Async().ToDataSource("DatabaseLogs");
-        var cacheLogsSource = cacheLogs.Async().ToDataSource("CacheLogs");
 
-        var merger = new DataFlow<LogEntry>(null, null,
-            webServerLogs, databaseLogs, cacheLogsSource
-        );
+
+
+        var merger = new AsyncEnumerable<LogEntry>().
+            Unify(webLogs.Async(), "WebServerLogs").
+            Unify(dbLogs.Async(), "DatabaseLogs").
+            Unify(cacheLogs.Async(), "CacheLogs");
 
         var asyncSequentialResults = await merger
             .Cases(
@@ -178,8 +177,7 @@ public class ParallelQueriesPlaygroundExamples
             ("Async Sequential", asyncSequentialResults, asyncSequentialStopwatch.ElapsedMilliseconds),
             ("Async Parallel", asyncParallelResults, asyncParallelStopwatch.ElapsedMilliseconds));
 
-        // Cleanup
-        merger.Dispose();
+      
     }
 
     /// <summary>
@@ -244,14 +242,10 @@ public class ParallelQueriesPlaygroundExamples
         Console.WriteLine("🌊 Path 3: Async Sequential Processing...");
         var asyncSequentialStopwatch = Stopwatch.StartNew();
 
-        // UPDATED: Data sources are now named directly upon creation.
-        var cpuSource = cpuMetrics.Async().ToDataSource("CpuMetrics");
-        var memorySource = memoryMetrics.Async().ToDataSource("MemoryMetrics");
-        var networkSource = networkMetrics.Async().ToDataSource("NetworkMetrics");
-
-        var merger = new DataFlow<MetricEntry>(null, null,
-            cpuSource, memorySource, networkSource
-        );
+      
+        var merger = new AsyncEnumerable<MetricEntry>().Unify(cpuMetrics.Async(), "CpuMetrics").
+            Unify(memoryMetrics.Async(), "MemoryMetrics").
+            Unify(networkMetrics.Async(), "NetworkMetrics");
 
         var asyncSequentialResults = await merger
             .Cases(
@@ -306,8 +300,7 @@ public class ParallelQueriesPlaygroundExamples
             ("Async Sequential", asyncSequentialResults, asyncSequentialStopwatch.ElapsedMilliseconds),
             ("Async Parallel", asyncParallelResults, asyncParallelStopwatch.ElapsedMilliseconds));
 
-        // Cleanup
-        merger.Dispose();
+       
     }
 
     /// <summary>
@@ -364,8 +357,7 @@ public class ParallelQueriesPlaygroundExamples
         var orderAsyncSequentialStopwatch = Stopwatch.StartNew();
         // UPDATED: Data source is now named directly upon creation.
 
-        var orderSource = orders.Async().ToDataSource("OrderEvents");
-        var orderMerger = new DataFlow<OrderEvent>(null, null, orderSource);
+        var orderMerger = new AsyncEnumerable<OrderEvent>().Unify(orders.Async(), "OrderEvents");
 
 
         var orderAsyncSequentialResults = await orderMerger
@@ -450,8 +442,7 @@ public class ParallelQueriesPlaygroundExamples
         // PATH 3: Async Sequential Sensors
         var sensorAsyncSequentialStopwatch = Stopwatch.StartNew();
         // UPDATED: Data source is now named directly upon creation.
-        var sensorSource = sensors.Async().ToDataSource("SensorReadings");
-        var sensorMerger = new DataFlow<SensorReading>(sensorSource);
+        var sensorMerger = new AsyncEnumerable<SensorReading>().Unify(sensors.Async(), "SensorReadings");
 
         var sensorAsyncSequentialResults = await sensorMerger
             .Cases(
@@ -511,9 +502,7 @@ public class ParallelQueriesPlaygroundExamples
             ("Async Sequential", sensorAsyncSequentialResults, sensorAsyncSequentialStopwatch.ElapsedMilliseconds),
             ("Async Parallel", sensorAsyncParallelResults, sensorAsyncParallelStopwatch.ElapsedMilliseconds));
 
-        // Cleanup
-        orderMerger.Dispose();
-        sensorMerger.Dispose();
+       
     }
 
     /// <summary>

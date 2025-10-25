@@ -47,7 +47,20 @@ public sealed record CsvReadOptions : ReadOptions
     public int MaxRawRecordLength { get; init; } = 0;
 
 
-    // Internal helper: Convert a raw field using configured inference rules + inferred schema types
+    /// <summary>
+    /// Converts a raw CSV field string to a typed object based on column schema and inference settings.
+    /// </summary>
+    /// <param name="raw">The raw string value from the CSV field.</param>
+    /// <param name="columnIndex">The zero-based column index.</param>
+    /// <returns>
+    /// A typed object if conversion succeeds; otherwise the raw string.
+    /// Empty strings for value types return the raw string (materialized as default values).
+    /// </returns>
+    /// <remarks>
+    /// <b>Lenient by default:</b> Failed conversions demote the column to string type.
+    /// Preserves leading zeros and large integers based on <see cref="PreserveNumericStringsWithLeadingZeros"/> 
+    /// and <see cref="PreserveLargeIntegerStrings"/> settings.
+    /// </remarks>
     internal object? ConvertFieldValue(string raw, int columnIndex)
     {
         // Custom delegate
@@ -76,7 +89,7 @@ public sealed record CsvReadOptions : ReadOptions
             if (t == typeof(string))
                 return raw;
 
-            if (!TryConvertToType(raw, t, out var converted))
+            if (!raw.TryParseAs(t, out var converted))
             {
                 // Demote to string and finalize (no further parse attempts for this column).
                 InferredTypes[columnIndex] = typeof(string);
@@ -88,23 +101,14 @@ public sealed record CsvReadOptions : ReadOptions
         }
 
         // Primitive inference (no schema types or not inferred yet)
-        return StringMapper.StringMapper.GetObject(raw,
-            preserveLeadingZeroNumeric: PreserveNumericStringsWithLeadingZeros,
-            preserveLargeInteger: PreserveLargeIntegerStrings);
-    }
-
-    private static bool TryConvertToType(string s, Type t, out object? value)
-    {
-        value = null;
-        if (t == typeof(string)) { value = s; return true; }
-        if (t == typeof(bool) && bool.TryParse(s, out var b)) { value = b; return true; }
-        if (t == typeof(int) && int.TryParse(s, out var i)) { value = i; return true; }
-        if (t == typeof(long) && long.TryParse(s, out var l)) { value = l; return true; }
-        if (t == typeof(decimal) && decimal.TryParse(s, out var dec)) { value = dec; return true; }
-        if (t == typeof(double) && double.TryParse(s, out var dbl)) { value = dbl; return true; }
-        if (t == typeof(DateTime) && DateTime.TryParse(s, out var dt)) { value = dt; return true; }
-        if (t == typeof(Guid) && Guid.TryParse(s, out var g)) { value = g; return true; }
-        return false;
+        return raw.Parse(
+             TextParsingOptions.Default with
+             {
+                 PreserveLeadingZeroNumeric = PreserveNumericStringsWithLeadingZeros,
+                 PreserveLargeIntegerStrings = PreserveLargeIntegerStrings,
+                 TrimWhitespace = TrimWhitespace,
+                 EnableDouble = true
+             });
     }
 }
 

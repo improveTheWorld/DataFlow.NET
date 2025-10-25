@@ -168,7 +168,7 @@ internal sealed class SecurityFilteringParser<T> : IParser
             {
                 if (_current is AnchorAlias alias)
                 {
-                    // FIX: AnchorAlias.Value is AnchorName; convert to string
+                    //  AnchorAlias.Value is AnchorName; convert to string
                     var aliasName = alias.Value.ToString();
                     if (!EmitYamlSecurityError("Alias usage disallowed", aliasName))
                     {

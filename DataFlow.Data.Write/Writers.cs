@@ -57,7 +57,7 @@ namespace DataFlow.Data
             if (path is null) throw new ArgumentNullException(nameof(path));
             using var file = new StreamWriter(path);
             if (withHeader)
-                file.WriteLine(CsvMapper.CsvHeader<T>(separator));
+                file.WriteLine(CsvWriter.CsvHeader<T>(separator));
 
             foreach (var record in records)
             {
@@ -71,7 +71,7 @@ namespace DataFlow.Data
             if (path is null) throw new ArgumentNullException(nameof(path));
             await using var file = new StreamWriter(path);
             if (withHeader)
-                await file.WriteLineAsync(CsvMapper.CsvHeader<T>(separator));
+                await file.WriteLineAsync(CsvWriter.CsvHeader<T>(separator));
 
             foreach (var record in records)
             {
@@ -86,7 +86,7 @@ namespace DataFlow.Data
             if (path is null) throw new ArgumentNullException(nameof(path));
             await using var file = new StreamWriter(path);
             if (withHeader)
-                await file.WriteLineAsync(CsvMapper.CsvHeader<T>(separator));
+                await file.WriteLineAsync(CsvWriter.CsvHeader<T>(separator));
 
             await foreach (var record in records.WithCancellation(ct))
             {
