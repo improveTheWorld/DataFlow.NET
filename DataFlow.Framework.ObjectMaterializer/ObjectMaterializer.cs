@@ -6,6 +6,7 @@ using System.Reflection;
 
 namespace DataFlow.Framework;
 
+
 /// <summary>
 /// ObjectMaterializer Conversion Rules
 /// </summary>
@@ -28,20 +29,177 @@ namespace DataFlow.Framework;
 /// Load data leniently, then apply business validation rules to filter/flag invalid records.
 /// 
 /// <code>
-/// var people = Read.AsCsvSync&lt;Person&gt;("data.csv").ToList();
+/// var people = Read.AsCsvSync&lt;Person&gt;("data.csv").ToList()
 /// var valid = people.Where(p => p.Age > 0 && !string.IsNullOrEmpty(p.Name));
 /// </code>
 /// </remarks>
+public sealed class CtorMaterializationSession<T>
+{
+    private readonly Func<object?[], object> _ctorFactory;
+    private readonly (int valueIndex, Type paramType)[] _paramMap;
+
+    public CtorMaterializationSession(string[] schema, bool resolveSchema = true)
+    {
+        // Optional resolution step
+        var effectiveSchema = resolveSchema
+            ? SchemaMemberResolver.ResolveSchemaToMembers<T>(schema)
+            : schema;
+
+        var type = typeof(T);
+
+        // Reuse schema dict cache from MemberMaterializationPlanner
+        var schemaDict = MemberMaterializationPlanner.Get<T>().GetSchemaDict(schema);
+
+        // Select primary ctor (longest)
+        var ctor = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                       .OrderByDescending(c => c.GetParameters().Length)
+                       .FirstOrDefault()
+                   ?? throw new InvalidOperationException($"Type {type.FullName} has no accessible constructors.");
+
+        var parms = ctor.GetParameters();
+        _paramMap = new (int, Type)[parms.Length];
+
+        for (int i = 0; i < parms.Length; i++)
+        {
+            var p = parms[i];
+            var name = p.Name ?? string.Empty;
+            int idx = schemaDict.TryGetValue(name, out var colIndex) ? colIndex : -1;
+            _paramMap[i] = (idx, p.ParameterType);
+        }
+
+        // Build a stable signature key for this ctor so we reuse a compiled delegate
+        var key = BuildCtorKey(type, ctor);
+
+        if (!ObjectMaterializer._ctorCache.TryGetValue(key, out var factory))
+        {
+            factory = ObjectMaterializer.CompileFactoryDelegate(ctor);
+            ObjectMaterializer._ctorCache[key] = factory;
+        }
+
+        _ctorFactory = factory;
+    }
+
+
+    public T Create(object?[] values)
+    {
+        var args = new object?[_paramMap.Length];
+        for (int i = 0; i < _paramMap.Length; i++)
+        {
+            var (idx, _) = _paramMap[i];
+            args[i] = (uint)idx < (uint)values.Length ? values[idx] : null;
+        }
+        return (T)_ctorFactory(args);
+    }
+
+    private static ObjectMaterializer.CtorSignatureKey BuildCtorKey(Type type, ConstructorInfo ctor)
+    {
+        // Build signature from parameter types
+        var parms = ctor.GetParameters();
+        var hash = new HashCode();
+        hash.Add(type);
+        hash.Add(parms.Length);
+        for (int i = 0; i < parms.Length; i++)
+            hash.Add(parms[i].ParameterType);
+        return new ObjectMaterializer.CtorSignatureKey(type, hash.ToHashCode().ToString());
+    }
+}
+
+public sealed class GeneralMaterializationSession<T>
+{
+    private enum StrategyKind { PrimaryCtor, MemberApply }
+
+    private readonly StrategyKind _strategy;
+    private readonly Func<T>? _factory;
+    private readonly Action<T, object?[]>? _apply;
+    private readonly CtorMaterializationSession<T>? _ctorSession;
+
+    public GeneralMaterializationSession(string[] schema, bool resolveSchema = true)
+    {
+        // Optional resolution step
+        var effectiveSchema = resolveSchema
+            ? SchemaMemberResolver.ResolveSchemaToMembers<T>(schema)
+            : schema;
+
+        // Prefer ctor-based materialization if possible
+        if (TryInitCtorSession(schema, out var ctorSession))
+        {
+            _ctorSession = ctorSession;
+            _strategy = StrategyKind.PrimaryCtor;
+            return;
+        }
+
+        // Fallback: parameterless + member apply
+        var plan = MemberMaterializationPlanner.Get<T>();
+        if (!ObjectMaterializer.TryGetParameterlessFactory<T>(out var f))
+        {
+            throw new InvalidOperationException(
+                $"Type {typeof(T).FullName} has no accessible constructor and no parameterless constructor.");
+        }
+
+        _factory = f;
+        _apply = plan.GetSchemaAction(schema); // cached action
+        _strategy = StrategyKind.MemberApply;
+    }
+
+    public T Create(object?[] values)
+    {
+        if (_strategy == StrategyKind.PrimaryCtor)
+            return _ctorSession!.Create(values);
+
+        var obj = _factory!();
+        _apply!(obj, values);
+        return obj;
+    }
+
+    public void Feed(ref T obj, object?[] values)
+    {
+        if (_strategy != StrategyKind.MemberApply)
+            throw new InvalidOperationException($"Type {typeof(T).FullName} does not support feeding without a parameterless constructor.");
+        _apply!(obj, values);
+    }
+
+    public bool UsesMemberApply => _strategy == StrategyKind.MemberApply;
+
+    private static bool TryInitCtorSession(string[] schema, out CtorMaterializationSession<T>? session)
+    {
+        try
+        {
+            // This will throw only if no accessible ctors exist; otherwise it builds the map and reuses caches
+            session = new CtorMaterializationSession<T>(schema);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            session = null;
+            return false;
+        }
+    }
+}
+
+
 public static class ObjectMaterializer
 {
     // ---------------------------
     // Caches
     // ---------------------------
-    private static readonly ConcurrentDictionary<Type, Func<object>> _parameterlessCache = new();
-    private static readonly ConcurrentDictionary<CtorSignatureKey, Func<object?[], object>> _ctorCache = new();
+
+    internal static readonly ConcurrentDictionary<CtorSignatureKey, Func<object?[], object>> _ctorCache = new();
+
+
+    internal static MaterializationSession<T> CreateFeedSession<T>(string[] schema)
+       => new MaterializationSession<T>(schema);
+
+    internal static CtorMaterializationSession<T> CreateCtorSession<T>(string[] schema)
+        => new CtorMaterializationSession<T>(schema);
+    public static GeneralMaterializationSession<T> CreateGeneralSession<T>(string[] schema)
+       => new GeneralMaterializationSession<T>(schema);
+
+    public static string[] ResolveSchema<T>(string[] schema) => 
+        SchemaMemberResolver.ResolveSchemaToMembers<T>(schema);
+
 
     // Key that represents a constructor signature for caching compiled delegates
-    private readonly record struct CtorSignatureKey(Type type, string Signature)
+    internal readonly record struct CtorSignatureKey(Type type, string Signature)
     {
         public override int GetHashCode() => HashCode.Combine(type, Signature);
     }
@@ -49,6 +207,7 @@ public static class ObjectMaterializer
 
     public static T? Create<T>(params object[] parameters)
     {
+
         // Original semantics: attempt constructor with string[] parameters (treated as object[]),
         // else fallback to internal order feeder.
         if (TryCreateViaBestConstructor<T>(parameters, out var instance))
@@ -67,37 +226,51 @@ public static class ObjectMaterializer
                 ex);
         }
     }
-
     public static T? Create<T>(string[] schema, params object[] parameters)
     {
+        Exception? exCtor = null;
+
+        // 1) Fast path: constructor with schema mapping
         try
         {
-            T instance = NewWithSchema<T>(schema, parameters);
-
-            // Optional: warn about unmapped members
-            var plan = MemberMaterializationPlanner.Get<T>();
-            var unmapped = plan.Members
-                .Where(m => !schema.Contains(m.Name, plan.NameComparer))
-                .Select(m => m.Name);
-
-            if (unmapped.Any())
-                Trace.WriteLine($"[ObjectMaterializer] Unmapped members in {typeof(T).Name}: {string.Join(", ", unmapped)}");
-
-            return instance;
+            return CreateViaPrimaryConstructorWithSchema<T>(schema, parameters);
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
-            // Already has meaningful message from CreateViaPrimaryConstructorWithSchema
-            throw;
+            // Save and try the fallback to keep old behavior if possible
+            exCtor = ex;
         }
         catch (Exception ex) when (ex is InvalidCastException or FormatException or ArgumentException)
         {
-            throw new InvalidOperationException(
-                $"Failed to materialize type {typeof(T).FullName} using schema. " +
+            exCtor = new InvalidOperationException(
+                $"Failed to materialize type {typeof(T).FullName} using primary constructor with schema. " +
                 $"Schema columns: [{string.Join(", ", schema)}]. " +
                 $"Parameter count: {parameters.Length}. " +
                 $"Error: {ex.Message}",
                 ex);
+        }
+
+        // 2) Fallback: parameterless + member feeding (existing behavior)
+        try
+        {
+            if (!TryGetParameterlessFactory<T>(out var factory))
+            {
+                // No parameterless ctor; rethrow original ctor-based error
+                throw exCtor!;
+            }
+
+            T instance = factory();
+            var plan = MemberMaterializationPlanner.Get<T>();
+
+            // Reuse cached action per (T, culture, thousands, formats, schema)
+            var apply = plan.GetSchemaAction(schema);
+            apply(instance, parameters);
+            return instance;
+        }
+        catch (Exception ex)
+        {
+            // 3) Both paths failed: rethrow the first (ctor-based) error for clearer diagnostics
+            throw new InvalidOperationException(ex!.Message + exCtor!.Message, ex);
         }
     }
 
@@ -105,15 +278,7 @@ public static class ObjectMaterializer
     // CORE CREATION METHODS
     // ---------------------------
 
-    /// <summary>
-    /// Creates an instance using schema-based member feeding (for records/classes without matching constructors).
-    /// </summary>
-    public static T? CreateWithSchema<T>(string[] schema, object?[] parameters)
-    {
-        return (T?)NewWithSchema<T>( schema, parameters);
-    }
-
-    private static bool TryCreateViaBestConstructor<T>( object?[] parameters, out T? instance)
+    private static bool TryCreateViaBestConstructor<T>(object?[] parameters, out T? instance)
     {
         instance = default;
 
@@ -122,7 +287,7 @@ public static class ObjectMaterializer
             // Try parameterless constructor
             if (TryGetParameterlessFactory<T>(out var factory))
             {
-                instance =  (T?)factory();
+                instance = factory();
                 return true;
             }
             return false;
@@ -145,11 +310,11 @@ public static class ObjectMaterializer
         }
 
         // Resolve & compile
-        if (TryResolveConstructor<T>( parameters, out var ctor))
+        if (TryResolveConstructor<T>(parameters, out var ctor))
         {
             ctorFactory = CompileFactoryDelegate(ctor);
             _ctorCache[key] = ctorFactory;
-            instance = instance = (T?)ctorFactory(parameters);
+            instance = (T?)ctorFactory(parameters);
             return true;
         }
 
@@ -165,26 +330,11 @@ public static class ObjectMaterializer
                 $"Type {typeof(T).FullName} has no public parameterless constructor and no matching constructor for provided parameters.");
         }
 
-        T instance = (T)factory();
-        return MemberMaterializer.FeedUsingInternalOrder(instance, parameters);
+        T instance = factory();
+        MemberMaterializer.FeedUsingInternalOrder(ref instance, parameters);
+        return instance;
     }
 
-    private static T NewWithSchema<T>( string[] schema, params object?[] parameters)
-    {
-        Type newObjectType = typeof(T);
-        if (schema == null) throw new ArgumentNullException(nameof(schema));
-
-        // Try parameterless constructor first
-        if (!TryGetParameterlessFactory<T>(out var factory))
-        {
-            // For records/types without parameterless ctor, try primary constructor with schema mapping
-            return CreateViaPrimaryConstructorWithSchema<T>( schema, parameters);
-        }
-
-        T instance = (T) factory();
-        var dict = MemberMaterializer.GetSchemaDictionary(schema, StringComparer.OrdinalIgnoreCase);
-        return MemberMaterializer.FeedUsingSchema(instance, dict, parameters, caseInsensitiveHeaders: true);
-    }
 
     /// <summary>
     /// Creates instance using primary constructor by mapping schema names to constructor parameters.
@@ -193,7 +343,9 @@ public static class ObjectMaterializer
     private static T CreateViaPrimaryConstructorWithSchema<T>(string[] schema, object?[] values)
     {
         Type type = typeof(T);
-        var schemaDict = MemberMaterializer.GetSchemaDictionary(schema, StringComparer.OrdinalIgnoreCase);
+
+        //  USE CACHED SCHEMA DICTIONARY
+        var schemaDict = MemberMaterializationPlanner.Get<T>().GetSchemaDict(schema);
 
         // Find primary constructor (longest parameter list, typically)
         var ctors = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
@@ -205,7 +357,6 @@ public static class ObjectMaterializer
 
         var attemptedCtors = new List<string>();
 
-        // Try each constructor (starting with longest - likely primary constructor for records)
         foreach (var ctor in ctors)
         {
             var ctorParams = ctor.GetParameters();
@@ -215,7 +366,6 @@ public static class ObjectMaterializer
             bool allMatched = true;
             var missingParams = new List<string>();
 
-            // Try to find matching schema column (case-insensitive)
             for (int i = 0; i < ctorParams.Length; i++)
             {
                 var param = ctorParams[i];
@@ -232,7 +382,6 @@ public static class ObjectMaterializer
                 }
                 else
                 {
-                    // Required parameter not found in schema
                     allMatched = false;
                     missingParams.Add($"{param.ParameterType.Name} {paramName}");
                     break;
@@ -243,7 +392,6 @@ public static class ObjectMaterializer
             {
                 try
                 {
-                    // Cache and invoke
                     var key = BuildSignatureKey<T>(args);
                     var factory = CompileFactoryDelegate(ctor);
                     _ctorCache[key] = factory;
@@ -251,7 +399,6 @@ public static class ObjectMaterializer
                 }
                 catch (Exception ex) when (ex is InvalidCastException or FormatException)
                 {
-                    // Constructor matched but conversion failed
                     throw new InvalidOperationException(
                         $"Constructor matched for {type.FullName} but parameter conversion failed. " +
                         $"Constructor: ({string.Join(", ", ctorParams.Select(p => $"{p.ParameterType.Name} {p.Name}"))}). " +
@@ -300,7 +447,7 @@ public static class ObjectMaterializer
         }
 
         return false;
-}
+    }
     private static int ScoreConstructor(ConstructorInfo ctor, object?[] args)
     {
         int score = 0;
@@ -369,7 +516,7 @@ public static class ObjectMaterializer
     // ---------------------------
     // Delegate Compilation
     // ---------------------------
-    private static Func<object?[], object> CompileFactoryDelegate(ConstructorInfo ctor)
+    internal static Func<object?[], object> CompileFactoryDelegate(ConstructorInfo ctor)
     {
         var argsParam = Expression.Parameter(typeof(object?[]), "args");
         var ctorParams = ctor.GetParameters();
@@ -412,29 +559,34 @@ public static class ObjectMaterializer
     }
 
     // Parameterless factory with try pattern
-    private static bool TryGetParameterlessFactory<T>( out Func<object> factory)
+    private static readonly ConcurrentDictionary<Type, Func<object>?> _parameterlessFactoryCache = new();
+
+    public static bool TryGetParameterlessFactory<T>(out Func<T> factory)
     {
-        Type type = typeof(T);
-        if (_parameterlessCache.TryGetValue(type, out factory!))
-            return true;
+        var type = typeof(T);
 
-        var ctor = type.GetConstructor(
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
-            null,
-            Type.EmptyTypes,
-            null);
-
-        if (ctor == null)
+        var cachedFactory = _parameterlessFactoryCache.GetOrAdd(type, t =>
         {
-            factory = null!;
-            return false;
+            // Value types always work
+            if (t.IsValueType)
+                return () => Activator.CreateInstance(t);
+
+            // For reference types, try parameterless constructor
+            var ctor = t.GetConstructor(Type.EmptyTypes);
+            if (ctor != null)
+                return () => ctor.Invoke(null);
+
+            return null;
+        });
+
+        if (cachedFactory != null)
+        {
+            factory = () => (T)cachedFactory();
+            return true;
         }
 
-        var newExpr = Expression.New(ctor);
-        var body = Expression.Convert(newExpr, typeof(object));
-        factory = Expression.Lambda<Func<object>>(body).Compile();
-        _parameterlessCache[type] = factory;
-        return true;
+        factory = null!;
+        return false;
     }
 
     // ---------------------------
@@ -442,24 +594,24 @@ public static class ObjectMaterializer
     // ---------------------------
     private static CtorSignatureKey BuildSignatureKey<T>(object?[] args)
     {
-        // Signature encodes runtime types; null gets its own marker with position to reduce collisions.
-        // Example: "System.String|#NULL#1|System.Int32"
-        var sb = new System.Text.StringBuilder();
+        // Use HashCode struct instead of string concatenation
+        var hash = new HashCode();
+        hash.Add(typeof(T));
+        hash.Add(args.Length);
+
         for (int i = 0; i < args.Length; i++)
         {
-            if (i > 0) sb.Append('|');
-            var a = args[i];
-            if (a == null)
+            if (args[i] == null)
             {
-                sb.Append("#NULL#").Append(i);
+                hash.Add(typeof(void)); // Marker for null
             }
             else
             {
-                sb.Append(a.GetType().FullName);
+                hash.Add(args[i].GetType());
             }
         }
 
-        return new CtorSignatureKey(typeof(T), sb.ToString());
+        return new CtorSignatureKey(typeof(T), hash.ToHashCode().ToString());
     }
 
     // ---------------------------

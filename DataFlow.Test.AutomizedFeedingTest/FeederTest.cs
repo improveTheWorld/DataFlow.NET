@@ -28,7 +28,7 @@ class All_Properties : IHasSchema
 
    
 
-    public Dictionary<string,int> GetSchema()
+    public Dictionary<string,int> GetDictSchema()
     {
         return Convert.AsFeedDictionary(_feedingOrder);
     }
@@ -40,7 +40,7 @@ class All_Fields : IHasSchema
     public int Field1;
 
     readonly static string[] _feedingOrder = { "Field", "Field1" };
-    public Dictionary<string, int> GetSchema()
+    public Dictionary<string, int> GetDictSchema()
     {
         return Convert.AsFeedDictionary(_feedingOrder);
     }
@@ -54,7 +54,7 @@ class Mix_Field_Property : IHasSchema
     public bool FieldBool;
 
     readonly static string[] _feedingOrder = { "intField", "StringProperty", "FieldBool" };
-    public Dictionary<string, int> GetSchema()
+    public Dictionary<string, int> GetDictSchema()
     {
         return Convert.AsFeedDictionary(_feedingOrder);
     }

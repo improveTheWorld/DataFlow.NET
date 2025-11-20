@@ -18,8 +18,4 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\DataFlow.Framework.AutomizedFeeding\DataFlow.Framework.ObjectMaterialization.csproj" />
-  </ItemGroup>
-
 </Project>

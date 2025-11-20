@@ -11,10 +11,11 @@
     <ProjectReference Include="..\DataFlow.Extensions.AsyncEnumerableExtensions\DataFlow.Extensions.AsyncEnumerableExtensions.csproj" />
     <ProjectReference Include="..\DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj" />
     <ProjectReference Include="..\DataFlow.Extensions.StringExtensions\DataFlow.Extentions.StringExtensions.csproj" />
-    <ProjectReference Include="..\DataFlow.Framework.AutomizedFeeding\DataFlow.Framework.ObjectMaterialization.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.ObjectMaterializer\DataFlow.Framework.ObjectMaterialization.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 

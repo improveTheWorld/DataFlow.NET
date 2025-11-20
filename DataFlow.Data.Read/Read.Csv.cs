@@ -80,6 +80,12 @@ public static partial class Read
     // ---------------------------------------------------------
     public static async IAsyncEnumerable<T> Csv<T>(string path, CsvReadOptions options, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"CSV file not found: {path}", path);
+
         await using var fs = File.OpenRead(path);
         await foreach (var rec in Csv<T>(fs, options, filePath: path, cancellationToken))
             yield return rec;
@@ -101,6 +107,12 @@ public static partial class Read
     // ---------------------------------------------------------
     public static IEnumerable<T> CsvSync<T>(string path, CsvReadOptions options, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"CSV file not found: {path}", path);
+
         using var fs = File.OpenRead(path);
         foreach (var row in CsvSync<T>(fs, options, filePath: path, cancellationToken))
             yield return row;
@@ -123,6 +135,7 @@ public static partial class Read
     // ---------------------------------------------------------
     public static IAsyncEnumerable<T> Csv<T>(string path, string separator = ",", Action<string, Exception>? onError = null, params string[] schema)
     {
+
         var options = new CsvReadOptions
         {
             Separator = separator.FirstOrDefault(','),
@@ -208,6 +221,7 @@ public static partial class Read
         string filePath,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
+        GeneralMaterializationSession<T>? session = null;
         T? current = default;
         string[]? schema = options.Schema;
         bool headerConsumed = false;
@@ -415,7 +429,11 @@ public static partial class Read
             }
             try
             {
-                current = ObjectMaterializer.Create<T>(schemaLocal, values);
+                if (session == null)
+                {
+                    session = ObjectMaterializer.CreateGeneralSession<T>(schemaLocal);
+                }
+                current = session.Create(values);
                 return current != null;
             }
             catch (OperationCanceledException) { throw; }
@@ -438,6 +456,7 @@ public static partial class Read
         string filePath,
         CancellationToken ct)
     {
+        GeneralMaterializationSession<T>? session = null;
         T? current = default;
         string[]? schema = options.Schema;
         bool headerConsumed = false;
@@ -641,7 +660,11 @@ public static partial class Read
             }
             try
             {
-                current = ObjectMaterializer.Create<T>(schemaLocal, values);
+                if (session == null)
+                {
+                    session = ObjectMaterializer.CreateGeneralSession<T>(schemaLocal);
+                }
+                current = session.Create(values);
                 return current != null;
             }
             catch (OperationCanceledException) { throw; }   

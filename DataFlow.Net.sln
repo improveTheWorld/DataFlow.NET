@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31919.166
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DataFlow.Framework.ObjectMaterialization", "DataFlow.Framework.AutomizedFeeding\DataFlow.Framework.ObjectMaterialization.csproj", "{99C9A70D-D93E-409B-9191-BEFB0E869A21}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DataFlow.Extensions", "DataFlow.Extensions", "{41543B92-12D1-4956-8D0C-C3DEB7B574AF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DataFlow.App", "DataFlow.App", "{AD7F522C-E282-4AC3-A8A7-73AD5C727F65}"
@@ -93,16 +91,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Framework.Tests", 
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "UnitTests", "UnitTests", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "kh", "kh\kh.csproj", "{1F1434A8-8FFA-41D3-9E40-7FF1848E8AA1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Framework.ObjectMaterialization", "DataFlow.Framework.ObjectMaterializer\DataFlow.Framework.ObjectMaterialization.csproj", "{1DE2CE5D-FDAF-4635-3979-59E944AAB74D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{99C9A70D-D93E-409B-9191-BEFB0E869A21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{99C9A70D-D93E-409B-9191-BEFB0E869A21}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{99C9A70D-D93E-409B-9191-BEFB0E869A21}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{99C9A70D-D93E-409B-9191-BEFB0E869A21}.Release|Any CPU.Build.0 = Release|Any CPU
 		{67D8D548-B20C-42C4-862F-B290CE04FDBE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{67D8D548-B20C-42C4-862F-B290CE04FDBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{67D8D548-B20C-42C4-862F-B290CE04FDBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -255,12 +253,19 @@ Global
 		{F0305202-5703-2ADB-875E-203D4767DF3F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F0305202-5703-2ADB-875E-203D4767DF3F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F0305202-5703-2ADB-875E-203D4767DF3F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F1434A8-8FFA-41D3-9E40-7FF1848E8AA1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F1434A8-8FFA-41D3-9E40-7FF1848E8AA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F1434A8-8FFA-41D3-9E40-7FF1848E8AA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F1434A8-8FFA-41D3-9E40-7FF1848E8AA1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1DE2CE5D-FDAF-4635-3979-59E944AAB74D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1DE2CE5D-FDAF-4635-3979-59E944AAB74D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1DE2CE5D-FDAF-4635-3979-59E944AAB74D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1DE2CE5D-FDAF-4635-3979-59E944AAB74D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{99C9A70D-D93E-409B-9191-BEFB0E869A21} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
 		{67D8D548-B20C-42C4-862F-B290CE04FDBE} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
 		{A0D988BF-E4D6-4329-9FF9-BE8CFAB809B5} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
 		{C8C3C0A1-3870-4DDE-BE5E-A55F2B1748B3} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
@@ -299,6 +304,8 @@ Global
 		{14D8BC80-4EA3-49A8-B682-5F4393ACC5A8} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{F55E5CD4-18EF-4852-8540-384E1AB6CE51} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{F0305202-5703-2ADB-875E-203D4767DF3F} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{1F1434A8-8FFA-41D3-9E40-7FF1848E8AA1} = {AD7F522C-E282-4AC3-A8A7-73AD5C727F65}
+		{1DE2CE5D-FDAF-4635-3979-59E944AAB74D} = {18327ADF-23FD-4B67-BBD1-38043FE41435}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {61DDF856-8DAB-48DA-B9CA-ADCD419D66E8}

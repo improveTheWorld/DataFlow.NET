@@ -492,7 +492,7 @@ public static class StringParsingExtensions
     /// <param name="onError">Optional error callback. If provided, items with errors are skipped.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>An enumerable of deserialized records.</returns>
-    public static IEnumerable<T> AsJsonc<T>(
+    public static IEnumerable<T> AsJson<T>(
         this string jsonContent,
         JsonSerializerOptions? serializerOptions = null,
         Action<Exception>? onError = null,

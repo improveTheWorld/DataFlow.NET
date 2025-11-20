@@ -23,7 +23,7 @@ namespace DataFlow.Tests
             public int Property1 { get; set; }
 
             readonly static string[] _feedingOrder = { "Property", "Property1" };
-            public Dictionary<string, int> GetSchema()
+            public Dictionary<string, int> GetDictSchema()
             {
                 return Convert.ConvertToFeedDictionary(_feedingOrder);
             }
@@ -35,7 +35,7 @@ namespace DataFlow.Tests
             public int Field1;
 
             readonly static string[] _feedingOrder = { "Field", "Field1" };
-            public Dictionary<string, int> GetSchema()
+            public Dictionary<string, int> GetDictSchema()
             {
                 return Convert.ConvertToFeedDictionary(_feedingOrder);
             }
@@ -49,7 +49,7 @@ namespace DataFlow.Tests
             public bool FieldBool;
             
             readonly static string[] _feedingOrder = { "intField", "StringProperty", "FieldBool" };
-            public Dictionary<string, int> GetSchema()
+            public Dictionary<string, int> GetDictSchema()
             {
                 return Convert.ConvertToFeedDictionary(_feedingOrder);
             }

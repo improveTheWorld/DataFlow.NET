@@ -1,4 +1,4 @@
-
+﻿
 // FeedPlan: builds once per T and caches compiled setters and mapping metadata
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -6,21 +6,50 @@ using System.Linq.Expressions;
 using System.Reflection;
 namespace DataFlow.Framework;
 
+
+public sealed class MaterializationSession<T>
+{
+    
+    private readonly Func<T> _factory;
+    private readonly Action<T, object?[]> _apply;
+
+    public MaterializationSession(string[] schema)
+    {
+        // Reuse your parameterless factory cache
+        if (!ObjectMaterializer.TryGetParameterlessFactory<T>(out var f))
+            throw new InvalidOperationException($"{typeof(T).FullName} requires a parameterless constructor for feed sessions.");
+
+        _factory = f;
+
+        // Bind plan and cache the mapping/action once
+        var plan = MemberMaterializationPlanner.Get<T>();
+        _apply = plan.GetSchemaAction(schema); // cached in plan._schemaMappingCache
+    }
+
+    public T Create(object?[] values)
+    {
+        var obj = _factory();
+        _apply(obj, values);
+        return obj;
+    }
+
+    public void Feed(ref T obj, object?[] values) => _apply(obj, values);
+}
+
 public interface IHasSchema
 {
-    Dictionary<string, int> GetSchema();
+    Dictionary<string, int> GetDictSchema();
 }
 internal static class MemberMaterializationPlanner
 {
+    private static readonly ConcurrentDictionary<PlanCacheKey, object> Cache = new();
     private readonly record struct PlanCacheKey(
     Type TargetType,
-    bool CaseInsensitive,
     string CultureName,
     bool AllowThousands,
     string DateTimeFormatsHash)
     {
         public static PlanCacheKey Create<T>(
-            bool caseInsensitive,
             CultureInfo culture,
             bool allowThousands,
             string[] dateTimeFormats)
@@ -31,34 +60,32 @@ internal static class MemberMaterializationPlanner
 
             return new PlanCacheKey(
                 typeof(T),
-                caseInsensitive,
                 culture.Name,
                 allowThousands,
                 formatsHash);
         }
     }
 
-    private static readonly ConcurrentDictionary<PlanCacheKey, object> Cache = new();
+
+    
 
     public static MemberMaterializationPlan<T> Get<T>(
-        bool caseInsensitiveHeaders = true,
         CultureInfo? culture = null,
         bool allowThousandsSeparators = true,
         string[]? dateTimeFormats = null)
     {
+        var actualCulture = culture ?? CultureInfo.InvariantCulture;
+        var actualFormats = dateTimeFormats ?? Array.Empty<string>();
         var key = PlanCacheKey.Create<T>(
-            caseInsensitiveHeaders,
-            culture ?? CultureInfo.InvariantCulture,
+            actualCulture,
             allowThousandsSeparators,
-            dateTimeFormats ?? Array.Empty<string>());
-
+            actualFormats);
         return (MemberMaterializationPlan<T>)Cache.GetOrAdd(
             key,
             _ => MemberMaterializationPlan<T>.Build(
-                caseInsensitiveHeaders,
-                culture,
+                actualCulture,
                 allowThousandsSeparators,
-                dateTimeFormats));
+                actualFormats));
     }
 }
 
@@ -77,23 +104,106 @@ internal sealed class MemberMaterializationPlan<T>
     }
 
     public readonly MemberSetter[] Members;
-    public readonly StringComparer NameComparer;
 
-    private MemberMaterializationPlan(MemberSetter[] members, StringComparer comparer)
+    private readonly ConcurrentDictionary<SchemaKey, Action<T, object?[]>> _schemaMappingCache = new();
+
+    internal readonly struct SchemaKey : IEquatable<SchemaKey>
     {
-        Members = members;
-        NameComparer = comparer;
+
+        private readonly int _hashCode;
+        private readonly string[] _schema;
+
+        public SchemaKey(string[] schema)
+        {
+            _schema = schema;
+            var hash = new HashCode();
+            hash.Add(schema.Length);
+            foreach (var s in schema)
+                hash.Add(s);
+            _hashCode = hash.ToHashCode();
+        }
+
+        public override int GetHashCode() => _hashCode;
+
+        public bool Equals(SchemaKey other)
+        {
+            if (_schema.Length != other._schema.Length) return false;
+
+            for (int i = 0; i < _schema.Length; i++)
+            {
+                if (_schema[i] != other._schema[i])
+                    return false;
+            }
+            return true;
+        }
+        override public bool Equals(object? obj) => obj is SchemaKey o && Equals(o);
+
     }
 
+    private readonly ConcurrentDictionary<SchemaKey, Dictionary<string, int>> _schemaDictCache = new();
+    internal Dictionary<string, int> computeSchemaDict(string[] schema)
+    {
+        var dict = new Dictionary<string, int>(schema.Length);
+        for (int i = 0; i < schema.Length; i++)
+            dict[schema[i]] = i;
+        return dict;
+    }
+    public Dictionary<string, int> GetSchemaDict(string[] schema)  // Control it here
+    {
+
+        var key = new SchemaKey(schema);
+       
+        return _schemaDictCache.GetOrAdd(key, _ =>
+            computeSchemaDict(schema));
+    }
+    private MemberMaterializationPlan(MemberSetter[] members)
+    {
+        Members = members;
+    }
+
+ 
+    public Action<T, object?[]> GetSchemaAction(string[] schema)
+    {
+        var key = new SchemaKey(schema);
+       
+        return _schemaMappingCache.GetOrAdd(key, _ => BuildSchemaAction(schema));
+    }
+
+    private Action<T, object?[]> BuildSchemaAction(string[] schema)
+    {
+        var schemaDict = GetSchemaDict(schema);
+
+        // Build a compact mapping: for each matched member, store (valueIndex, setter)
+        // Allocate once per schema key (acceptable since _schemaMappingCache caches actions).
+        var tmp = new List<(int valueIndex, Action<T, object?> setter)>(Members.Length);
+        foreach (var member in Members)
+        {
+            if (schemaDict.TryGetValue(member.Name, out var idx))
+                tmp.Add((idx, member.Set));
+        }
+
+        var mapping = tmp.ToArray(); // compact, contiguous
+
+        // Returned action does no allocations and no dictionary lookups
+        return (obj, values) =>
+        {
+            // Use a simple for loop for best JIT inlining
+            for (int i = 0; i < mapping.Length; i++)
+            {
+                var pair = mapping[i];
+                var idx = pair.valueIndex;
+                if ((uint)idx < (uint)values.Length)
+                    pair.setter(obj, values[idx]);
+            }
+        };
+    }
     public static MemberMaterializationPlan<T> Build(
-        bool caseInsensitiveHeaders,
         CultureInfo? culture = null,
         bool allowThousandsSeparators = true,
         string[]? dateTimeFormats = null)
     {
         var actualCulture = culture ?? CultureInfo.InvariantCulture;
         var actualFormats = dateTimeFormats ?? Array.Empty<string>();
-        var comparer = caseInsensitiveHeaders ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
         var type = typeof(T);
         var props = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
@@ -118,7 +228,7 @@ internal sealed class MemberMaterializationPlan<T>
             members.Add(new MemberSetter(f.Name, ord, CompileSetterForField(f, actualCulture, allowThousandsSeparators, actualFormats)));
         }
 
-        return new MemberMaterializationPlan<T>(members.ToArray(), comparer)
+        return new MemberMaterializationPlan<T>(members.ToArray())
         {
             Culture = culture ?? CultureInfo.InvariantCulture,
             AllowThousandsSeparators = allowThousandsSeparators,

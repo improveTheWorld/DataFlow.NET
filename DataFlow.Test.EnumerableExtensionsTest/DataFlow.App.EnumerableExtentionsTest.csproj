@@ -22,7 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj" />
-    <ProjectReference Include="..\DataFlow.Framework.AutomizedFeeding\DataFlow.Framework.ObjectMaterialization.csproj" />
   </ItemGroup>
 
 </Project>
