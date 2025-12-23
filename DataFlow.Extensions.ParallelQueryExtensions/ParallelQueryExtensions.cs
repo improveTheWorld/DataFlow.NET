@@ -25,71 +25,6 @@ namespace DataFlow.Extensions
     public static class ParallelQueryExtensions
     {
         /// <summary>
-        /// Merges two already ordered parallel sequences into a single ordered <see cref="IEnumerable{T}"/>.
-        /// </summary>
-        /// <typeparam name="T">The element type of the sequences.</typeparam>
-        /// <param name="first">First ordered parallel sequence.</param>
-        /// <param name="second">Second ordered parallel sequence.</param>
-        /// <param name="isFirstLessThanOrEqualToSecond">
-        /// A comparison function returning <c>true</c> if the current element from <paramref name="first"/> should be yielded
-        /// before (or is equal to) the current element from <paramref name="second"/>.
-        /// </param>
-        /// <returns>
-        /// An ordered, merged <see cref="IEnumerable{T}"/> that interleaves items from both sources.
-        /// </returns>
-        /// <remarks>
-        /// <para>
-        /// This operation is inherently sequential because it must compare the heads of both sequences
-        /// in lock-step; therefore, parallelism from the incoming <see cref="ParallelQuery{T}"/> inputs
-        /// is not preserved during the merge itself.
-        /// </para>
-        /// <para>
-        /// Both input sequences are fully enumerated in a single forward pass. If either sequence is not
-        /// sorted according to the comparison logic implied by <paramref name="isFirstLessThanOrEqualToSecond"/>,
-        /// the merged output ordering is undefined.
-        /// </para>
-        /// </remarks>
-        /// <exception cref="ArgumentNullException">
-        /// Thrown if <paramref name="first"/>, <paramref name="second"/>, or <paramref name="isFirstLessThanOrEqualToSecond"/> is <c>null</c>.
-        /// </exception>
-        public static IEnumerable<T> MergeOrdered<T>(
-            this ParallelQuery<T> first,
-            ParallelQuery<T> second,
-            Func<T, T, bool> isFirstLessThanOrEqualToSecond)
-        {
-            if (first is null) throw new ArgumentNullException(nameof(first));
-            if (second is null) throw new ArgumentNullException(nameof(second));
-            if (isFirstLessThanOrEqualToSecond is null) throw new ArgumentNullException(nameof(isFirstLessThanOrEqualToSecond));
-
-            // Convert to sequential for merging since this operation is inherently sequential
-            using var enum1 = first.GetEnumerator();
-            using var enum2 = second.GetEnumerator();
-
-            bool hasNext1 = enum1.MoveNext();
-            bool hasNext2 = enum2.MoveNext();
-
-            while (hasNext1 && hasNext2)
-            {
-                if (isFirstLessThanOrEqualToSecond(enum1.Current, enum2.Current))
-                {
-                    yield return enum1.Current;
-                    hasNext1 = enum1.MoveNext();
-                }
-                else
-                {
-                    yield return enum2.Current;
-                    hasNext2 = enum2.MoveNext();
-                }
-            }
-
-            var remainingEnumerator = hasNext1 ? enum1 : hasNext2 ? enum2 : null;
-            while (remainingEnumerator?.MoveNext() ?? false)
-            {
-                yield return remainingEnumerator.Current;
-            }
-        }
-
-        /// <summary>
         /// Returns a contiguous slice of a parallel sequence starting at a specified index.
         /// </summary>
         /// <typeparam name="T">The element type.</typeparam>
@@ -160,23 +95,6 @@ namespace DataFlow.Extensions
             });
         }
 
-        /// <summary>
-        /// Forces enumeration of the parallel sequence, invoking a supplied action once per element (action receives no element parameter).
-        /// </summary>
-        /// <typeparam name="T">Element type.</typeparam>
-        /// <param name="items">The source sequence.</param>
-        /// <param name="action">Action to invoke once per element (executed in parallel partitions).</param>
-        /// <remarks>
-        /// This method is a terminal operation (eager). It internally composes <see cref="ForEach{T}(ParallelQuery{T}, Action{T})"/>.
-        /// </remarks>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> or <paramref name="action"/> is <c>null</c>.</exception>
-        public static void Do<T>(this ParallelQuery<T> items, Action action)
-        {
-            if (items is null) throw new ArgumentNullException(nameof(items));
-            if (action is null) throw new ArgumentNullException(nameof(action));
-
-            items.ForEach(_ => action()).ForAll(_ => { });
-        }
 
         /// <summary>
         /// Forces enumeration of the parallel sequence and discards all elements.

@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\DataFlow.Extensions.AsyncEnumerableExtensions\DataFlow.Extensions.AsyncEnumerableExtensions.csproj" />
+    <ProjectReference Include="..\..\DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj" />
+    <ProjectReference Include="..\..\DataFlow.Extensions.ParallelAsyncQueryExtensions\DataFlow.Extensions.ParallelAsyncQueryExtensions.csproj" />
+    <ProjectReference Include="..\..\DataFlow.Extensions.ParallelQueryExtensions\DataFlow.Extensions.ParallelQueryExtensions.csproj" />
+    <ProjectReference Include="..\..\DataFlow.Framework.AsyncEnumerable\DataFlow.Framework.AsyncEnumerable.csproj" />
+    <ProjectReference Include="..\..\DataFlow.Data.Read\DataFlow.Data.Read.csproj" />
+    <ProjectReference Include="..\..\DataFlow.Data.Write\DataFlow.Data.Write.csproj" />
+    <ProjectReference Include="..\..\DataFlow.Framework.UnixStyleArgs\DataFlow.Framework.UnixStyleArgs.csproj" />
+    <ProjectReference Include="..\..\DataFlow.Framework.ParallelAsyncQuery\DataFlow.Framework.ParallelAsyncQuery.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

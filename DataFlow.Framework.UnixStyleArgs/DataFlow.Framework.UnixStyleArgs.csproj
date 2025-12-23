@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.ObjectMaterializer\DataFlow.Framework.ObjectMaterialization.csproj" />
   </ItemGroup>
 
 </Project>

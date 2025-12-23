@@ -61,7 +61,7 @@ public static partial class Read
         }
     }
 
-    
+
 
     // --- YAML (options-based) ---
 
@@ -145,7 +145,7 @@ public static partial class Read
             options.Metrics.RawRecordsParsed = record;
 
             bool success = false;
-            T item = default;
+            T item = default!;
             //bool stopAfterCurrent = false;  
             try
             {
@@ -183,10 +183,10 @@ public static partial class Read
             if (success && !options.Metrics.TerminatedEarly)
             {
                 options.Metrics.RecordsEmitted++;
-                yield return item;
+                yield return item!;
                 if (options.ShouldEmitProgress()) options.EmitProgress();
             }
-          
+
 
             if (options.Metrics.TerminatedEarly)
                 yield break;

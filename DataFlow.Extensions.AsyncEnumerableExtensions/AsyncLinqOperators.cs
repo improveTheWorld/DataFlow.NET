@@ -361,7 +361,7 @@ namespace DataFlow.Extensions
         /// This is implemented via a <see cref="Range"/> and is lazy.
         /// </remarks>
         public static IAsyncEnumerable<T> Take<T>(this IAsyncEnumerable<T> sequence, int start, int count)
-            => sequence.Take(new Range(start, start + count - 1));
+            => sequence.Take(new Range(start, start + count));
 
         /// <summary>
         /// Returns a slice of the sequence defined by a <see cref="Range"/> with inclusive start and exclusive end semantics.

@@ -11,3 +11,8 @@ DataFlow.Framework.SparkQuery/SparkQuery.cs
 DataFlow.Framework.SparkQuery/WindowContext.cs
 DataFlow.Framework.SparkQuery/WindowExtensions.cs
 DataFlow.Framework.SparkQuery/WindowSpecBuilder.cs
+DataFlow.Framework.SnowflakeQuery/DataFlow.Framework.SnowflakeQuery.csproj
+DataFlow.Framework.SnowflakeQuery/SnowflakeQuery.cs
+DataFlow.Framework.SnowflakeQuery/Read.Snowflake.cs
+UnitTests/DataFlow.SnowflakeQuery.Tests/
+UnitTests/DataFlow.SparkQuery.Tests/

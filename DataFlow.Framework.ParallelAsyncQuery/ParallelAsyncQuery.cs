@@ -122,7 +122,8 @@ internal class SourceParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 
     public override async IAsyncEnumerator<TSource> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        var combinedToken = CombineTokens(cancellationToken);
+        using var linkedCts = CreateLinkedCts(cancellationToken);
+        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
 
         if (_settings.ExecutionMode == ParallelExecutionMode.Sequential)
         {
@@ -133,6 +134,8 @@ internal class SourceParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
             yield break;
         }
 
+        // Note: This semaphore doesn't actually control concurrency for the source.
+        // Real parallelism happens in Select/Where operations. This is intentional.
         using var semaphore = new SemaphoreSlim(_settings.MaxConcurrency, _settings.MaxConcurrency);
 
         await foreach (var item in _source.WithCancellation(combinedToken))
@@ -154,14 +157,15 @@ internal class SourceParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
         return new SourceParallelAsyncQuery<TSource>(_source, settings);
     }
 
-    private CancellationToken CombineTokens(CancellationToken cancellationToken)
+    /// <summary>
+    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
+    /// Returns null if linking is not needed. Caller must dispose the returned CTS.
+    /// </summary>
+    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default)
-            return cancellationToken;
-        if (cancellationToken == default)
-            return _settings.CancellationToken;
-
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken).Token;
+        if (_settings.CancellationToken == default || cancellationToken == default)
+            return null;
+        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
     }
 }
 
@@ -170,8 +174,8 @@ internal class SourceParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<TResult>
 {
     private readonly ParallelAsyncQuery<TSource> _source;
-    private readonly Func<TSource, Task<TResult>> _selector;
-    private readonly Func<TSource, int, Task<TResult>> _indexedSelector;
+    private readonly Func<TSource, Task<TResult>>? _selector;
+    private readonly Func<TSource, int, Task<TResult>>? _indexedSelector;
     private readonly bool _useIndex;
 
     public SelectParallelAsyncQuery(ParallelAsyncQuery<TSource> source, Func<TSource, Task<TResult>> selector)
@@ -189,20 +193,20 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
     }
     public override async IAsyncEnumerator<TResult> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        var combinedToken = CombineTokens(cancellationToken);
+        using var linkedCts = CreateLinkedCts(cancellationToken);
+        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
 
         if (_settings.ExecutionMode == ParallelExecutionMode.Sequential)
         {
             var index = 0;
             await foreach (var item in _source.WithCancellation(combinedToken))
             {
-
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(combinedToken);
                 timeoutCts.CancelAfter(_settings.OperationTimeout);
 
                 var result = _useIndex
-                    ? await _indexedSelector(item, index++).WaitAsync(timeoutCts.Token)
-                    : await _selector(item).WaitAsync(timeoutCts.Token);
+                    ? await _indexedSelector!(item, index++).WaitAsync(timeoutCts.Token)
+                    : await _selector!(item).WaitAsync(timeoutCts.Token);
                 yield return result;
             }
             yield break;
@@ -234,6 +238,7 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
             using var semaphore = new SemaphoreSlim(_settings.MaxConcurrency);
             var tasks = new List<Task>();
             var index = 0;
+            Exception? producerException = null;
 
             try
             {
@@ -248,11 +253,16 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
             }
             catch (Exception ex)
             {
+                producerException = ex;
                 channel.Writer.TryComplete(ex);
+                throw; // Rethrow so awaiting producerTask throws
             }
             finally
             {
-                channel.Writer.TryComplete();
+                if (producerException == null)
+                {
+                    channel.Writer.TryComplete();
+                }
             }
         }, cancellationToken);
 
@@ -297,8 +307,9 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
         }
         finally
         {
-            // Ensure the producer task is observed
-            try { await producerTask; } catch { /* Exceptions are propagated by the channel */ }
+            // Ensure the producer task is awaited and its exceptions are propagated
+            // This is crucial for cancellation to work properly
+            await producerTask;
         }
     }
 
@@ -310,15 +321,15 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
             timeoutCts.CancelAfter(_settings.OperationTimeout);
 
             var result = _useIndex
-                ? await _indexedSelector(item, index).WaitAsync(timeoutCts.Token)
-                : await _selector(item).WaitAsync(timeoutCts.Token);
+                ? await _indexedSelector!(item, index).WaitAsync(timeoutCts.Token)
+                : await _selector!(item).WaitAsync(timeoutCts.Token);
 
             await writer.WriteAsync((result, index, true), cancellationToken);
         }
         catch (Exception) when (_settings.ContinueOnError)
         {
             // Post a failure message to the channel to prevent deadlock.
-            await writer.WriteAsync((default, index, false), cancellationToken);
+            await writer.WriteAsync((default!, index, false), cancellationToken);
         }
         finally
         {
@@ -400,8 +411,8 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
             timeoutCts.CancelAfter(_settings.OperationTimeout);
 
             var result = _useIndex
-                 ? await _indexedSelector(item, index).WaitAsync(timeoutCts.Token)
-                 : await _selector(item).WaitAsync(timeoutCts.Token);
+                 ? await _indexedSelector!(item, index).WaitAsync(timeoutCts.Token)
+                 : await _selector!(item).WaitAsync(timeoutCts.Token);
             await writer.WriteAsync(result, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -426,18 +437,19 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
     {
         var newSource = _source.CloneWithNewSettings(settings);
         return _useIndex
-    ? new SelectParallelAsyncQuery<TSource, TResult>(newSource, _indexedSelector)
-    : new SelectParallelAsyncQuery<TSource, TResult>(newSource, _selector);
+    ? new SelectParallelAsyncQuery<TSource, TResult>(newSource, _indexedSelector!)
+    : new SelectParallelAsyncQuery<TSource, TResult>(newSource, _selector!);
     }
 
-    private CancellationToken CombineTokens(CancellationToken cancellationToken)
+    /// <summary>
+    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
+    /// Returns null if linking is not needed. Caller must dispose the returned CTS.
+    /// </summary>
+    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default)
-            return cancellationToken;
-        if (cancellationToken == default)
-            return _settings.CancellationToken;
-
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken).Token;
+        if (_settings.CancellationToken == default || cancellationToken == default)
+            return null;
+        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
     }
 }
 
@@ -456,7 +468,8 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 
     public override async IAsyncEnumerator<TSource> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        var combinedToken = CombineTokens(cancellationToken);
+        using var linkedCts = CreateLinkedCts(cancellationToken);
+        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
 
         if (_settings.ExecutionMode == ParallelExecutionMode.Sequential)
         {
@@ -495,18 +508,18 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
         var channel = Channel.CreateBounded<(TSource Item, int Index, bool Passed)>(
             new BoundedChannelOptions(_settings.MaxBufferSize) { FullMode = BoundedChannelFullMode.Wait });
 
+        var totalItems = 0;
         var producerTask = Task.Run(async () =>
         {
             using var semaphore = new SemaphoreSlim(_settings.MaxConcurrency);
             var tasks = new List<Task>();
-            var index = 0;
 
             try
             {
                 await foreach (var item in _source.WithCancellation(cancellationToken))
                 {
                     await semaphore.WaitAsync(cancellationToken);
-                    var currentIndex = index++;
+                    var currentIndex = totalItems++;
                     var task = ProcessPredicateAndPostAsync(item, currentIndex, channel.Writer, semaphore, cancellationToken);
                     tasks.Add(task);
                 }
@@ -517,15 +530,20 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
         }, cancellationToken);
 
         var reorderingBuffer = new SortedDictionary<int, TSource>();
-        var seenIndices = new HashSet<int>();
+        var filteredIndices = new HashSet<int>(); // Track indices that were filtered out
         var nextIndexToYield = 0;
+        var processedCount = 0;
 
         await foreach (var (item, index, passed) in channel.Reader.ReadAllAsync(cancellationToken))
         {
-            seenIndices.Add(index);
+            processedCount++;
             if (passed)
             {
-                reorderingBuffer.Add(index, item);
+                reorderingBuffer[index] = item;
+            }
+            else
+            {
+                filteredIndices.Add(index);
             }
 
             // Yield all contiguous results available from the buffer
@@ -533,24 +551,35 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
             {
                 yield return readyItem;
                 reorderingBuffer.Remove(nextIndexToYield);
-                seenIndices.Remove(nextIndexToYield);
                 nextIndexToYield++;
             }
 
             // Advance past any filtered-out items
-            while (seenIndices.Contains(nextIndexToYield))
+            while (filteredIndices.Contains(nextIndexToYield))
             {
-                seenIndices.Remove(nextIndexToYield);
+                filteredIndices.Remove(nextIndexToYield);
                 nextIndexToYield++;
             }
         }
 
-        // Ensure producer is awaited and drain any remaining items
+        // Ensure producer is awaited
         try { await producerTask; } catch { }
-        while (reorderingBuffer.TryGetValue(nextIndexToYield, out var readyItem))
+
+        // Drain any remaining items from the buffer in order
+        // At this point, all items have been processed. We just need to yield remaining passed items.
+        while (reorderingBuffer.Count > 0)
         {
-            yield return readyItem;
-            reorderingBuffer.Remove(nextIndexToYield);
+            if (reorderingBuffer.TryGetValue(nextIndexToYield, out var readyItem))
+            {
+                yield return readyItem;
+                reorderingBuffer.Remove(nextIndexToYield);
+            }
+            // Skip past filtered items
+            while (filteredIndices.Contains(nextIndexToYield))
+            {
+                filteredIndices.Remove(nextIndexToYield);
+                nextIndexToYield++;
+            }
             nextIndexToYield++;
         }
     }
@@ -565,9 +594,25 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
             var passed = await _predicate(item).WaitAsync(timeoutCts.Token);
             await writer.WriteAsync((item, index, passed), ct);
         }
-        catch (Exception) when (_settings.ContinueOnError)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            await writer.WriteAsync((default, index, false), ct);
+            // External cancellation - don't write, let the operation terminate
+            throw;
+        }
+        catch (Exception)
+        {
+            // For any other exception (including timeout), mark as not passed
+            // This ensures the index is tracked for proper ordering
+            if (_settings.ContinueOnError)
+            {
+                await writer.WriteAsync((default!, index, false), ct);
+            }
+            else
+            {
+                // Still need to write to maintain order tracking, but also rethrow
+                await writer.WriteAsync((default!, index, false), ct);
+                throw;
+            }
         }
         finally
         {
@@ -576,9 +621,9 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
     }
 
 
-    public async IAsyncEnumerable<TSource> GetUnOrderedResults(CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<TSource> GetUnOrderedResults([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var combinedToken = CombineTokens(cancellationToken);
+        // Note: This is called with already-combined token from GetAsyncEnumerator
 
         using var semaphore = new SemaphoreSlim(_settings.MaxConcurrency, _settings.MaxConcurrency);
         var channel = Channel.CreateBounded<TSource>(new BoundedChannelOptions(_settings.MaxBufferSize)
@@ -597,11 +642,11 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
             {
                 var activeTasks = new List<Task>();
 
-                await foreach (var item in _source.WithCancellation(combinedToken))
+                await foreach (var item in _source.WithCancellation(cancellationToken))
                 {
-                    await semaphore.WaitAsync(combinedToken);
+                    await semaphore.WaitAsync(cancellationToken);
 
-                    var processingTask = ProcessPredicateAsync(item, writer, semaphore, combinedToken);
+                    var processingTask = ProcessPredicateAsync(item, writer, semaphore, cancellationToken);
                     activeTasks.Add(processingTask);
 
                     activeTasks.RemoveAll(t => t.IsCompleted);
@@ -624,11 +669,11 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
             {
                 writer.TryComplete();
             }
-        }, combinedToken);
+        }, cancellationToken);
 
         try
         {
-            while (await reader.WaitToReadAsync(combinedToken))
+            while (await reader.WaitToReadAsync(cancellationToken))
             {
                 while (reader.TryRead(out var result))
                 {
@@ -641,6 +686,7 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
             try { await producerTask; } catch { }
         }
     }
+
 
     private async Task ProcessPredicateAsync(TSource item, ChannelWriter<TSource> writer, SemaphoreSlim semaphore, CancellationToken cancellationToken)
     {
@@ -678,14 +724,15 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
         return new WhereParallelAsyncQuery<TSource>(newSource, _predicate);
     }
 
-    private CancellationToken CombineTokens(CancellationToken cancellationToken)
+    /// <summary>
+    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
+    /// Returns null if linking is not needed. Caller must dispose the returned CTS.
+    /// </summary>
+    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default)
-            return cancellationToken;
-        if (cancellationToken == default)
-            return _settings.CancellationToken;
-
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken).Token;
+        if (_settings.CancellationToken == default || cancellationToken == default)
+            return null;
+        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
     }
 }
 
@@ -707,7 +754,8 @@ internal class TakeParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 
     public override async IAsyncEnumerator<TSource> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        var combinedToken = CombineTokens(cancellationToken);
+        using var linkedCts = CreateLinkedCts(cancellationToken);
+        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
         var taken = 0;
 
         await foreach (var item in _source.WithCancellation(combinedToken))
@@ -726,14 +774,15 @@ internal class TakeParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
         return new TakeParallelAsyncQuery<TSource>(newSource, _count);
     }
 
-    private CancellationToken CombineTokens(CancellationToken cancellationToken)
+    /// <summary>
+    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
+    /// Returns null if linking is not needed. Caller must dispose the returned CTS.
+    /// </summary>
+    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default)
-            return cancellationToken;
-        if (cancellationToken == default)
-            return _settings.CancellationToken;
-
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken).Token;
+        if (_settings.CancellationToken == default || cancellationToken == default)
+            return null;
+        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
     }
 }
 
@@ -773,6 +822,22 @@ public static class ParallelAsyncEnumerableExtensions
     public static ParallelAsyncQuery<TSource> Take<TSource>(this ParallelAsyncQuery<TSource> source, int count)
     {
         return new TakeParallelAsyncQuery<TSource>(source, count);
+    }
+
+    /// <summary>
+    /// Projects each element of a parallel async query to an <see cref="IAsyncEnumerable{TResult}"/>
+    /// and flattens the resulting sequences into one parallel async query.
+    /// </summary>
+    /// <typeparam name="TSource">Source element type.</typeparam>
+    /// <typeparam name="TResult">Result element type.</typeparam>
+    /// <param name="source">The source parallel async query.</param>
+    /// <param name="selector">A transform function returning an async enumerable for each source element.</param>
+    /// <returns>A parallel async query containing all flattened elements.</returns>
+    public static ParallelAsyncQuery<TResult> SelectMany<TSource, TResult>(
+        this ParallelAsyncQuery<TSource> source,
+        Func<TSource, IAsyncEnumerable<TResult>> selector)
+    {
+        return new SelectManyParallelAsyncQuery<TSource, TResult>(source, selector);
     }
 
     public static ParallelAsyncQuery<TResult> Select<TSource, TResult>(this ParallelAsyncQuery<TSource> source, Func<TSource, int, TResult> selector)

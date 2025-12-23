@@ -1,24 +1,24 @@
-﻿
+
 using DataFlow.Framework;
 
 namespace DataFlow.Extensions;
 
 public static class FileSystemExtensions
 {
-    public static StreamWriter CreateFileWithoutFailure(this FilePath path, string renameSuffix= ".old")
+    public static StreamWriter CreateFileWithoutFailure(this FilePath path, string renameSuffix = ".old")
     {
-        var status  = path.status;
+        var status = path.status;
         var fullName = path.FullName;
         if (status == FilePath.Status.File)
         {
             //Rename the odl one with the suffixe .old
             FilePath.Rename(fullName, renameSuffix);
         }
-        else if(status == FilePath.Status.Folder)
+        else if (status == FilePath.Status.Folder)
         {
             throw new ArgumentException(path + "is a existant folder");
         }
-        else if(status == FilePath.Status.MissedPath)
+        else if (status == FilePath.Status.MissedPath)
         {
             Directory.CreateDirectory(path.Up());
         }
@@ -27,11 +27,11 @@ public static class FileSystemExtensions
 
     public static void WriteInFile(this IEnumerable<string> lines, string path, string renamesuffix = ".old", int flusheach = -1)
     {
-        StreamWriter fileWriter = CreateFileWithoutFailure(new FilePath(path),renamesuffix);
-        lines.ForEach((line, idx) => 
+        StreamWriter fileWriter = CreateFileWithoutFailure(new FilePath(path), renamesuffix);
+        lines.ForEach((line, idx) =>
         {
             fileWriter.WriteLine(line);
-            if(idx % flusheach == 0  ) fileWriter.Flush();
+            if (idx % flusheach == 0) fileWriter.Flush();
         }).Do();
         fileWriter.Flush();
         fileWriter.Close();
@@ -39,7 +39,7 @@ public static class FileSystemExtensions
 
     public static string DerivateFileName(this string name, Func<string, string> derivate, bool keepEntension = true, params Func<string, string>[] derivates)
     {
-        var pathHirarchy = name.Split(Path.DirectorySeparatorChar); 
+        var pathHirarchy = name.Split(Path.DirectorySeparatorChar);
 
         if (derivates.Length > pathHirarchy.Length - 1) throw new ArgumentOutOfRangeException(nameof(derivates));
 
@@ -56,7 +56,7 @@ public static class FileSystemExtensions
     public static string DerivateFileName(this string name, Func<string, string> derivate, bool keepEntension = true)
     {
 
-        var derivatedName   =  keepEntension ?
+        var derivatedName = keepEntension ?
             derivate(Path.GetFileNameWithoutExtension(name)) + Path.GetExtension(name) :
             derivate(Path.GetFileNameWithoutExtension(name));
 

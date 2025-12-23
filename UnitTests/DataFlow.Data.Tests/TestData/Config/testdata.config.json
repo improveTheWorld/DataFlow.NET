@@ -1,0 +1,16 @@
+{
+  "Seed": 1337,
+  "CsvRows": 20000,
+  "CsvColumns": 10,
+  "CsvMultilineRate": 0.02,
+  "CsvStrayQuoteRate": 0.001,
+  "CsvTrailingGarbageRate": 0.001,
+  "CsvLeadingZeroRate": 0.02,
+  "CsvLargeIntegerRate": 0.002,
+  "JsonArrayLength": 15000,
+  "YamlDocuments": 3000,
+  "YamlAliasRate": 0.01,
+  "YamlCustomTagRate": 0.005,
+  "TextLines": 25000,
+  "TextAvgLength": 55
+}

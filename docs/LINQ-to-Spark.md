@@ -1,16 +1,26 @@
+# LINQ-to-Spark Layer
 
-## Linq-to-Spark Layer
-that enables .NET developers to write idiomatic C# code that executes on Apache Spark clusters.
+A **C# LINQ-to-Spark translator** that enables .NET developers to write idiomatic C# code that executes on Apache Spark clusters.
 
-It's a **C# LINQ-to-Spark translator** that lets .NET developers write **idiomatic C# code** that **executes on a real Spark cluster**.
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Architecture Breakdown](#architecture-breakdown)
+3. [Key Components Analysis](#key-components-analysis)
+4. [Use Cases](#use-cases)
+5. [API Reference](#api-reference)
+
+---
+
+## Overview
+
 It implements a **full expression tree translation layer** that:
 
 1. ✅ **Translates C# LINQ expressions** → **Spark DataFrame operations**
-2. ✅ **Garantees Type-safe LINQ methods** executed by a Distributed Spark power
-3. ✅ **Provides a fluent, type-safe API** that feels C# native, 
-4. ✅ **Executes on real Apache Spark** (distributed processing, fault tolerance, petabyte scale))
+2. ✅ **Guarantees Type-safe LINQ methods** executed by Distributed Spark power
+3. ✅ **Provides a fluent, type-safe API** that feels C# native
+4. ✅ **Executes on real Apache Spark** (distributed processing, fault tolerance, petabyte scale)
 5. ✅ **Bridges the .NET/JVM gap** using Microsoft.Spark
-
 
 ---
 
@@ -23,7 +33,8 @@ It implements a **full expression tree translation layer** that:
 │                    C# Developer Code                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  var query = spark.Read.Csv<Order>("orders.csv")                │
+│  var df = spark.Read().Parquet("orders.parquet");               │
+│  var query = SparkQueryFactory.Create<Order>(spark, df)         │
 │      .Where(o => o.Amount > 1000)                               │
 │      .GroupBy(o => o.CustomerId)                                │
 │      .Select(g => new { g.Key, Total = g.Sum(o => o.Amount) }); │
@@ -169,6 +180,35 @@ public class ConventionColumnMapper<T> : IColumnMapper<T>
 - ✅ Supports custom mappings via `[Column("custom_name")]` attribute
 - ✅ Handles records, classes, anonymous types
 - ✅ Bidirectional mapping (C# → Spark, Spark → C#)
+- ✅ **Supports nested property access** (see below)
+
+#### Nested Property Access
+
+SparkQuery supports querying nested objects using standard C# property access syntax. The framework automatically translates nested property chains to Spark's dot-notation for struct access.
+
+```csharp
+// C# Model with nested objects
+public record Customer(string Name, Address BillingAddress);
+public record Address(string City, string ZipCode);
+
+// Query nested properties naturally
+var londonCustomers = query.Where(c => c.BillingAddress.City == "London");
+// → Translates to: col("billing_address.city") == "London"
+
+// Deep nesting is also supported
+var result = query.Where(o => o.Customer.Address.ZipCode == "10001");
+// → Translates to: col("customer.address.zip_code") == "10001"
+```
+
+**Schema Mapping:**
+| C# Expression | Spark Column |
+|--------------|--------------|
+| `c.Name` | `col("name")` |
+| `c.BillingAddress.City` | `col("billing_address.city")` |
+| `c.Customer.Address.ZipCode` | `col("customer.address.zip_code")` |
+
+> [!NOTE]
+> This uses Spark's native nested struct access with dot-notation, which assumes your DataFrame has a schema with nested `struct` types.
 
 ---
 
@@ -298,10 +338,45 @@ df.select(
 
 ---
 
-### 6. **Cases Pattern** (Distributed Conditional Processing)
+### 6. **Higher-Order Array Functions** (Nested Data Operations)
+
+SparkQuery supports Spark 3.x higher-order functions for working with nested arrays:
 
 ```csharp
-await spark.Read.Csv<Order>("orders.csv")
+// Check if ANY item matches a condition
+orders.Where(o => o.Items.Any(i => i.Price > 100))
+// → exists(items, i -> i.price > 100)
+
+// Check if ALL items match a condition
+orders.Where(o => o.Items.All(i => i.InStock))
+// → forall(items, i -> i.in_stock)
+
+// Filter array elements
+orders.Select(o => new { o.Id, ExpensiveItems = o.Items.Where(i => i.Price > 100) })
+// → filter(items, i -> i.price > 100)
+
+// Transform array elements
+orders.Select(o => new { o.Id, TotalPrices = o.Items.Select(i => i.Price * i.Qty) })
+// → transform(items, i -> i.price * i.qty)
+```
+
+**Spark Higher-Order Functions:**
+| LINQ Pattern | Spark Function | Description |
+|--------------|----------------|-------------|
+| `items.Any(i => predicate)` | `exists(array, lambda)` | True if any element matches |
+| `items.All(i => predicate)` | `forall(array, lambda)` | True if all elements match |
+| `items.Where(i => predicate)` | `filter(array, lambda)` | Returns filtered array |
+| `items.Select(i => expression)` | `transform(array, lambda)` | Returns transformed array |
+
+---
+
+### 7. **Cases Pattern** (Distributed Conditional Processing)
+
+```csharp
+// Create a SparkQuery from a DataFrame
+var ordersQuery = SparkQueryFactory.Create<Order>(spark, ordersDf);
+
+ordersQuery
     .Cases(
         o => o.Amount > 10000,    // Case 0: High value
         o => o.IsInternational    // Case 1: International
@@ -309,13 +384,20 @@ await spark.Read.Csv<Order>("orders.csv")
     .SelectCase(
         o => ProcessHighValue(o),
         o => ProcessInternational(o),
-        o => ProcessStandard(o)
+        o => ProcessStandard(o)   // Supra category (default)
     )
     .ForEachCase(
-        highValue => highValue.Write().Parquet("high_value_orders"),
-        international => international.Write().Parquet("international_orders"),
-        standard => standard.Write().Parquet("standard_orders")
+        // Each action receives a SparkQuery<R> for that category
+        highValueQuery => highValueQuery.ToDataFrame().Write().Parquet("high_value_orders"),
+        internationalQuery => internationalQuery.ToDataFrame().Write().Parquet("international_orders"),
+        standardQuery => standardQuery.ToDataFrame().Write().Parquet("standard_orders")
     );
+
+// Or extract all transformed results
+var allProcessedOrders = ordersQuery
+    .Cases(o => o.Amount > 10000, o => o.IsInternational)
+    .SelectCase(ProcessHighValue, ProcessInternational, ProcessStandard)
+    .AllCases();  // Returns SparkQuery<R> with all transformed items
 ```
 
 **What This Does:**
@@ -323,6 +405,8 @@ await spark.Read.Csv<Order>("orders.csv")
 - ✅ Distributes conditional logic across cluster
 - ✅ Enables multi-output writes (different sinks per category)
 - ✅ Maintains type safety throughout
+- ✅ `AllCases()` extracts transformed items, filtering nulls by default  
+- ✅ `UnCase()` can undo categorization to get original items back
 
 **Spark Execution:**
 
@@ -348,10 +432,13 @@ categorized.filter(col("category") === 2).write.parquet("standard_orders")
 
 ```csharp
 // C# Developer writes this
-var result = spark.Read.Parquet<Customer>("hdfs://customers")
+var customers = SparkQueryFactory.FromSql<Customer>(spark, "SELECT * FROM customers");
+var orders = SparkQueryFactory.FromSql<Order>(spark, "SELECT * FROM orders");
+
+var result = customers
     .Where(c => c.Country == "USA" && c.Age > 18)
     .Join(
-        spark.Read.Parquet<Order>("hdfs://orders"),
+        orders,
         c => c.Id,
         o => o.CustomerId,
         (c, o) => new { c.Name, c.Email, o.Amount, o.Date }
@@ -478,13 +565,221 @@ result.Write().Mode(SaveMode.Overwrite).Parquet("hdfs://output/top_customers");
 ### Code Example
 
 ```csharp
-// Write C# LINQ
-var result = spark.Read.Parquet<Order>("hdfs://orders")
+// Create SparkQuery from a DataFrame or SQL
+var ordersQuery = SparkQueryFactory.FromSql<Order>(spark, "SELECT * FROM orders");
+
+// Write C# LINQ - executes on Spark cluster
+var result = ordersQuery
     .Where(o => o.Amount > 1000)
     .GroupBy(o => o.CustomerId)
     .Select(g => new { g.Key, Total = g.Sum(o => o.Amount) })
     .OrderByDescending(x => x.Total);
 
-// Executes on Spark cluster (distributed)
-result.Write().Parquet("hdfs://output");
+// Write results (distributed execution)
+result.Write().Mode(SaveMode.Overwrite).Parquet("hdfs://output");
 ```
+
+---
+
+### Important Limitations
+
+> [!IMPORTANT]
+> **Skip() requires OrderBy()**: The `Skip()` method throws if called without a prior `OrderBy()` because Spark internally uses window functions (`RowNumber()`) to implement pagination.
+
+```csharp
+// ❌ This will throw InvalidOperationException
+query.Skip(10).Take(5);
+
+// ✅ This works correctly
+query.OrderBy(x => x.Id).Skip(10).Take(5);
+```
+
+> [!NOTE]
+> **Collect() and Collect operations are expensive**: Methods like `Collect()`, `Head()`, and `First()` transfer data from the cluster to the driver. Use `Show()` for debugging and avoid collecting large result sets.
+
+---
+
+## API Reference
+
+### SparkQueryFactory
+
+Factory methods for creating SparkQuery instances:
+
+```csharp
+// Create from existing DataFrame
+var query = SparkQueryFactory.Create<T>(spark, dataFrame, mapper);
+
+// Create from a Spark table
+var query = SparkQueryFactory.FromTable<T>(spark, "table_name", mapper);
+
+// Create from SQL query
+var query = SparkQueryFactory.FromSql<T>(spark, "SELECT * FROM ...", mapper);
+```
+
+### Window Functions
+
+The `WithWindow()` extension provides access to all Spark window functions:
+
+```csharp
+var ranked = employees.WithWindow(
+    spec => spec.PartitionBy(e => e.Department).OrderByDescending(e => e.Salary),
+    (e, w) => new
+    {
+        e.Name,
+        e.Department,
+        e.Salary,
+        // Ranking Functions
+        RankInDept = w.Rank(),
+        DenseRank = w.DenseRank(),
+        PercentRank = w.PercentRank(),
+        RowNumber = w.RowNumber(),
+        Quartile = w.Ntile(4),
+        
+        // Analytic Functions
+        CumulativeDistribution = w.CumeDist(),
+        PreviousSalary = w.Lag(Functions.Col("salary"), 1),
+        NextSalary = w.Lead(Functions.Col("salary"), 1),
+        
+        // Aggregate Functions  
+        RunningTotal = w.Sum(Functions.Col("salary")),
+        RunningAvg = w.Avg(Functions.Col("salary")),
+        MaxSoFar = w.Max(Functions.Col("salary")),
+        MinSoFar = w.Min(Functions.Col("salary")),
+        CountSoFar = w.Count(Functions.Col("salary"))
+    });
+```
+
+### Set Operations
+
+```csharp
+// Union of two queries
+var combined = query1.Union(query2);
+
+// Intersection
+var common = query1.Intersect(query2);
+
+// Difference
+var onlyInQuery1 = query1.Except(query2);
+```
+
+### Math Functions
+
+SparkQuery supports C# Math functions that translate to Spark SQL functions:
+
+```csharp
+var query = employees.Select(e => new
+{
+    e.Salary,
+    AbsValue = Math.Abs(e.Bonus),
+    Rounded = Math.Round(e.Score, 2),
+    Ceiling = Math.Ceiling(e.Rating),
+    Floor = Math.Floor(e.Rating),
+    SquareRoot = Math.Sqrt(e.Experience),
+    Power = Math.Pow(e.Base, 2)
+});
+```
+
+**Supported Functions:**
+- `Math.Abs(x)` → `abs(x)`
+- `Math.Round(x)` → `round(x, 0)`
+- `Math.Round(x, decimals)` → `round(x, decimals)`
+- `Math.Ceiling(x)` → `ceil(x)`
+- `Math.Floor(x)` → `floor(x)`
+- `Math.Sqrt(x)` → `sqrt(x)`
+- `Math.Pow(x, y)` → `pow(x, y)`
+
+### String Methods
+
+SparkQuery supports common string manipulation methods:
+
+```csharp
+var query = products.Where(p => 
+    p.Name.Length > 10 &&
+    p.Description.IndexOf("premium") >= 0
+).Select(p => new
+{
+    Original = p.Name,
+    Cleaned = p.Name.Replace(".", "").Replace(",", ""),
+    Position = p.Description.IndexOf("premium")
+});
+```
+
+**Supported Methods:**
+- `s.Length` → `length(s)`
+- `s.Contains(substring)` → `s.contains(substring)`
+- `s.StartsWith(prefix)` → `s.startsWith(prefix)`
+- `s.EndsWith(suffix)` → `s.endsWith(suffix)`
+- `s.ToUpper()` → `upper(s)`
+- `s.ToLower()` → `lower(s)`
+- `s.Trim()` → `trim(s)`
+- `s.Substring(start, length)` → `substring(s, start+1, length)`
+- `s.IndexOf(substring)` → `instr(s, substring) - 1` (0-based)
+- `s.Replace(old, new)` → `replace(s, old, new)`
+
+### Debugging & Diagnostics
+
+```csharp
+// Display results to console
+query.Show(numRows: 20, truncate: true);
+
+// Print schema
+query.PrintSchema();
+
+// Explain query plan
+query.Explain(extended: true);
+
+// Spy: Display and continue chaining
+query
+    .Where(x => x.Amount > 1000)
+    .Spy("After filter", numRows: 5)  // Displays intermediate results
+    .GroupBy(x => x.Category)
+    .Spy("After grouping");
+```
+
+### Caching & Partitioning
+
+```csharp
+// Cache in memory
+var cached = query.Cache();
+
+// Persist with specific storage level
+var persisted = query.Persist(StorageLevel.MEMORY_AND_DISK);
+
+// Repartition
+var repartitioned = query.Repartition(numPartitions: 8);
+
+// Coalesce (reduce partitions)
+var coalesced = query.Coalesce(numPartitions: 2);
+```
+
+### Cases Pattern Methods
+
+```csharp
+// Categorize items
+var categorized = query.Cases(
+    x => x.Type == "A",  // Case 0
+    x => x.Type == "B"   // Case 1
+    // Default: Supra category (Case 2)
+);
+
+// Transform per category
+var transformed = categorized.SelectCase(
+    a => ProcessA(a),
+    b => ProcessB(b),
+    other => ProcessDefault(other)
+);
+
+// Execute action per category
+transformed.ForEachCase(
+    aQuery => aQuery.Write().Parquet("path/a"),
+    bQuery => bQuery.Write().Parquet("path/b"),
+    otherQuery => otherQuery.Write().Parquet("path/other")
+);
+
+// Extract all transformed items
+var all = transformed.AllCases(filterNulls: true);
+
+// Undo categorization to get original items
+var originals = categorized.UnCase();
+```
+

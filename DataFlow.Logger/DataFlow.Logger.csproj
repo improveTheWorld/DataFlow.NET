@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <Compile Remove="Program.cs" />
+    <Compile Remove="DataFlow.Logger.Tests\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -15,9 +16,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DataFlow.Extensions.FileSystemExtensions\DataFlow.Extensions.FileSystemExtensions.csproj" />
-    <ProjectReference Include="..\DataFlow.Framework.CriteriasEvaluator\DataFlow.Framework.CriteriasEvaluator.csproj" />
-    <ProjectReference Include="..\DataFlow.Framework.FilePath\DataFlow.Framework.FilePath.csproj" />
+   
+    
+    <ProjectReference Include="..\DataFlow.Extensions.ArrayExtensions\DataFlow.Extensions.ArrayExtensions.csproj" />
+   
+    
+    <ProjectReference Include="..\DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj" />
+   
+    
+    <ProjectReference Include="..\DataFlow.Extensions.StringExtensions\DataFlow.Extentions.StringExtensions.csproj" />
+   
+    
     <ProjectReference Include="..\DataFlow.Framework.WatchedValue\DataFlow.Framework.WatchedValueWrapper.csproj" />
   </ItemGroup>
 

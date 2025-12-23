@@ -96,6 +96,83 @@ namespace DataFlow.Data
             await file.FlushAsync();
         }
 
+        // --- CSV with Options ---
+
+        /// <summary>
+        /// Writes records to a CSV file using specified options.
+        /// </summary>
+        public static async Task WriteCsv<T>(this IAsyncEnumerable<T> records, string path, CsvWriteOptions options)
+        {
+            if (path is null) throw new ArgumentNullException(nameof(path));
+            if (options is null) throw new ArgumentNullException(nameof(options));
+
+            var ct = options.CancellationToken;
+            options.Metrics.Start();
+
+            await using var file = new StreamWriter(path, options.Append, options.Encoding);
+            if (options.WriteHeader)
+                await file.WriteLineAsync(CsvWriter.CsvHeader<T>(options.Separator));
+
+            await foreach (var record in records.WithCancellation(ct))
+            {
+                ct.ThrowIfCancellationRequested();
+                await file.WriteLineAsync(record.ToCsvLine(options.Separator));
+                options.Metrics.IncrementRecords();
+            }
+            await file.FlushAsync();
+            options.Metrics.Complete();
+        }
+
+        /// <summary>
+        /// Writes records to a CSV stream using specified options.
+        /// </summary>
+        public static async Task WriteCsv<T>(this IAsyncEnumerable<T> records, Stream stream, CsvWriteOptions? options = null)
+        {
+            if (stream is null) throw new ArgumentNullException(nameof(stream));
+            options ??= new CsvWriteOptions();
+
+            var ct = options.CancellationToken;
+            options.Metrics.Start();
+
+            await using var writer = new StreamWriter(stream, options.Encoding, leaveOpen: true);
+            if (options.WriteHeader)
+                await writer.WriteLineAsync(CsvWriter.CsvHeader<T>(options.Separator));
+
+            await foreach (var record in records.WithCancellation(ct))
+            {
+                ct.ThrowIfCancellationRequested();
+                await writer.WriteLineAsync(record.ToCsvLine(options.Separator));
+                options.Metrics.IncrementRecords();
+            }
+            await writer.FlushAsync();
+            options.Metrics.Complete();
+        }
+
+        /// <summary>
+        /// Writes records to a CSV stream using specified options.
+        /// </summary>
+        public static async Task WriteCsv<T>(this IEnumerable<T> records, Stream stream, CsvWriteOptions? options = null)
+        {
+            if (stream is null) throw new ArgumentNullException(nameof(stream));
+            options ??= new CsvWriteOptions();
+
+            var ct = options.CancellationToken;
+            options.Metrics.Start();
+
+            await using var writer = new StreamWriter(stream, options.Encoding, leaveOpen: true);
+            if (options.WriteHeader)
+                await writer.WriteLineAsync(CsvWriter.CsvHeader<T>(options.Separator));
+
+            foreach (var record in records)
+            {
+                ct.ThrowIfCancellationRequested();
+                await writer.WriteLineAsync(record.ToCsvLine(options.Separator));
+                options.Metrics.IncrementRecords();
+            }
+            await writer.FlushAsync();
+            options.Metrics.Complete();
+        }
+
         // ------------------------------------------------------------------
         // JSON
         // ------------------------------------------------------------------
@@ -139,6 +216,68 @@ namespace DataFlow.Data
             jsonWriter.WriteEndArray();
             await jsonWriter.FlushAsync(ct);
             await stream.FlushAsync(ct);
+        }
+
+        // --- JSON with Options ---
+
+        /// <summary>
+        /// Writes items to a JSON stream using specified options.
+        /// </summary>
+        public static async Task WriteJson<T>(this IAsyncEnumerable<T> items, Stream stream, JsonWriteOptions? options = null)
+        {
+            if (stream is null) throw new ArgumentNullException(nameof(stream));
+            options ??= new JsonWriteOptions();
+
+            var ct = options.CancellationToken;
+            options.Metrics.Start();
+
+            var writerOptions = new JsonWriterOptions { Indented = options.Indented };
+            await using var jsonWriter = new Utf8JsonWriter(stream, writerOptions);
+
+            var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+            jsonWriter.WriteStartArray();
+
+            await foreach (var item in items.WithCancellation(ct))
+            {
+                ct.ThrowIfCancellationRequested();
+                JsonSerializer.Serialize(jsonWriter, item, serializerOptions);
+                options.Metrics.IncrementRecords();
+            }
+
+            jsonWriter.WriteEndArray();
+            await jsonWriter.FlushAsync(ct);
+            options.Metrics.Complete();
+        }
+
+        /// <summary>
+        /// Writes items to a JSON stream using specified options (IEnumerable).
+        /// </summary>
+        public static async Task WriteJson<T>(this IEnumerable<T> items, Stream stream, JsonWriteOptions? options = null)
+        {
+            if (stream is null) throw new ArgumentNullException(nameof(stream));
+            options ??= new JsonWriteOptions();
+
+            var ct = options.CancellationToken;
+            options.Metrics.Start();
+
+            var writerOptions = new JsonWriterOptions { Indented = options.Indented };
+            await using var jsonWriter = new Utf8JsonWriter(stream, writerOptions);
+
+            var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+            jsonWriter.WriteStartArray();
+
+            foreach (var item in items)
+            {
+                ct.ThrowIfCancellationRequested();
+                JsonSerializer.Serialize(jsonWriter, item, serializerOptions);
+                options.Metrics.IncrementRecords();
+            }
+
+            jsonWriter.WriteEndArray();
+            await jsonWriter.FlushAsync(ct);
+            options.Metrics.Complete();
         }
 
         // ------------------------------------------------------------------
@@ -301,6 +440,136 @@ namespace DataFlow.Data
                 serializer.Serialize(writer, buffer);
                 await writer.FlushAsync();
             }
+        }
+
+        // --- Text with Stream ---
+
+        /// <summary>
+        /// Writes lines to a stream using specified options.
+        /// </summary>
+        public static async Task WriteText(this IAsyncEnumerable<string> lines, Stream stream, WriteOptions? options = null)
+        {
+            if (stream is null) throw new ArgumentNullException(nameof(stream));
+            options ??= new WriteOptions();
+
+            var ct = options.CancellationToken;
+            options.Metrics.Start();
+
+            await using var writer = new StreamWriter(stream, options.Encoding, leaveOpen: true);
+            await foreach (var line in lines.WithCancellation(ct))
+            {
+                ct.ThrowIfCancellationRequested();
+                await writer.WriteLineAsync(line);
+                options.Metrics.IncrementRecords();
+            }
+            await writer.FlushAsync();
+            options.Metrics.Complete();
+        }
+
+        /// <summary>
+        /// Writes lines to a stream using specified options (IEnumerable).
+        /// </summary>
+        public static async Task WriteText(this IEnumerable<string> lines, Stream stream, WriteOptions? options = null)
+        {
+            if (stream is null) throw new ArgumentNullException(nameof(stream));
+            options ??= new WriteOptions();
+
+            var ct = options.CancellationToken;
+            options.Metrics.Start();
+
+            await using var writer = new StreamWriter(stream, options.Encoding, leaveOpen: true);
+            foreach (var line in lines)
+            {
+                ct.ThrowIfCancellationRequested();
+                await writer.WriteLineAsync(line);
+                options.Metrics.IncrementRecords();
+            }
+            await writer.FlushAsync();
+            options.Metrics.Complete();
+        }
+
+        // --- YAML with Stream ---
+
+        /// <summary>
+        /// Writes items to a YAML stream using specified options.
+        /// </summary>
+        public static async Task WriteYaml<T>(this IAsyncEnumerable<T> items, Stream stream, YamlWriteOptions? options = null)
+        {
+            if (stream is null) throw new ArgumentNullException(nameof(stream));
+            options ??= new YamlWriteOptions();
+
+            var ct = options.CancellationToken;
+            options.Metrics.Start();
+
+            await using var writer = new StreamWriter(stream, options.Encoding, leaveOpen: true);
+            var serializer = new SerializerBuilder().Build();
+
+            // If batching is enabled, use batched mode
+            if (options.BatchSize.HasValue && options.BatchSize.Value > 0)
+            {
+                var buffer = new List<T>(options.BatchSize.Value);
+                var first = true;
+
+                await foreach (var item in items.WithCancellation(ct))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    buffer.Add(item);
+                    options.Metrics.IncrementRecords();
+
+                    if (buffer.Count >= options.BatchSize.Value)
+                    {
+                        if (!first) await writer.WriteLineAsync("---");
+                        serializer.Serialize(writer, buffer);
+                        buffer.Clear();
+                        first = false;
+                        await writer.FlushAsync();
+                    }
+                }
+
+                if (buffer.Count > 0)
+                {
+                    if (!first) await writer.WriteLineAsync("---");
+                    serializer.Serialize(writer, buffer);
+                    await writer.FlushAsync();
+                }
+            }
+            else
+            {
+                // Single document mode (streaming)
+                bool any = false;
+                await foreach (var item in items.WithCancellation(ct))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    any = true;
+                    options.Metrics.IncrementRecords();
+
+                    using var temp = new StringWriter();
+                    serializer.Serialize(temp, item);
+                    var raw = temp.ToString();
+                    var linesParsed = raw.Replace("\r\n", "\n").TrimEnd('\n').Split('\n');
+
+                    await writer.WriteAsync("- ");
+                    await writer.WriteLineAsync(linesParsed[0]);
+
+                    for (int i = 1; i < linesParsed.Length; i++)
+                    {
+                        if (linesParsed[i].Length == 0)
+                            await writer.WriteLineAsync();
+                        else
+                        {
+                            await writer.WriteAsync("  ");
+                            await writer.WriteLineAsync(linesParsed[i]);
+                        }
+                    }
+                }
+
+                if (!any && options.WriteEmptySequence)
+                    await writer.WriteLineAsync("[]");
+
+                await writer.FlushAsync();
+            }
+
+            options.Metrics.Complete();
         }
     }
 

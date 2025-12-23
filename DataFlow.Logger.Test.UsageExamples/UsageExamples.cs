@@ -67,7 +67,7 @@ namespace iLoggerUsageExamples
 
         class StringLoggableObject
         {
-            string  StringValue;
+            string StringValue;
 
             public void UpdateAndLogValue(string newValue)
             {
@@ -88,35 +88,113 @@ namespace iLoggerUsageExamples
     {
         static void Main(string[] args)
         {
- 
-
+            // Global Configuration
             Config loggerConfiguration = iLogger.Filters;
-
             loggerConfiguration.IncludeTimestamp = true;
             loggerConfiguration.IncludeInstanceName = true;
             loggerConfiguration.IncludeTaskId = true;
             loggerConfiguration.IncludeThreadId = true;
 
-            LogIntoKafkEvent();
+            bool exit = false;
+            while (!exit)
+            {
+                Console.Clear();
+                Console.WriteLine("==========================================");
+                Console.WriteLine("   DataFlow.Logger Usage Examples Menu");
+                Console.WriteLine("==========================================");
+                Console.WriteLine("1. Variable Change Tracking (Simple)");
+                Console.WriteLine("2. Instance Targeting (Intermediate)");
+                Console.WriteLine("3. Namespace Targeting (Intermediate)");
+                Console.WriteLine("4. Azure Event Hub / Kafka (Advanced)");
+                Console.WriteLine("5. Run All (Ordered: Simple -> Advanced)");
+                Console.WriteLine("0. Exit");
+                Console.WriteLine("==========================================");
+                Console.Write("Select an option: ");
 
+                switch (Console.ReadLine())
+                {
+                    case "1":
+                        DisplayVariableChangeTracking();
+                        Pause();
+                        break;
+                    case "2":
+                        DisplayInstancesTargettingExamples();
+                        Pause();
+                        break;
+                    case "3":
+                        DisplayNamespacesTargettingExamples();
+                        Pause();
+                        break;
+                    case "4":
+                        LogIntoKafkEvent();
+                        Pause();
+                        break;
+                    case "5":
+                        RunAll();
+                        Pause();
+                        break;
+                    case "0":
+                        exit = true;
+                        break;
+                    default:
+                        Console.WriteLine("Invalid option. Press any key to try again.");
+                        Console.ReadKey();
+                        break;
+                }
+            }
+        }
+
+        static void Pause()
+        {
+            Console.WriteLine("\nPress any key to return to the menu...");
+            Console.ReadKey();
+        }
+
+        static void RunAll()
+        {
+            Console.WriteLine("\n--- Starting All Examples ---\n");
+
+            Console.WriteLine("\n[1/4] Running Variable Change Tracking...");
             DisplayVariableChangeTracking();
+
+            Console.WriteLine("\n[2/4] Running Instance Targeting...");
             DisplayInstancesTargettingExamples();
+
+            Console.WriteLine("\n[3/4] Running Namespace Targeting...");
             DisplayNamespacesTargettingExamples();
 
-            
+            Console.WriteLine("\n[4/4] Running Azure Event Hub / Kafka...");
+            LogIntoKafkEvent();
+
+            Console.WriteLine("\n--- All Examples Completed ---");
         }
         static void LogIntoKafkEvent()
         {
 
-            
+
             Config loggerConfiguration = iLogger.Filters;
             loggerConfiguration.ResetFilters();
-            iLogger.Out("** LogIntoKafkEvent usage example,please create your azure hub event with kafka enabled ", LogLevel.Warn);
-            iLogger.Out("           Start kafka server and then Enter event hub namespace...", LogLevel.Warn);
+
+            Console.WriteLine("\n********************************************************************************");
+            Console.WriteLine("* WARNING: Azure Event Hub / Kafka Configuration Required                      *");
+            Console.WriteLine("********************************************************************************");
+            Console.WriteLine("* Before proceeding, ensure you have:");
+            Console.WriteLine("* 1. An Azure Event Hub namespace with Kafka enabled.");
+            Console.WriteLine("* 2. A valid Connection String (SAS Key).");
+            Console.WriteLine("* 3. An Event Hub (Topic) created.");
+            Console.WriteLine("*");
+            Console.WriteLine("* TIP: You can configure these in 'appsettings.json' to avoid manual entry.");
+            Console.WriteLine("********************************************************************************\n");
+
+            iLogger.Out("** LogIntoKafkEvent usage example **", LogLevel.Warn);
+
+            iLogger.Out("Enter event hub namespace (Press Enter to use appsettings.json):", LogLevel.Warn);
             string? eventHubNamespace = Console.ReadLine();
-            iLogger.Out("           enter kafka topic / event hub name ...", LogLevel.Warn);
+
+            iLogger.Out("Enter kafka topic / event hub name (Press Enter to use appsettings.json):", LogLevel.Warn);
             string? topic = Console.ReadLine();
-            iLogger.Out("           enter connexion string ...", LogLevel.Warn);
+
+            iLogger.Out("Enter connection string (Press Enter to use appsettings.json):", LogLevel.Warn);
             string? connexionstring = Console.ReadLine();
             iLogger.Out("           enter log to put into kafka ...", LogLevel.Warn);
             string? log = Console.ReadLine();
@@ -141,10 +219,31 @@ namespace iLoggerUsageExamples
             iLogger.ResetLoggers();
             iLogger.AddKafkaEventHubLogger(eventHubNamespace, connexionstring, topic);
 
-            iLogger.Out(log); // here is the loggin operation to kafka
-
+            // Use a temporary file for logging
+            string tempLogPath = Path.Combine(Path.GetTempPath(), $"DataFlow_Log_{Guid.NewGuid()}.txt");
+            iLogger.AddFileLogger(tempLogPath);
             iLogger.GetColoredConsoleWriter();
-            iLogger.AddFileLogger(settings["fileLogger_Path"]);
+
+            iLogger.Out(log); // here is the loggin operation to kafka and file
+
+            Console.WriteLine($"\nLog file created at: {tempLogPath}");
+            Console.Write("Do you want to print the file content? (y/n): ");
+            string? response = Console.ReadLine();
+
+            if (response?.Trim().ToLower() == "y")
+            {
+                Console.WriteLine("\n--- File Content ---");
+                if (File.Exists(tempLogPath))
+                {
+                    Console.WriteLine(File.ReadAllText(tempLogPath));
+                }
+                else
+                {
+                    Console.WriteLine("Error: File not found.");
+                }
+                Console.WriteLine("--------------------\n");
+            }
+
             Console.WriteLine("Press any key to continue...", LogLevel.Warn);
             Console.ReadKey();
             Console.Clear();
@@ -203,7 +302,7 @@ namespace iLoggerUsageExamples
             iLogger.Out("** Target a specific namespace for logging.", LogLevel.Warn);
 
 
-            loggerConfiguration.WatchedNameSpaces.Watch(new NameSpaceComparer("iLoggerUsageExamples.nameSapceTargetedObjects"));      
+            loggerConfiguration.WatchedNameSpaces.Watch(new NameSpaceComparer("iLoggerUsageExamples.nameSapceTargetedObjects"));
             firstNumericObject.WatchByLogger("NumericLoggableObject");
             firstNumericObject.UpdateAndLogValue(5);
             firstStringObject.WatchByLogger("StringLoggableObject");
@@ -215,7 +314,7 @@ namespace iLoggerUsageExamples
 
 
             iLogger.Out("=> Multiple object were updated. Only those belonging to  iLoggerUsageExamples.nameSapceTargetedObjects namespace generates a log!", LogLevel.Warn);
-  
+
             iLogger.Out("Press any key to continue...");
 
             Console.ReadKey();

@@ -84,13 +84,22 @@ public static class AsyncEnumerableExtensions
                 hasNext2 = await enum2.MoveNextAsync();
             }
         }
-
-        var remaining = hasNext1 ? enum1 : hasNext2 ? enum2 : null;
-        while (remaining != null && await remaining.MoveNextAsync())
+        // Drain remaining elements from whichever sequence still has items
+        // Important: yield the current element first (it was compared but not yet yielded)
+        if (hasNext1)
         {
-            yield return remaining.Current;
+            yield return enum1.Current;
+            while (await enum1.MoveNextAsync())
+                yield return enum1.Current;
+        }
+        else if (hasNext2)
+        {
+            yield return enum2.Current;
+            while (await enum2.MoveNextAsync())
+                yield return enum2.Current;
         }
     }
+
 
     /// <summary>
     /// Enumerates the source sequence until a supplied zero-argument stop condition
@@ -271,6 +280,42 @@ public static class AsyncEnumerableExtensions
     }
 
     /// <summary>
+    /// Forces complete enumeration of the asynchronous sequence, executing an action for each element.
+    /// </summary>
+    /// <typeparam name="T">Element type of the sequence.</typeparam>
+    /// <param name="items">The async sequence to consume.</param>
+    /// <param name="action">Action to execute for each element.</param>
+    /// <returns>A task that completes when enumeration finishes.</returns>
+    /// <remarks>
+    /// <para>Eager terminal operation. Equivalent to <c>await items.ForEach(action).Do()</c>.</para>
+    /// <para>Combines side-effect execution with terminal consumption in a single call.</para>
+    /// </remarks>
+    public static async Task Do<T>(this IAsyncEnumerable<T> items, Action<T> action)
+    {
+        if (items == null) throw new ArgumentNullException(nameof(items));
+        if (action == null) throw new ArgumentNullException(nameof(action));
+        await foreach (var item in items) { action(item); }
+    }
+
+    /// <summary>
+    /// Forces complete enumeration of the asynchronous sequence, executing an indexed action for each element.
+    /// </summary>
+    /// <typeparam name="T">Element type of the sequence.</typeparam>
+    /// <param name="items">The async sequence to consume.</param>
+    /// <param name="action">Action to execute for each element, receiving the element and its zero-based index.</param>
+    /// <returns>A task that completes when enumeration finishes.</returns>
+    /// <remarks>
+    /// <para>Eager terminal operation. Equivalent to <c>await items.ForEach(action).Do()</c>.</para>
+    /// </remarks>
+    public static async Task Do<T>(this IAsyncEnumerable<T> items, Action<T, int> action)
+    {
+        if (items == null) throw new ArgumentNullException(nameof(items));
+        if (action == null) throw new ArgumentNullException(nameof(action));
+        int index = 0;
+        await foreach (var item in items) { action(item, index++); }
+    }
+
+    /// <summary>
     /// Builds a delimited string from an async sequence of strings using a <see cref="StringBuilder"/>.
     /// </summary>
     /// <param name="items">Source async sequence of string fragments.</param>
@@ -290,7 +335,7 @@ public static class AsyncEnumerableExtensions
     /// <exception cref="ArgumentNullException">If <paramref name="items"/> is null.</exception>
     public static async Task<StringBuilder> BuildString(
         this IAsyncEnumerable<string> items,
-        StringBuilder str = null,
+        StringBuilder? str = null,
         string separator = ", ",
         string before = "{",
         string after = "}")

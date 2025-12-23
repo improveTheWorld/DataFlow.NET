@@ -194,7 +194,7 @@ public static class ObjectMaterializer
     public static GeneralMaterializationSession<T> CreateGeneralSession<T>(string[] schema)
        => new GeneralMaterializationSession<T>(schema);
 
-    public static string[] ResolveSchema<T>(string[] schema) => 
+    public static string[] ResolveSchema<T>(string[] schema) =>
         SchemaMemberResolver.ResolveSchemaToMembers<T>(schema);
 
 
@@ -331,7 +331,7 @@ public static class ObjectMaterializer
         }
 
         T instance = factory();
-        MemberMaterializer.FeedUsingInternalOrder(ref instance, parameters);
+        MemberMaterializer.FeedUsingInternalOrder(ref instance, parameters!);
         return instance;
     }
 
@@ -468,14 +468,14 @@ public static class ObjectMaterializer
                 continue;
             }
 
-            var argType = args[i].GetType();
+            var argType = args[i]!.GetType();
             var paramType = parms[i].ParameterType;
 
             if (paramType == argType)
                 score += 10; // Exact match
             else if (paramType.IsAssignableFrom(argType))
                 score += 5; // Widening (e.g., object from string)
-            else if (IsConvertible(args[i], paramType))
+            else if (IsConvertible(args[i]!, paramType))
                 score += 1; // Actually convertible
             else
                 return 0; // Incompatible - reject this constructor
@@ -569,7 +569,7 @@ public static class ObjectMaterializer
         {
             // Value types always work
             if (t.IsValueType)
-                return () => Activator.CreateInstance(t);
+                return () => Activator.CreateInstance(t)!;
 
             // For reference types, try parameterless constructor
             var ctor = t.GetConstructor(Type.EmptyTypes);
@@ -607,7 +607,7 @@ public static class ObjectMaterializer
             }
             else
             {
-                hash.Add(args[i].GetType());
+                hash.Add(args[i]!.GetType());
             }
         }
 

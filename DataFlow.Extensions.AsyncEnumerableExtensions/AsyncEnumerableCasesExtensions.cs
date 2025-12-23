@@ -82,7 +82,7 @@ public static class AsyncEnumerableCasesExtensions
     public static IAsyncEnumerable<T> UnCase<T, Y>(this IAsyncEnumerable<(int category, T item, Y newItem)> items)
     => items.Select(x => x.item);
 
-    public static IAsyncEnumerable<R> AllCases<T, R>(this IAsyncEnumerable<(int category, T item, R newItem)> items, bool filter = true) where T : class
+    public static IAsyncEnumerable<R> AllCases<T, R>(this IAsyncEnumerable<(int category, T item, R newItem)> items, bool filter = true)
     => filter ? items.Select(x => x.newItem).Where(x => x is not null && !x.Equals(default)) : items.Select(x => x.newItem);
 
 

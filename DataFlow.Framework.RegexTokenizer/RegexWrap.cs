@@ -6,7 +6,7 @@ namespace DataFlow.Framework;
 public static class RegexWrap
 
 {
-   
+
     public const string CHAR = ".";  //  Any character except new line.
     public const string SPACE = @"\s"; // space or tab
     public const string ALPHNUM = @"\w"; // A-Z, a-z , 0-9 or _ (underscore) .
@@ -41,16 +41,16 @@ public static class RegexWrap
                         x => x == '[',
                         x => x == ']',
                         x => x == '(',
-                        x => x == ')')                        
+                        x => x == ')')
                     .ForEachCase(
                        () => count1++,
                        () => count1--,
                        () => count2++,
                        () => count2--)
-                     .Until(() => count1 < 0 || count2 < 0 )
+                     .Until(() => count1 < 0 || count2 < 0)
                     .Do();
 
-            if (count1 != 0 || count2 !=0) throw new ArgumentException($"{nameof(input)}  Check  parantheses: {input}");
+            if (count1 != 0 || count2 != 0) throw new ArgumentException($"{nameof(input)}  Check  parantheses: {input}");
 
             // count == 0
             return input;

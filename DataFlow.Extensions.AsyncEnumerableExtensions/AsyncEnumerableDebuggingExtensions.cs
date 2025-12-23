@@ -53,6 +53,7 @@ namespace DataFlow.Extensions
         /// </summary>
         public const string SEPARATOR = "\n";
 
+
         /// <summary>
         /// Writes the contents of a string asynchronous sequence to the console in a structured
         /// block while returning a pass-through stream of the original elements.

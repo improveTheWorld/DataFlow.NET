@@ -4,7 +4,7 @@
     public class GrammarRule : ITokenEater
     {
         private readonly ITokenEater[] _tokenEaters;
-        private HashSet<int> _cursors;
+        private HashSet<int> _cursors = new HashSet<int>() { 0 };
 
         // The constructor must be public to be used outside of the class.
         public GrammarRule(IEnumerable<ITokenEater> grammar)

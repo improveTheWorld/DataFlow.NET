@@ -77,11 +77,12 @@ namespace DataFlow.Log
     {
         public static IEnumerable<T> LogSpy<T>(this IEnumerable<T> items, string tag, string separator = ", ", string before = "{", string after = "}")
         {
-            return items.LogSpy(tag, x => x is string ? $"'{x}'" : x?.ToString()??"null", separator, before, after);           
+            return items.LogSpy(tag, x => x is string ? $"'{x}'" : x?.ToString() ?? "null", separator, before, after);
         }
 
-        public static IEnumerable<T> LogSpy<T>(this IEnumerable<T> items, string tag, Func<T,string> customDispay, string separator = ", ", string before = "{", string after = "}")
+        public static IEnumerable<T> LogSpy<T>(this IEnumerable<T> items, string tag, Func<T, string> customDispay, string separator = ", ", string before = "{", string after = "}")
         {
+
             StringBuilder str = new StringBuilder();
 
             if (!tag.IsNullOrEmpty())

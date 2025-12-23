@@ -107,7 +107,7 @@ namespace DataFlow.Extensions
             Guard.AgainstNullArgument(nameof(line), line);
             if (tokens == null) return false;
             var match = tokens.FirstOrDefault(x => x != null && line.Contains(x));
-            return !match.IsNullOrEmpty();
+            return match != null && !match.IsNullOrEmpty();
         }
 
         /// <summary>

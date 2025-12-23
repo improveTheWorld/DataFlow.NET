@@ -2,6 +2,20 @@
 
 This document provides a deep-dive into the reading infrastructure of the `DataFlow.Data` layer, covering configuration, error handling, and format-specific options.
 
+## Table of Contents
+
+1. [Fast Usage Overview](#0-fast-usage-overview)
+2. [Options Architecture](#1-options-architecture)
+3. [Error Handling](#2-error-handling)
+4. [CSV Reader](#3-csv-reader)
+5. [JSON Reader](#4-json-reader)
+6. [YAML Reader](#5-yaml-reader)
+7. [Text Reader](#6-text-reader)
+
+**Related:** [ObjectMaterializer](ObjectMaterializer.md) — Low-level object creation from structured data
+
+---
+
 ## 0. Fast Usage Overview
 
 ### 0.1 Asynchrony Convention (IMPORTANT)

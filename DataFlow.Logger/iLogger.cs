@@ -1,7 +1,6 @@
-﻿using System.Reflection.Metadata.Ecma335;
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using DataFlow.Extensions;
-using DataFlow.Framework;
+
 
 namespace DataFlow.Log
 {
@@ -9,7 +8,7 @@ namespace DataFlow.Log
     public class iLogger : IDisposable
     {
         // Log processing variable using LogFilter class
-        static readonly LogFilter logProc = new ();
+        static readonly LogFilter logProc = new();
 
         // Property to get Filters from logProc object
         public static Config Filters => logProc;
@@ -17,7 +16,7 @@ namespace DataFlow.Log
         // DebugLogger flag to control debug logging, default is false
         public static bool DebugLogger { get; set; } = false;
 
-        public static LogLevel MaxAuthorizedLogLevel= LogLevel.Fatal;
+        public static LogLevel MaxAuthorizedLogLevel = LogLevel.Fatal;
 
         // Flag to indicate whether buffering is enabled
         static bool bufferEnabled;
@@ -57,7 +56,7 @@ namespace DataFlow.Log
                 // if value is true, start Loop
                 if (value)
                 {
-                    Loop();
+                    _ = Loop();
                 }
             }
         }
@@ -75,24 +74,49 @@ namespace DataFlow.Log
         }
 
         // Method to keep reading and processing messages from the Buffer
-        async static void Loop()
+        async static Task Loop()
         {
             TraceExecution($"Starting Buffer loop in thread {Thread.CurrentThread.ManagedThreadId}");
 
             while (true)
             {
-                await Buffer.Reader.WaitToReadAsync();
-                (string message, LogLevel loglevel) = await Buffer.Reader.ReadAsync();
+                try
+                {
+                    await Buffer!.Reader.WaitToReadAsync();
+                    (string message, LogLevel loglevel) = await Buffer.Reader.ReadAsync();
 
-                TraceExecution($"New message in buffer will be treated in thread {Thread.CurrentThread.ManagedThreadId}");
-                loggerTargets.ForEach(x => x.Log(message, loglevel));
+                    TraceExecution($"New message in buffer will be treated in thread {Thread.CurrentThread.ManagedThreadId}");
+
+                    // Create a snapshot of targets to iterate safely
+                    List<ILoggerTarget> targetsSnapshot;
+                    lock (loggerTargets)
+                    {
+                        targetsSnapshot = new List<ILoggerTarget>(loggerTargets);
+                    }
+
+                    foreach (var target in targetsSnapshot)
+                    {
+                        try
+                        {
+                            target.Log(message, loglevel);
+                        }
+                        catch (Exception targetEx)
+                        {
+                            Console.Error.WriteLine($"[DataFlow.Logger] Error in target {target.GetType().Name}: {targetEx}");
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine($"[DataFlow.Logger] Critical Error in Background Loop: {e}");
+                }
             }
         }
 
         // Log method to log the object with a specific LogLevel
         public static void Log(object objectToLog, LogLevel logLevel = LogLevel.Trace, object? requester = null)
         {
-            if (logLevel > MaxAuthorizedLogLevel)
+            if (logLevel < MaxAuthorizedLogLevel)
                 return;
 
             // ensure thread safety
@@ -108,7 +132,7 @@ namespace DataFlow.Log
             }
         }
 
-       public static void Out(string message, LogLevel logLevel = LogLevel.Trace)
+        public static void Out(string message, LogLevel logLevel = LogLevel.Trace)
         {
             // ensure thread safety
             lock (loggerTargets)
@@ -148,16 +172,36 @@ namespace DataFlow.Log
         }
 
         // Method to add message to the Buffer queue or directly log it if buffer is not enabled
-        async static void PutInQueue(string message, LogLevel logLevel)
+        // Method to add message to the Buffer queue or directly log it if buffer is not enabled
+        static void PutInQueue(string message, LogLevel logLevel)
         {
             if (bufferEnabled)
             {
-                await Buffer.Writer.WriteAsync((message, logLevel));
+                // Unbounded channel TryWrite always succeeds unless closed
+                Buffer!.Writer.TryWrite((message, logLevel));
             }
             else
             {
                 TraceExecution($"Direct logging in thread {Thread.CurrentThread.ManagedThreadId}");
-                loggerTargets.ForEach(x => x.Log(message, logLevel));
+
+                // Create a snapshot for thread safety (consistent with Loop)
+                List<ILoggerTarget> targetsSnapshot;
+                lock (loggerTargets)
+                {
+                    targetsSnapshot = new List<ILoggerTarget>(loggerTargets);
+                }
+
+                targetsSnapshot.ForEach(x =>
+                {
+                    try
+                    {
+                        x.Log(message, logLevel);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[DataFlow.Logger] Error in target {x.GetType().Name}: {ex}");
+                    }
+                });
             }
         }
 
@@ -170,7 +214,7 @@ namespace DataFlow.Log
 
             loggerTargets.Clear();
 
-            if(logger != null)
+            if (logger != null)
             {
                 loggerTargets.Add(logger);
             }
@@ -201,13 +245,13 @@ namespace DataFlow.Log
 
         public static ILoggerTarget? CreateKafkaEventHubLogger(string eventHubNamespace, string connectionString, string topic = "iLogger")
         {
-            return  new EventHubKafkaLogger(eventHubNamespace, connectionString, topic);
+            return new EventHubKafkaLogger(eventHubNamespace, connectionString, topic);
         }
         public static ILoggerTarget? AddKafkaEventHubLogger(string eventHubNamespace, string connectionString, string topic = "iLogger")
         {
-            var  newLogger = CreateKafkaEventHubLogger(eventHubNamespace, connectionString, topic);
+            var newLogger = CreateKafkaEventHubLogger(eventHubNamespace, connectionString, topic);
 
-            if(newLogger != null)
+            if (newLogger != null)
                 AddLogger(newLogger);
 
             return newLogger;
@@ -216,9 +260,9 @@ namespace DataFlow.Log
         // Method to get a file logger
         public static ILoggerTarget CreateFileLogger(String fullPath)
         {
-            StreamWriter writer = (new FilePath(fullPath)).CreateFileWithoutFailure();            
+            StreamWriter writer = (new FilePath(fullPath)).CreateFileWithoutFailure();
             writer.AutoFlush = true;
-            return  new WriteLineLogger<StreamWriter>(writer);            
+            return new WriteLineLogger<StreamWriter>(writer);
         }
 
         // Method to add a file logger
@@ -229,7 +273,7 @@ namespace DataFlow.Log
 
         public static ILoggerTarget GetColoredConsoleWriter()
         {
-            return  loggerTargets.Where(x=>x is ColoredConsoleWriter).FirstOrDefault()?? AddLogger(new ColoredConsoleWriter());
+            return loggerTargets.Where(x => x is ColoredConsoleWriter).FirstOrDefault() ?? AddLogger(new ColoredConsoleWriter());
         }
     }
 }

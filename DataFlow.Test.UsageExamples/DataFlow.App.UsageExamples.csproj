@@ -18,15 +18,19 @@
     <ProjectReference Include="..\DataFlow.Extensions.RegexTokenizerExtensions\DataFlow.Extensions.RegexTokenizerExtensions.csproj" />
     <ProjectReference Include="..\DataFlow.Framework.EnumerablePlus\DataFlow.Framework.EnumerableWithNote.csproj" />
     <ProjectReference Include="..\DataFlow.Logger\DataFlow.Logger.csproj" />
-    <ProjectReference Include="..\DataFlow.Logger\DataFlow.Logger.csproj" />
-    <ProjectReference Include="..\DataFlow.Test.Tools\DataFlow.App.Tools.csproj" />
+    <ProjectReference Include="..\DataFlow.Extensions.AsyncEnumerableExtensions\DataFlow.Extensions.AsyncEnumerableExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.AsyncEnumerable\DataFlow.Framework.AsyncEnumerable.csproj" />
+    <ProjectReference Include="..\DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.ParallelAsyncQuery\DataFlow.Framework.ParallelAsyncQuery.csproj" />
+    <ProjectReference Include="..\DataFlow.Extensions.ParallelQueryExtensions\DataFlow.Extensions.ParallelQueryExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Extensions.ParallelAsyncQueryExtensions\DataFlow.Extensions.ParallelAsyncQueryExtensions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="log.txt">
+    <None Update="legacyExamples\log.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="People.csv">
+    <None Update="legacyExamples\People.csv">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

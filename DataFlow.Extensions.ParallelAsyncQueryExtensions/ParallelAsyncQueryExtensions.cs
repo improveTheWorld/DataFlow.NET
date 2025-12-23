@@ -163,6 +163,46 @@ namespace DataFlow.Extensions
             await foreach (var _ in items.ConfigureAwait(false)) { /* discard */ }
         }
 
+        /// <summary>
+        /// Forces asynchronous enumeration of a <see cref="ParallelAsyncQuery{T}"/>, executing
+        /// an action for each element.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="items">The query to enumerate.</param>
+        /// <param name="action">A thread-safe action to invoke per element.</param>
+        /// <returns>A task that completes when the sequence has been fully consumed.</returns>
+        /// <remarks>
+        /// <para>Eager terminal operation. Equivalent to <c>await items.ForEach(action).Do()</c>.</para>
+        /// <para>Combines side-effect execution with terminal consumption in a single call.</para>
+        /// <para>Concurrency: action may be invoked concurrently on multiple items.</para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> or <paramref name="action"/> is <c>null</c>.</exception>
+        public static async Task Do<T>(this ParallelAsyncQuery<T> items, Action<T> action)
+        {
+            if (items == null) throw new ArgumentNullException(nameof(items));
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            await items.ForEach(action).Do().ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Forces asynchronous enumeration of a <see cref="ParallelAsyncQuery{T}"/>, executing
+        /// an indexed action for each element.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="items">The query to enumerate.</param>
+        /// <param name="action">A thread-safe action to invoke per element, receiving element and zero-based index.</param>
+        /// <returns>A task that completes when the sequence has been fully consumed.</returns>
+        /// <remarks>
+        /// <para>Eager terminal operation. Equivalent to <c>await items.ForEach(action).Do()</c>.</para>
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> or <paramref name="action"/> is <c>null</c>.</exception>
+        public static async Task Do<T>(this ParallelAsyncQuery<T> items, Action<T, int> action)
+        {
+            if (items == null) throw new ArgumentNullException(nameof(items));
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            await items.ForEach(action).Do().ConfigureAwait(false);
+        }
+
         #endregion
 
         #region BuildString

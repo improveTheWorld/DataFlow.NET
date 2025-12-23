@@ -25,15 +25,24 @@ internal sealed class SecurityFilteringParser<T> : IParser
     // Core YAML 1.2 tag whitelist (canonical + !! short forms)
     private static readonly HashSet<string> CoreTags = new()
     {
-        "!!str","tag:yaml.org,2002:str",
-        "!!int","tag:yaml.org,2002:int",
-        "!!bool","tag:yaml.org,2002:bool",
-        "!!null","tag:yaml.org,2002:null",
-        "!!float","tag:yaml.org,2002:float",
-        "!!seq","tag:yaml.org,2002:seq",
-        "!!map","tag:yaml.org,2002:map",
-        "!!timestamp","tag:yaml.org,2002:timestamp",
-        "!!binary","tag:yaml.org,2002:binary"
+        "!!str",
+        "tag:yaml.org,2002:str",
+        "!!int",
+        "tag:yaml.org,2002:int",
+        "!!bool",
+        "tag:yaml.org,2002:bool",
+        "!!null",
+        "tag:yaml.org,2002:null",
+        "!!float",
+        "tag:yaml.org,2002:float",
+        "!!seq",
+        "tag:yaml.org,2002:seq",
+        "!!map",
+        "tag:yaml.org,2002:map",
+        "!!timestamp",
+        "tag:yaml.org,2002:timestamp",
+        "!!binary",
+        "tag:yaml.org,2002:binary"
     };
 
     public SecurityFilteringParser(IParser inner, YamlReadOptions<T> options)
@@ -202,7 +211,6 @@ internal sealed class SecurityFilteringParser<T> : IParser
             // Tag enforcement
             if (_options.DisallowCustomTags &&
                 _current is NodeEvent nodeEv &&
-                nodeEv.Tag != null &&
                 !nodeEv.Tag.IsEmpty)
             {
                 var tagValue = nodeEv.Tag.Value;

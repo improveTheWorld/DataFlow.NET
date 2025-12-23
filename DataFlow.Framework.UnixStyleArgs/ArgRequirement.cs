@@ -6,10 +6,11 @@ public class ArgRequirement
     [Order] public string ShortName;
     [Order] public string LongName;
     [Order] public bool IsMandatory;
+    [Order] public bool IsFlag;
     [Order] public string DefaultValue;
     [Order] public string Description;
 
-    public ArgRequirement(string argName, string shortName, string longName, string defaultValue, string description = "", bool isMandatory = false)
+    public ArgRequirement(string argName, string shortName, string longName, string defaultValue, string description = "", bool isMandatory = false, bool isFlag = false)
     {
         ArgName = argName;
         ShortName = shortName;
@@ -17,6 +18,7 @@ public class ArgRequirement
         IsMandatory = isMandatory;
         DefaultValue = defaultValue;
         Description = description;
+        IsFlag = isFlag;
     }
 
 
@@ -29,7 +31,7 @@ public static class InvokePrivateMethod
 {
     public static object? Invoke(this IEnumerable<ArgRequirement> instance, string method, params object[] parameteres)
     {
-        return instance.GetType().GetMethod(method).Invoke(instance, parameteres);
+        return instance.GetType().GetMethod(method)!.Invoke(instance, parameteres);
     }
 
 }

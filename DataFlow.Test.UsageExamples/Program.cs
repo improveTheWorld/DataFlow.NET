@@ -1,259 +1,250 @@
-﻿using DataFlow.Extensions;
-using DataFlow.TestTools.Fake;
-using DataFlow.Framework;
-using DataFlow.Data;
-using static DataFlow.Framework.RegexWrap;
+﻿using DataFlow.App.UsageExamples.legacyExamples;
 
+namespace DataFlow.App.UsageExamples;
 
-namespace DataFlow.IEnumerableExtensions.UsageExamples
+/// <summary>
+/// Interactive examples from DataFlow.NET documentation
+/// Run this project to explore working examples of framework features
+/// </summary>
+internal class Program
 {
-
-    internal class Program
+    static async Task Main(string[] args)
     {
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-        //public static IEnumerable<string> NewIEnumerable()
-        //{
-        //    string[] tmp = new string[0];
-        //    return tmp;
-        //}
-        //public static IEnumerable<string> ten1(IEnumerable<string> items, IEnumerable<string> select)
-        //{
-
-        //    int index = 0;
-        //    foreach (var item in items)
-        //    {
-        //        var line = item;
-        //        if (index > 10 && index < 20)
-        //        {
-        //            Console.WriteLine(index);
-        //            select.Append(line);
-        //        }
-        //        yield return item;
-        //        index++;
-        //    }
-        //    select.Display();
-        //}
-        //public static IEnumerable<string> ten2(IEnumerable<string> items, IEnumerable<string> select)
-        //{
-
-        //    int index = 0;
-        //    foreach (var item in items)
-        //    {
-        //        var line = item;
-        //        if (index > 10 && index < 20)
-        //        {
-        //            Console.WriteLine(index);
-        //            select.Append(line);
-        //        }
-        //        yield return item;
-        //        index++;
-        //    }
-        //    select.Display();
-        //}
-        static void Main(string[] args)
+        while (true)
         {
+            ShowMenu();
+            var choice = Console.ReadLine()?.Trim();
 
-            csvSimpleExample();
-            textAdvancedExample();
-            RgxsUsageExample();
+            if (choice == "0" || choice?.ToLower() == "q")
+                break;
 
+            Console.Clear();
+            try
+            {
+                await RunExample(choice);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"\n❌ Error: {ex.Message}");
+            }
 
+            Console.WriteLine("\n--- Press any key to continue ---");
+            Console.ReadKey();
+            Console.Clear();
         }
 
-
-
-
-        struct Person
-        {
-
-            public string FirstName;
-            public string Name;
-            public int Age;
-        }
-        static void csvSimpleExample()
-        {
-            // Read lines from a CSV file, extract data, and fill into an Enumerable of Person
-            Read.Csv<Person>("People.csv", ",")
-                // Convert names to uppercase
-                .Select(p =>
-                {
-                    p.Name = p.Name.ToUpper();
-                    return p;
-                })
-                // Rewrite into a new CSV file
-                .WriteCsv("People_UpperCase.csv", true);
-
-            // Note: The file People.csv is processed without being fully loaded into memory.
-        }
-
-        static void textAdvancedExample()
-        {
-            StreamWriter errorLogs = new("errors.txt");
-            StreamWriter warningLogs = new("warnings.txt");
-            StreamWriter InfoLogs = new("others.txt");
-
-            // Read lines and categorize by log level
-            Read.TextSync("log.txt")
-                .Until(line => line.StartsWith("STOP:"))
-                .Cases(
-                    line => line.ToUpper().Contains("ERROR"),
-                    line => line.ToUpper().Contains("WARNING")
-                )
-                // Apply suitable transformations for each category,
-                // => Add Log level information at the begining of each line
-                .SelectCase(
-                    line => line = $"ERROR : {line}",   // for lines containing "error" 
-                    line => line = $"WARNING : {line}", // for lines containing  "warning"
-                    line => line = $"INFO : {line}"  // for other lines, assume Info
-                    )
-                // Write each log level in a different file
-                .ForEachCase(
-                    line => errorLogs.WriteLine(line),
-                    warningLogs.WriteLine,
-                    InfoLogs.WriteLine //Assume default is Info
-                )
-                // Re-Write a new log file with the level information added for all processed log lines
-                .AllCases()
-                .WriteTextSync("log_WithLevel.txt");
-
-            errorLogs.Close();
-            warningLogs.Close();
-            InfoLogs.Close();
-
-            // Note: The log file is processed in a single pass,
-            // Transformations, chained actions and the different write operations,
-            // are applied on the fly, line by line,
-            // enhancing performance, with optimized ressource usage.
-        }
-
-
-       
-        public static void RgxsUsageExample()
-        {
-
-            var log = new List<string>() {
-                                        "Low memory condition detected while running application, this is a warning",
-                                        "Server Status OK,  Received Response : 500 serevr error",
-                                        "Received Response : 200 Status ok" ,
-                                        "Resource allocation exceeded for process ID 453." ,
-                                        "Received Response : 404 not Found" }
-                                        .PutInStream();
-
-
-            int errorsCount = 0;
-
-
-            // Read the log file and analyze each line
-            Read.TextSync(log.BaseStream)
-                // Define regex patterns for different log entry types
-                .TokenAndFlatten($"Received Response : {NUMS.As("ErrorCode")} {WORDS.As("errorMessage")}")
-                .Cases(
-                    "ErrorCode",
-                    "errorMessage"
-                )
-                .SelectCase(
-                    code =>
-                    {
-                        if (code != "200") errorsCount++;
-                        return code;
-                    },
-                    message => $"--{message.ToUpper()}--",
-                    x => x
-                )
-                .AllCases()
-                .ToLines(Environment.NewLine)
-                .Display("New Log",Environment.NewLine);
-
-
-            Console.WriteLine ();
-            Console.WriteLine($"Number of errors : {errorsCount}");
-           
-        }
-
-        //static void RgxsUsageExample()
-        //{
-
-        //    StreamReader textFile = new List<string>() { "123    abc", ",,,", "Hello, world!", "456 def" }.PutInStream();
-        //    string pattern = OneOf(NUMS.As("numgroup"), ALPHAS.As("wordgroup"));
-
-
-        //    Data.Read.text(textFile)
-        //        .TokenAndFlatten(OneOf(NUMS.As("numgroup"), ALPHAS.As("wordgroup")))
-        //        .Cases(
-        //            "numgroup",
-        //            "wordgroup",
-        //            UNMATCHED.EOF
-        //        )
-        //        .SelectCase(
-        //            s => $"Number: {s}",
-        //            s => $"Word: {s}",
-        //            s => "-EOF-",
-        //            x => x
-        //        )
-        //        .AllCases()/*.Spy("All Pieces")*/
-        //        .ToLines("-EOF-")
-        //        .Display();
-
-
-        //}
-        //static void ReplaceByGroupExample()
-        //{
-
-        //    const string group1 = "level";
-        //    const string group2 = "InstanceName";
-
-        //    string path = @"C:\Users\Bilel_Alstom\Desktop\InDAb";
-        //    string pattern1 = @"\[" + Regex.ALPHNUMS.As(group1) + @"\]";
-        //    string pattern2 = Regex.SPACES + @"\[" + "".As(group2);
-        //    string pattern = Regex.OneOf(pattern1, pattern2);
-
-        //    var reg = new Regex(pattern);
-
-
-
-        //    Directory.EnumerateFiles(path, "*.txt").
-        //                Where(x => FilePath.GetName(x) != "log.txt")
-        //                .ForEach(x => File.Delete(x))
-        //                .Do();
-
-
-
-        //    Data.Read.text("log.txt")
-        //            .TokenAndFlatten(reg, (group1, v => v.ToUpper()), (group2, _ => "++++++"))
-        //            .Enumerate()
-        //            .WriteInFile(path + "\\log_test_oussama.txt");
-        //}
-
-        //static void syntaxiUsageExample()
-        //{
-
-        //    // Define the grammar rules
-        //    var rules = new Rule[]
-        //    {
-        //        new Rule("E", "T", "E'"),
-        //        new Rule("E'", "+", "T", "E'"),
-        //        new Rule("E'", ""),
-        //        new Rule("T", "F", "T'"),
-        //        new Rule("T'", "*", "F", "T'"),
-        //        new Rule("T'", ""),
-        //        new Rule("F", "(", "E", ")"),
-        //        new Rule("F", "id")
-        //    };
-
-        //    // Build the grammar
-        //    var grammar = GrammarElem.Builder.Build(rules);
-
-        //    // Input tokens
-        //    var tokens = new string[] { "id", "+", "id", "*", "id" };
-
-        //    // Parse the tokens
-        //    foreach (var token in tokens)
-        //    {
-        //        var result = grammar.AcceptToken(token);
-        //        Console.WriteLine($"Token: {token}, Digestion: {result}");
-        //    }
-        // }
-
+        Console.WriteLine("\nGoodbye! 👋");
     }
 
+    static void ShowMenu()
+    {
+        Console.WriteLine(@"
+╔══════════════════════════════════════════════════════════════════╗
+║           DataFlow.NET - Documentation Examples                 ║
+╠══════════════════════════════════════════════════════════════════╣
+║  📚 README EXAMPLES                                              ║
+║    1. Cases Pattern - Batch Processing                           ║
+║    2. Quick Start - CSV Processing                               ║
+║                                                                  ║
+║  🔄 CASES PATTERN (Unified-Processing.md)                        ║
+║    3. Configuration-Driven Transformation Tree                   ║
+║    4. Supra Category Pattern                                     ║
+║    5. Sync/Async Unified Processing                              ║
+║                                                                  ║
+║  📡 STREAM MERGING (Stream-Merging.md)                           ║
+║    6. Basic Stream Merging                                       ║
+║    7. Stream Merging with Filtering                              ║
+║    8. Stream Merging + Cases Pattern                             ║
+║                                                                  ║
+║  📖 DATA LAYER (Architecture-APIs.md)                            ║
+║    9. Text Reading (Sync)                                        ║
+║   10. Text Reading (Async)                                       ║
+║   11. CSV Reading                                                ║
+║   12. CSV Writing                                                ║
+║   13. Utility Extensions                                         ║
+║                                                                  ║
+║  📚 READING INFRASTRUCTURE (DataFlow-Data-Reading-Infra.md)      ║
+║   17. Async/Sync Naming Convention                               ║
+║   18. String-Based Parsing                                       ║
+║   19. CSV with Error Handling                                    ║
+║   20. Raw Text Lines                                             ║
+║                                                                  ║
+║  🧩 OBJECT MATERIALIZER (ObjectMaterializer.md)                  ║
+║   21. Schema-Based Mapping                                       ║
+║   22. Order-Based Mapping                                        ║
+║   23. Constructor-Based Mapping                                  ║
+║   24. Missing/Extra Columns                                      ║
+║   25. Bulk Test Data Creation                                    ║
+║                                                                  ║
+║  🔧 LEGACY EXAMPLES                                              ║
+║   14. Original CSV Example                                       ║
+║   15. Original Text/Cases Example                                ║
+║   16. Original Regex Tokenizer Example                           ║
+║                                                                  ║
+║  ⚡ PARALLEL QUERIES (Multi-Path Processing)                     ║
+║   26. Comprehensive Comparison (4 execution paths)               ║
+║   27. Real-time Metrics Monitoring                               ║
+║   28. Order Processing with PLINQ                                ║
+║   29. IoT Sensor Monitoring                                      ║
+║   30. Concurrency Level Comparison                               ║
+║                                                                  ║
+║   A. Run ALL examples                                            ║
+║   0. Exit                                                        ║
+╚══════════════════════════════════════════════════════════════════╝
+");
+        Console.Write("Select an example (1-30, A, or 0): ");
+    }
+
+    static async Task RunExample(string? choice)
+    {
+        switch (choice?.ToUpper())
+        {
+            // Readme Examples
+            case "1":
+                await ReadmeExamples.CasesPatternBatchAsync();
+                break;
+            case "2":
+                ReadmeExamples.QuickStartCsvProcessing();
+                break;
+
+            // Cases Pattern Examples
+            case "3":
+                CasesPatternExamples.ConfigurationDrivenTransformationTree();
+                break;
+            case "4":
+                CasesPatternExamples.SupraCategoryPattern();
+                break;
+            case "5":
+                await CasesPatternExamples.SyncAsyncUnifiedAsync();
+                break;
+
+            // Stream Merging Examples
+            case "6":
+                await StreamMergingExamples.BasicStreamMergingAsync();
+                break;
+            case "7":
+                await StreamMergingExamples.StreamMergingWithFilterAsync();
+                break;
+            case "8":
+                await StreamMergingExamples.StreamMergingWithCasesAsync();
+                break;
+
+            // Data Layer Examples
+            case "9":
+                DataLayerExamples.TextReadingSync();
+                break;
+            case "10":
+                await DataLayerExamples.TextReadingAsync();
+                break;
+            case "11":
+                DataLayerExamples.CsvReadingSync();
+                break;
+            case "12":
+                DataLayerExamples.CsvWriting();
+                break;
+            case "13":
+                DataLayerExamples.UtilityExtensions();
+                break;
+
+            // Legacy Examples (from original Program.cs)
+            case "14":
+                LegacyExamples.CsvSimpleExample();
+                break;
+            case "15":
+                LegacyExamples.TextAdvancedExample();
+                break;
+            case "16":
+                LegacyExamples.RgxsUsageExample();
+                break;
+
+            // Reading Infrastructure Examples
+            case "17":
+                await ReadingInfrastructureExamples.AsyncSyncConventionAsync();
+                break;
+            case "18":
+                ReadingInfrastructureExamples.StringBasedParsing();
+                break;
+            case "19":
+                ReadingInfrastructureExamples.SimpleCsvWithErrorHandling();
+                break;
+            case "20":
+                await ReadingInfrastructureExamples.RawTextLinesAsync();
+                break;
+
+            // ObjectMaterializer Examples
+            case "21":
+                ObjectMaterializerExamples.SchemaBasedMapping();
+                break;
+            case "22":
+                ObjectMaterializerExamples.ConstructorBasedMapping();
+                break;
+            case "23":
+                ObjectMaterializerExamples.MissingExtraColumns();
+                break;
+            case "24":
+                ObjectMaterializerExamples.BulkTestDataCreation();
+                break;
+
+            // Parallel Queries Examples
+            case "26":
+                await ParallelQueriesExamples.ComprehensiveComparisonAsync();
+                break;
+            case "27":
+                await ParallelQueriesExamples.MetricsMonitoringAsync();
+                break;
+            case "28":
+                ParallelQueriesExamples.OrderProcessingPlinq();
+                break;
+            case "29":
+                await ParallelQueriesExamples.SensorMonitoringAsync();
+                break;
+            case "30":
+                await ParallelQueriesExamples.ConcurrencyComparisonAsync();
+                break;
+
+            // Run All
+            case "A":
+                await RunAllExamples();
+                break;
+
+            default:
+                Console.WriteLine("Invalid choice. Please try again.");
+                break;
+        }
+    }
+
+    static async Task RunAllExamples()
+    {
+        Console.WriteLine("=== Running ALL Examples ===\n");
+
+        var examples = new (string name, Func<Task> action)[]
+        {
+            ("1. Cases Pattern Batch", ReadmeExamples.CasesPatternBatchAsync),
+            ("2. Quick Start CSV", () => { ReadmeExamples.QuickStartCsvProcessing(); return Task.CompletedTask; }),
+            ("3. Transformation Tree", () => { CasesPatternExamples.ConfigurationDrivenTransformationTree(); return Task.CompletedTask; }),
+            ("4. Supra Category", () => { CasesPatternExamples.SupraCategoryPattern(); return Task.CompletedTask; }),
+            ("5. Sync/Async Unified", CasesPatternExamples.SyncAsyncUnifiedAsync),
+            ("6. Basic Stream Merging", StreamMergingExamples.BasicStreamMergingAsync),
+            ("7. Stream Filter", StreamMergingExamples.StreamMergingWithFilterAsync),
+            ("8. Stream + Cases", StreamMergingExamples.StreamMergingWithCasesAsync),
+            ("9. Text Sync", () => { DataLayerExamples.TextReadingSync(); return Task.CompletedTask; }),
+            ("10. Text Async", DataLayerExamples.TextReadingAsync),
+            ("11. CSV Reading", () => { DataLayerExamples.CsvReadingSync(); return Task.CompletedTask; }),
+            ("12. CSV Writing", () => { DataLayerExamples.CsvWriting(); return Task.CompletedTask; }),
+            ("13. Utility Extensions", () => { DataLayerExamples.UtilityExtensions(); return Task.CompletedTask; }),
+        };
+
+        foreach (var (name, action) in examples)
+        {
+            Console.WriteLine($"\n{'=',-60}");
+            Console.WriteLine($"Running: {name}");
+            Console.WriteLine($"{'=',-60}\n");
+            await action();
+            Console.WriteLine();
+        }
+
+        Console.WriteLine("\n✅ All examples completed!");
+    }
 }

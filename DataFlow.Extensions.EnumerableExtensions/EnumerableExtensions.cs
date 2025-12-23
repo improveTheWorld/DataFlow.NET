@@ -65,7 +65,7 @@ public static class EnumerableExtensions
 
         while (hasNext1 && hasNext2)
         {
-            if (isFirstLessThanOrEqualToSecond(enum1.Current, enum2.Current))
+            if (isFirstLessThanOrEqualToSecond(enum1!.Current, enum2!.Current))
             {
                 yield return enum1.Current;
                 hasNext1 = enum1.MoveNext();
@@ -76,11 +76,19 @@ public static class EnumerableExtensions
                 hasNext2 = enum2.MoveNext();
             }
         }
-
-        var remainingEnumerator = hasNext1 ? enum1 : hasNext2 ? enum2 : null;
-        while (remainingEnumerator?.MoveNext() ?? false)
+        // Drain remaining elements from whichever sequence still has items
+        // Important: yield the current element first (it was compared but not yet yielded)
+        if (hasNext1)
         {
-            yield return remainingEnumerator.Current;
+            yield return enum1!.Current;
+            while (enum1.MoveNext())
+                yield return enum1.Current;
+        }
+        else if (hasNext2)
+        {
+            yield return enum2!.Current;
+            while (enum2.MoveNext())
+                yield return enum2.Current;
         }
     }
 
@@ -256,27 +264,6 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Forces enumeration of the sequence, invoking a parameterless <paramref name="action"/> once per element.
-    /// </summary>
-    /// <typeparam name="T">Element type.</typeparam>
-    /// <param name="items">Source sequence (fully enumerated).</param>
-    /// <param name="action">Action invoked for each element (element value is ignored).</param>
-    /// <remarks>
-    /// This is an eager terminal operation. Use with caution for very large or infinite sequences.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> or <paramref name="action"/> is <c>null</c>.</exception>
-    public static void Do<T>(this IEnumerable<T> items, Action action)
-    {
-        if (items == null) throw new ArgumentNullException(nameof(items));
-        if (action == null) throw new ArgumentNullException(nameof(action));
-
-        foreach (var _ in items)
-        {
-            action();
-        }
-    }
-
-    /// <summary>
     /// Forces enumeration of the sequence discarding all elements (a no-op over each item).
     /// </summary>
     /// <typeparam name="T">Element type.</typeparam>
@@ -290,6 +277,42 @@ public static class EnumerableExtensions
     {
         if (items == null) throw new ArgumentNullException(nameof(items));
         foreach (var _ in items) { /* intentionally empty */ }
+    }
+
+    /// <summary>
+    /// Forces enumeration of the sequence, executing an action for each element.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="items">Source sequence.</param>
+    /// <param name="action">Action to execute for each element.</param>
+    /// <remarks>
+    /// <para>Eager terminal operation. Equivalent to <c>items.ForEach(action).Do()</c>.</para>
+    /// <para>Combines side-effect execution with terminal consumption in a single call.</para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> or <paramref name="action"/> is <c>null</c>.</exception>
+    public static void Do<T>(this IEnumerable<T> items, Action<T> action)
+    {
+        if (items == null) throw new ArgumentNullException(nameof(items));
+        if (action == null) throw new ArgumentNullException(nameof(action));
+        foreach (var item in items) { action(item); }
+    }
+
+    /// <summary>
+    /// Forces enumeration of the sequence, executing an indexed action for each element.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="items">Source sequence.</param>
+    /// <param name="action">Action to execute for each element, receiving the element and its zero-based index.</param>
+    /// <remarks>
+    /// <para>Eager terminal operation. Equivalent to <c>items.ForEach(action).Do()</c>.</para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> or <paramref name="action"/> is <c>null</c>.</exception>
+    public static void Do<T>(this IEnumerable<T> items, Action<T, int> action)
+    {
+        if (items == null) throw new ArgumentNullException(nameof(items));
+        if (action == null) throw new ArgumentNullException(nameof(action));
+        int index = 0;
+        foreach (var item in items) { action(item, index++); }
     }
 
     /// <summary>

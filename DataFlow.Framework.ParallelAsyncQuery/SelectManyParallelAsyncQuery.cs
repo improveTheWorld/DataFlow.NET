@@ -1,4 +1,5 @@
-﻿using System.Threading.Channels;
+﻿using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 
 namespace DataFlow.Framework;
 
@@ -17,7 +18,8 @@ internal class SelectManyParallelAsyncQuery<TSource, TResult> : ParallelAsyncQue
 
     public override async IAsyncEnumerator<TResult> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        var combinedToken = CombineTokens(cancellationToken);
+        using var linkedCts = CreateLinkedCts(cancellationToken);
+        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
 
         // SelectMany is inherently difficult to parallelize while preserving outer sequence order
         // without significant buffering. This implementation parallelizes the processing of the
@@ -29,14 +31,30 @@ internal class SelectManyParallelAsyncQuery<TSource, TResult> : ParallelAsyncQue
         {
             try
             {
-                await foreach (var item in _source.Select(item => _selector(item)).WithCancellation(combinedToken))
+                await foreach (var item in _source.WithCancellation(combinedToken))
                 {
-                    await channel.Writer.WriteAsync(item, combinedToken);
+                    IAsyncEnumerable<TResult> innerSequence;
+                    try
+                    {
+                        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(combinedToken);
+                        timeoutCts.CancelAfter(_settings.OperationTimeout);
+
+                        // Apply selector with timeout
+                        innerSequence = _selector(item);
+                    }
+                    catch (Exception) when (_settings.ContinueOnError)
+                    {
+                        // Skip this outer item if selector fails
+                        continue;
+                    }
+
+                    await channel.Writer.WriteAsync(innerSequence, combinedToken);
                 }
             }
             catch (Exception ex)
             {
                 channel.Writer.TryComplete(ex);
+                return;
             }
             finally
             {
@@ -46,9 +64,41 @@ internal class SelectManyParallelAsyncQuery<TSource, TResult> : ParallelAsyncQue
 
         await foreach (var innerSequence in channel.Reader.ReadAllAsync(combinedToken))
         {
-            await foreach (var result in innerSequence.WithCancellation(combinedToken))
+            IAsyncEnumerator<TResult>? enumerator = null;
+            try
             {
-                yield return result;
+                enumerator = innerSequence.GetAsyncEnumerator(combinedToken);
+
+                while (true)
+                {
+                    TResult result;
+                    try
+                    {
+                        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(combinedToken);
+                        timeoutCts.CancelAfter(_settings.OperationTimeout);
+
+                        if (!await enumerator.MoveNextAsync().AsTask().WaitAsync(timeoutCts.Token))
+                            break;
+
+                        result = enumerator.Current;
+                    }
+                    catch (OperationCanceledException) when (combinedToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception) when (_settings.ContinueOnError)
+                    {
+                        // Skip failed inner items, continue with next
+                        continue;
+                    }
+
+                    yield return result;
+                }
+            }
+            finally
+            {
+                if (enumerator != null)
+                    await enumerator.DisposeAsync();
             }
         }
 
@@ -61,10 +111,16 @@ internal class SelectManyParallelAsyncQuery<TSource, TResult> : ParallelAsyncQue
         return new SelectManyParallelAsyncQuery<TSource, TResult>(newSource, _selector);
     }
 
-    private CancellationToken CombineTokens(CancellationToken cancellationToken)
+    /// <summary>
+    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
+    /// Returns null if linking is not needed (to avoid unnecessary allocation).
+    /// Caller must dispose the returned CTS.
+    /// </summary>
+    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default) return cancellationToken;
-        if (cancellationToken == default) return _settings.CancellationToken;
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken).Token;
+        if (_settings.CancellationToken == default || cancellationToken == default)
+            return null;
+
+        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
     }
 }

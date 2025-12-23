@@ -4,24 +4,24 @@
     {
         readonly protected T Writer;
 
-        public WriteLineLogger(T  writer)
+        public WriteLineLogger(T writer)
         {
-            Writer  = writer;
+            Writer = writer;
         }
 
         void IDisposable.Dispose()
         {
-            if(Writer is IDisposable)
+            if (Writer is IDisposable)
             {
-               ( (IDisposable)Writer).Dispose();
+                ((IDisposable)Writer).Dispose();
             }
         }
 
         public void Log(string objectToLog, LogLevel logLevel)
         {
-           ((dynamic)Writer).WriteLine($"[{logLevel.ToString()}] : {objectToLog}");
+            ((dynamic)Writer!).WriteLine($"[{logLevel.ToString()}] : {objectToLog}");
 
-           
+
         }
     }
 }

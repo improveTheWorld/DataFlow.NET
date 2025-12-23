@@ -1,4 +1,8 @@
-﻿namespace DataFlow.Log
+﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace DataFlow.Log
 {
     // The LogFilter class extends the Config class and provides additional functionality.
     class LogFilter : Config
@@ -13,7 +17,7 @@
         static readonly string TaskIdLabel = "TaskId: ";
 
         // Method to create a log header with various details depending on what's enabled in the configuration.
-        string GetLogOverHead(object? requester, object objectToLog)
+        string GetLogOverHead(object? requester, object? objectToLog)
         {
             string logOverHead = "";
 
@@ -63,7 +67,7 @@
         public string? ComputeLog(object? requester, object objectToLog)
         {
             // If the requester is null or is being watched and validated (if necessary), proceed.
-            if ((requester == null) || ( WatchedInstances.IsWatched(requester) && RequesterAcceptanceCriterias.IsCompliant(requester) && WatchedNameSpaces.IsWatchedObject(requester) ))
+            if ((requester == null) || (WatchedInstances.IsWatched(requester) && RequesterAcceptanceCriterias.IsCompliant(requester) && WatchedNameSpaces.IsWatchedObject(requester)))
             {
                 // Get the string representation of the object to log. If it's null, use the predefined nullObjectString.
                 string? message = (objectToLog == null) ? nullObjectString : objectToLog.ToString();

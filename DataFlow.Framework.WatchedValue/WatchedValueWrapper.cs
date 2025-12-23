@@ -31,7 +31,7 @@ namespace DataFlow.Framework
 
     public class WatchedValueWrapper<T>
     {
-        protected T _Value; // The value being watched
+        protected T _Value = default!; // The value being watched
 
         public T Value // Property to access and set the watched value
         {
@@ -43,7 +43,7 @@ namespace DataFlow.Framework
             }
         }
 
-       
+
 
         protected List<Action> Actions = new List<Action>(); // List to store the actions to be executed when the value changes
 
@@ -57,7 +57,8 @@ namespace DataFlow.Framework
 
         public WatchedValueWrapper(T value) // Constructor that initializes the watched value with a given value
         {
-            Value = value;
+            _Value = value;
+            Invoke();
         }
 
         public WatchedValueWrapper() // Default constructor
@@ -77,8 +78,6 @@ namespace DataFlow.Framework
         }
 
         public static implicit operator T(WatchedValueWrapper<T> thisOne) => thisOne._Value;
-        public static implicit operator WatchedValueWrapper<T>(T value) =>  new WatchedValueWrapper<T>(value); // Implicit conversion from T to WatchedValueWrapper<T>
+        public static implicit operator WatchedValueWrapper<T>(T value) => new WatchedValueWrapper<T>(value); // Implicit conversion from T to WatchedValueWrapper<T>
     }
 }
-
-

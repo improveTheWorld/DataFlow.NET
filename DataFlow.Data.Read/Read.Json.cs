@@ -196,198 +196,25 @@ public static partial class Read
                 int consumedBytes = 0;
 
                 // ----- Begin reader scope (ref struct must not survive beyond this block) -----
-                {
-                    var span = new ReadOnlySpan<byte>(buffer, 0, bytesInBuffer);
-                    var reader = new Utf8JsonReader(span, isFinalBlock, state);
-
-                    try
-                    {
-                        // Root determination
-                        if (!rootDetermined)
-                        {
-                            var rootOutcome = TryDetermineRoot(
-                                ref reader,
-                                options.FilePath ?? StreamPseudoPath,
-                                fastPath,
-                                options,
-                                totalBytes,
-                                input.CanSeek ? input.Position : null,
-                                out rootIsArray,
-                                out bool singleRootCompleted,
-                                out bool singleRootNeedMore,
-                                out bool terminate,
-                                out ProcessResult<T>? singleRootResult);
+                // Refactored to synchronous method to avoid CS4012 (ref structs in async)
+                (consumedBytes, needMoreData, rootFinished, state) = ProcessBuffer(
+                    buffer,
+                    bytesInBuffer,
+                    isFinalBlock,
+                    state,
+                    options,
+                    filePathLocal,
+                    totalBytes,
+                    input,
+                    pending,
+                    ct,
+                    ref elementIndex,
+                    ref rootDetermined,
+                    ref rootIsArray,
+                    fastPath);
+                // ----- End reader scope -----
 
 
-                            switch (rootOutcome)
-                            {
-                                case RootState.NotYet:
-                                    needMoreData = true;
-                                    break;
-
-                                case RootState.ArrayDetermined:
-                                    rootDetermined = true;
-                                    break;
-
-                                case RootState.SingleValueNeedMoreData:
-                                    needMoreData = true;
-                                    break;
-
-                                case RootState.SingleValueProcessed:
-                                case RootState.InvalidButContinuable:
-                                    rootDetermined = true;
-                                    rootFinished = true;
-                                    if (singleRootResult.HasValue)
-                                    {
-                                        options.Metrics.RawRecordsParsed = 1;
-                                        if (singleRootResult.Value.Emitted &&
-                                            singleRootResult.Value.Item is not null)
-                                        {
-                                            options.Metrics.RecordsEmitted++;
-                                            pending.Add(singleRootResult.Value.Item);
-                                        }
-                                    }
-                                    if (terminate || options.Metrics.TerminatedEarly)
-                                        rootFinished = true;
-                                    break;
-
-                                case RootState.SingleValueDetected:
-                                    // Validation path single root: load remaining stream + current buffer into memory and process once
-                                    rootDetermined = true;
-                                    var svResult = ProcessSingleRootValidationFromStream(
-                                        input,
-                                        buffer,
-                                        bytesInBuffer,
-                                        options,
-                                        ct);
-                                    options.Metrics.RawRecordsParsed = 1;
-                                    if (svResult.Emitted && svResult.Item is not null)
-                                    {
-                                        options.Metrics.RecordsEmitted++;
-                                        pending.Add(svResult.Item);
-                                    }
-                                    rootFinished = true;
-                                    if (svResult.TerminateStream || options.Metrics.TerminatedEarly)
-                                        rootFinished = true;
-                                    break;
-                            }
-
-                            consumedBytes = (int)reader.BytesConsumed;                            
-                            state = reader.CurrentState;             
-
-                            // Skip array element loop this iteration if root now finished or we need more data
-                            if (rootFinished || needMoreData)
-                                goto AfterReader;
-                        }
-
-                        // SINGLE NON-ARRAY ROOT already handled above
-                        if (!rootIsArray && rootDetermined)
-                        {
-                            rootFinished = true;
-                            consumedBytes = (int)reader.BytesConsumed;                           
-                            state = reader.CurrentState;
-                            goto AfterReader;
-                        }
-
-                        // ARRAY PROCESSING
-                        
-                        bool rewoundIncompleteElement = false;
-                        while (true)
-                        {
-                            long tokenStartBytes = reader.BytesConsumed;
-                            var stateBeforeToken = reader.CurrentState;
-
-                        if (!reader.Read())
-                                break;
-
-                            ct.ThrowIfCancellationRequested();
-                            options.CancellationToken.ThrowIfCancellationRequested();
-
-                            if (reader.TokenType == JsonTokenType.EndArray)
-                            {
-                                rootFinished = true;
-                                break;
-                            }
-
-                            if (!IsValueStartToken(reader.TokenType))
-                                continue;
-
-                            long nextIndex = elementIndex + 1;
-
-                            if (options.MaxElements > 0 && nextIndex > options.MaxElements)
-                            {
-                                bool cont = options.HandleError("JSON", -1, nextIndex, filePathLocal,
-                                    "JsonSizeLimit",
-                                    $"Element count exceeded limit {options.MaxElements}.",
-                                    "");
-                                rootFinished = true;
-                                if (!cont) options.Metrics.TerminatedEarly = true;
-                                break;
-                            }
-
-                            var elemResult = ProcessArrayElement(
-                                ref reader,
-                                filePathLocal,
-                                nextIndex,
-                                fastPath,
-                                options,
-                                isFinalBlock);
-
-                            if (elemResult.IsIncomplete)
-                            {
-                                // Rewind both buffer consumption and parser state so StartObject is preserved.
-                                needMoreData = true;
-                                consumedBytes = (int)tokenStartBytes;
-                                state = stateBeforeToken;
-                                rewoundIncompleteElement = true;
-                                break;
-                            }
-
-                            elementIndex = nextIndex;
-                            options.Metrics.RawRecordsParsed = elementIndex;
-
-                            if (elemResult.Emitted && elemResult.Item is not null)
-                            {
-                                options.Metrics.RecordsEmitted++;
-                                pending.Add(elemResult.Item);
-                            }
-
-                            if (elemResult.TerminateStream)
-                            {
-                                rootFinished = true;
-                                break;
-                            }
-
-                            if (options.ShouldEmitProgress())
-                                options.EmitProgress(totalBytes, input.CanSeek ? input.Position : null);
-
-                            if (options.Metrics.TerminatedEarly)
-                            {
-                                rootFinished = true;
-                                break;
-                            }
-                        }
-
-                        // Only advance consumption/state if we did NOT rewind for an incomplete element
-                        if (!rewoundIncompleteElement)
-                        {
-                            consumedBytes = (int)reader.BytesConsumed;
-                            state = reader.CurrentState;
-                        }
-
-                    }
-                    catch (JsonException)
-                    {
-                        if (reader.IsFinalBlock)
-                            throw;
-                        consumedBytes = (int)reader.BytesConsumed;
-                        needMoreData = true;
-                        state = reader.CurrentState;
-                    }
-                }
-            // ----- End reader scope -----
-
-            AfterReader:
 
                 // Now safe to yield (reader out of scope)
                 if (pending.Count > 0)
@@ -410,7 +237,7 @@ public static partial class Read
                                                         rootFinished,
                                                         isFinalBlock,
                                                         ct).ConfigureAwait(false);
-                                                    }
+            }
 
             normalCompletion = true;
         }
@@ -715,6 +542,220 @@ public static partial class Read
         }
     }
     // ===========================
+    // BUFFER PROCESSING (SYNC)
+    // ===========================
+    private static (int consumedBytes, bool needMoreData, bool rootFinished, JsonReaderState newState) ProcessBuffer<T>(
+        byte[] buffer,
+        int bytesInBuffer,
+        bool isFinalBlock,
+        JsonReaderState state,
+        JsonReadOptions<T> options,
+        string filePathLocal,
+        long totalBytes,
+        Stream input,
+        List<T> pending,
+        CancellationToken ct,
+        ref long elementIndex,
+        ref bool rootDetermined,
+        ref bool rootIsArray,
+        bool fastPath)
+    {
+        int consumedBytes = 0;
+        bool needMoreData = false;
+        bool rootFinished = false;
+
+        var span = new ReadOnlySpan<byte>(buffer, 0, bytesInBuffer);
+        var reader = new Utf8JsonReader(span, isFinalBlock, state);
+
+        try
+        {
+            // Root determination
+            if (!rootDetermined)
+            {
+                var rootOutcome = TryDetermineRoot(
+                    ref reader,
+                    filePathLocal,
+                    fastPath,
+                    options,
+                    totalBytes,
+                    input.CanSeek ? input.Position : null,
+                    out rootIsArray,
+                    out bool singleRootCompleted,
+                    out bool singleRootNeedMore,
+                    out bool terminate,
+                    out ProcessResult<T>? singleRootResult);
+
+
+                switch (rootOutcome)
+                {
+                    case RootState.NotYet:
+                        needMoreData = true;
+                        break;
+
+                    case RootState.ArrayDetermined:
+                        rootDetermined = true;
+                        break;
+
+                    case RootState.SingleValueNeedMoreData:
+                        needMoreData = true;
+                        break;
+
+                    case RootState.SingleValueProcessed:
+                    case RootState.InvalidButContinuable:
+                        rootDetermined = true;
+                        rootFinished = true;
+                        if (singleRootResult.HasValue)
+                        {
+                            options.Metrics.RawRecordsParsed = 1;
+                            if (singleRootResult.Value.Emitted &&
+                                singleRootResult.Value.Item is not null)
+                            {
+                                options.Metrics.RecordsEmitted++;
+                                pending.Add(singleRootResult.Value.Item);
+                            }
+                        }
+                        if (terminate || options.Metrics.TerminatedEarly)
+                            rootFinished = true;
+                        break;
+
+                    case RootState.SingleValueDetected:
+                        // Validation path single root: load remaining stream + current buffer into memory and process once
+                        rootDetermined = true;
+                        var svResult = ProcessSingleRootValidationFromStream(
+                            input,
+                            buffer,
+                            bytesInBuffer,
+                            options,
+                            ct);
+                        options.Metrics.RawRecordsParsed = 1;
+                        if (svResult.Emitted && svResult.Item is not null)
+                        {
+                            options.Metrics.RecordsEmitted++;
+                            pending.Add(svResult.Item);
+                        }
+                        rootFinished = true;
+                        if (svResult.TerminateStream || options.Metrics.TerminatedEarly)
+                            rootFinished = true;
+                        break;
+                }
+
+                consumedBytes = (int)reader.BytesConsumed;
+                state = reader.CurrentState;
+
+                // Skip array element loop this iteration if root now finished or we need more data
+                if (rootFinished || needMoreData)
+                    return (consumedBytes, needMoreData, rootFinished, state);
+            }
+
+            // SINGLE NON-ARRAY ROOT already handled above
+            if (!rootIsArray && rootDetermined)
+            {
+                rootFinished = true;
+                consumedBytes = (int)reader.BytesConsumed;
+                state = reader.CurrentState;
+                return (consumedBytes, needMoreData, rootFinished, state);
+            }
+
+            // ARRAY PROCESSING
+
+            bool rewoundIncompleteElement = false;
+            while (true)
+            {
+                long tokenStartBytes = reader.BytesConsumed;
+                var stateBeforeToken = reader.CurrentState;
+
+                if (!reader.Read())
+                    break;
+
+                ct.ThrowIfCancellationRequested();
+                options.CancellationToken.ThrowIfCancellationRequested();
+
+                if (reader.TokenType == JsonTokenType.EndArray)
+                {
+                    rootFinished = true;
+                    break;
+                }
+
+                if (!IsValueStartToken(reader.TokenType))
+                    continue;
+
+                long nextIndex = elementIndex + 1;
+
+                if (options.MaxElements > 0 && nextIndex > options.MaxElements)
+                {
+                    bool cont = options.HandleError("JSON", -1, nextIndex, filePathLocal,
+                        "JsonSizeLimit",
+                        $"Element count exceeded limit {options.MaxElements}.",
+                        "");
+                    rootFinished = true;
+                    if (!cont) options.Metrics.TerminatedEarly = true;
+                    break;
+                }
+
+                var elemResult = ProcessArrayElement(
+                    ref reader,
+                    filePathLocal,
+                    nextIndex,
+                    fastPath,
+                    options,
+                    isFinalBlock);
+
+                if (elemResult.IsIncomplete)
+                {
+                    // Rewind both buffer consumption and parser state so StartObject is preserved.
+                    needMoreData = true;
+                    consumedBytes = (int)tokenStartBytes;
+                    state = stateBeforeToken;
+                    rewoundIncompleteElement = true;
+                    break;
+                }
+
+                elementIndex = nextIndex;
+                options.Metrics.RawRecordsParsed = elementIndex;
+
+                if (elemResult.Emitted && elemResult.Item is not null)
+                {
+                    options.Metrics.RecordsEmitted++;
+                    pending.Add(elemResult.Item);
+                }
+
+                if (elemResult.TerminateStream)
+                {
+                    rootFinished = true;
+                    break;
+                }
+
+                if (options.ShouldEmitProgress())
+                    options.EmitProgress(totalBytes, input.CanSeek ? input.Position : null);
+
+                if (options.Metrics.TerminatedEarly)
+                {
+                    rootFinished = true;
+                    break;
+                }
+            }
+
+            // Only advance consumption/state if we did NOT rewind for an incomplete element
+            if (!rewoundIncompleteElement)
+            {
+                consumedBytes = (int)reader.BytesConsumed;
+                state = reader.CurrentState;
+            }
+
+        }
+        catch (JsonException)
+        {
+            if (reader.IsFinalBlock)
+                throw;
+            consumedBytes = (int)reader.BytesConsumed;
+            needMoreData = true;
+            state = reader.CurrentState;
+        }
+
+        return (consumedBytes, needMoreData, rootFinished, state);
+    }
+
+    // ===========================
     // ARRAY ELEMENT PROCESSING
     // ===========================
     private static ProcessResult<T> ProcessArrayElement<T>(
@@ -970,7 +1011,7 @@ int read = await input.ReadAsync(buffer, currentBytes, bufferSize - currentBytes
             return false;
         }
     }
- 
+
     private static string BuildExcerptFromValue(ref Utf8JsonReader readerCopy, int maxChars)
     {
         try
