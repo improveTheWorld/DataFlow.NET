@@ -51,7 +51,7 @@ public class AsyncEnumerableTests
         var fast = ExtensionsForTests.DelayedRange(100, 3, 5);
         var slow = ExtensionsForTests.DelayedRange(200, 3, 20);
 
-        var flow = new AsyncEnumerable<int>(options)
+        var flow = new UnifiedStream<int>(options)
             .Unify(fast, "fast")
             .Unify(slow, "slow");
 
@@ -84,7 +84,7 @@ public class AsyncEnumerableTests
         var fast = ExtensionsForTests.DelayedRange(0, 5, 1);
         var slow = ExtensionsForTests.DelayedRange(1000, 5, 10);
 
-        var flow = new AsyncEnumerable<int>(options)
+        var flow = new UnifiedStream<int>(options)
             .Unify(fast, "fast")
             .Unify(slow, "slow");
 
@@ -107,7 +107,7 @@ public class AsyncEnumerableTests
         var a = Enumerable.Range(0, 5).Async();
         var b = Enumerable.Range(100, 5).Async();
 
-        var flow = new AsyncEnumerable<int>()
+        var flow = new UnifiedStream<int>()
             .Unify(a, "A", x => x % 2 == 0)       // even from A
             .Unify(b, "B", x => (x % 2) == 1);    // odd from B
 
@@ -125,7 +125,7 @@ public class AsyncEnumerableTests
         var good = Enumerable.Range(0, 3).Async();
         var bad = ExtensionsForTests.ThrowsAt(2, ex);
 
-        var flow = new AsyncEnumerable<int>(new UnifyOptions
+        var flow = new UnifiedStream<int>(new UnifyOptions
         {
             ErrorMode = UnifyErrorMode.FailFast
         })
@@ -149,7 +149,7 @@ public class AsyncEnumerableTests
         var bad = ExtensionsForTests.ThrowsAt(1, ex);
         var good = Enumerable.Range(100, 3).Async();
 
-        var flow = new AsyncEnumerable<int>(new UnifyOptions
+        var flow = new UnifiedStream<int>(new UnifyOptions
         {
             ErrorMode = UnifyErrorMode.ContinueOnError
         })
@@ -169,7 +169,7 @@ public class AsyncEnumerableTests
     {
         using var cts = new CancellationTokenSource();
         var slow = ExtensionsForTests.DelayedRange(0, 10, 50, cts.Token);
-        var flow = new AsyncEnumerable<int>().Unify(slow, "slow");
+        var flow = new UnifiedStream<int>().Unify(slow, "slow");
 
         var results = new List<int>();
         var enumerating = Task.Run(async () =>
@@ -189,7 +189,7 @@ public class AsyncEnumerableTests
     [Fact]
     public async Task EmptyFlow_CompletesImmediately()
     {
-        var flow = new AsyncEnumerable<int>();
+        var flow = new UnifiedStream<int>();
         int count = 0;
         await foreach (var _ in flow) count++;
         Assert.Equal(0, count);
@@ -198,7 +198,7 @@ public class AsyncEnumerableTests
     [Fact]
     public void ListenAndUnlistenBeforeFreeze_AreAllowed()
     {
-        var flow = new AsyncEnumerable<int>();
+        var flow = new UnifiedStream<int>();
         flow.Unify(Enumerable.Range(0, 1).Async(), "A");
         flow.Unify(Enumerable.Range(0, 1).Async(), "B");
         Assert.True(flow.Unlisten("A"));
@@ -209,7 +209,7 @@ public class AsyncEnumerableTests
     [Fact]
     public async Task MutatingAfterEnumerationStarts_Throws()
     {
-        var flow = new AsyncEnumerable<int>();
+        var flow = new UnifiedStream<int>();
         flow.Unify(Enumerable.Range(0, 3).Async(), "A");
 
         var started = new TaskCompletionSource();
@@ -233,7 +233,7 @@ public class AsyncEnumerableTests
     [Fact]
     public async Task MultipleConcurrentEnumerations_AreIndependent()
     {
-        var flow = new AsyncEnumerable<int>();
+        var flow = new UnifiedStream<int>();
         flow.Unify(ExtensionsForTests.DelayedRange(0, 3, 10), "S");
 
         var list1 = new List<int>();
@@ -261,7 +261,7 @@ public class AsyncEnumerableTests
         var fast = ExtensionsForTests.DelayedRange(0, 100, 0);
         var slow = ExtensionsForTests.DelayedRange(1000, 5, 5);
 
-        var flow = new AsyncEnumerable<int>(new UnifyOptions
+        var flow = new UnifiedStream<int>(new UnifyOptions
         {
             Fairness = UnifyFairness.FirstAvailable
         }).Unify(fast, "fast").Unify(slow, "slow");
@@ -279,7 +279,7 @@ public class AsyncEnumerableTests
         var fast = ExtensionsForTests.DelayedRange(0, 5, 0);
         var slow = ExtensionsForTests.DelayedRange(1000, 2, 20);
 
-        var flow = new AsyncEnumerable<int>(new UnifyOptions
+        var flow = new UnifiedStream<int>(new UnifyOptions
         {
             Fairness = UnifyFairness.RoundRobin
         }).Unify(fast, "fast").Unify(slow, "slow");
@@ -298,7 +298,7 @@ public class AsyncEnumerableTests
         var blocking = new BlockingEnumerable(200);
 
         var asyncSrc = blocking.Values.BufferAsync(runOnBackgroundThread: true);
-        var flow = new AsyncEnumerable<int>().Unify(asyncSrc, "bg");
+        var flow = new UnifiedStream<int>().Unify(asyncSrc, "bg");
 
         var results = new List<int>();
         await foreach (var x in flow) results.Add(x);
@@ -312,7 +312,7 @@ public class AsyncEnumerableTests
         var a = Enumerable.Range(0, 3).Async();
         var b = Enumerable.Range(100, 2).Async();
 
-        var flow = new AsyncEnumerable<int>(new UnifyOptions
+        var flow = new UnifiedStream<int>(new UnifyOptions
         {
             ErrorMode = UnifyErrorMode.ContinueOnError
         }).Unify(a, "A").Unify(b, "B");
@@ -330,7 +330,7 @@ public class AsyncEnumerableTests
     {
         using var cts = new CancellationTokenSource();
         var canceling = ExtensionsForTests.DelayedRange(0, 100, 1, cts.Token);
-        var flow = new AsyncEnumerable<int>().Unify(canceling, "C");
+        var flow = new UnifiedStream<int>().Unify(canceling, "C");
 
         var task = Task.Run(async () =>
         {
@@ -343,7 +343,7 @@ public class AsyncEnumerableTests
     [Fact]
     public async Task Unlisten_RemovesByName_BeforeFreeze()
     {
-        var flow = new AsyncEnumerable<int>();
+        var flow = new UnifiedStream<int>();
         flow.Unify(Enumerable.Range(0, 3).Async(), "A");
         Assert.True(flow.Unlisten("A"));
         Assert.False(flow.Unlisten("A"));
@@ -359,7 +359,7 @@ public class AsyncEnumerableTests
     public async Task ThreadSafety_ConcurrentListenUnlistenBeforeEnumeration_NoCorruption()
     {
         // Not thread-safe by contract, but ensure no crashes if sequentially applied before freeze
-        var flow = new AsyncEnumerable<int>();
+        var flow = new UnifiedStream<int>();
         var tasks = new List<Task>();
         for (int i = 0; i < 10; i++)
         {
@@ -393,7 +393,7 @@ public class AsyncEnumerableTests
     [Fact]
     public async Task ConcurrentEnumerations_FromMultipleThreads_NoSharedStateCorruption()
     {
-        var flow = new AsyncEnumerable<int>()
+        var flow = new UnifiedStream<int>()
             .Unify(ExtensionsForTests.DelayedRange(0, 50, 1), "S");
 
         var c1 = new List<int>();

@@ -77,7 +77,7 @@ public static class ParallelQueriesExamples
         // PATH 3: ASYNC SEQUENTIAL
         Console.WriteLine("🌊 Path 3: Async Sequential Processing...");
         var sw3 = Stopwatch.StartNew();
-        var merger = new AsyncEnumerable<LogEntry>()
+        var merger = new UnifiedStream<LogEntry>()
             .Unify(webLogs.Async(), "WebServerLogs")
             .Unify(dbLogs.Async(), "DatabaseLogs")
             .Unify(cacheLogs.Async(), "CacheLogs");

@@ -1,6 +1,6 @@
-# Stream Merging with AsyncEnumerableMerger
+# Stream Merging with UnifiedStream
 
-> **This document covers DataFlow.NET's multi-source stream merging capabilities using the `AsyncEnumerableMerger<T>` class.**
+> **This document covers DataFlow.NET's multi-source stream merging capabilities using the `UnifiedStream<T>` class.**
 
 ---
 
@@ -17,7 +17,7 @@
 
 ## 1. Overview
 
-The `AsyncEnumerableMerger<T>` class (aliased as `AsyncEnumerable<T>`) merges multiple `IAsyncEnumerable<T>` sources into a single unified stream. It manages concurrent `MoveNextAsync` calls, synchronization, and source lifecycle during enumeration.
+The `UnifiedStream<T>` class (aliased as `AsyncEnumerable<T>`) merges multiple `IAsyncEnumerable<T>` sources into a single unified stream. It manages concurrent `MoveNextAsync` calls, synchronization, and source lifecycle during enumeration.
 
 **Key Characteristics:**
 
@@ -35,7 +35,7 @@ The `AsyncEnumerableMerger<T>` class (aliased as `AsyncEnumerable<T>`) merges mu
 
 ```csharp
 // Create merger and register sources
-var unifiedLogs = new AsyncEnumerableMerger<LogEntry>()
+var unifiedLogs = new UnifiedStream<LogEntry>()
     .Unify(webServerLogs, "web")
     .Unify(databaseLogs, "db")
     .Unify(authServiceLogs, "auth");
@@ -50,7 +50,7 @@ await foreach (var log in unifiedLogs)
 ### With Cases Pattern
 
 ```csharp
-var unifiedLogs = new AsyncEnumerableMerger<LogEntry>()
+var unifiedLogs = new UnifiedStream<LogEntry>()
     .Unify(webServerLogs, "web")
     .Unify(databaseLogs, "db")
     .Unify(authServiceLogs, "auth");
@@ -87,7 +87,7 @@ var options = new UnifyOptions
     Fairness = UnifyFairness.RoundRobin          // Fair scheduling across sources
 };
 
-var merger = new AsyncEnumerableMerger<Event>(options);
+var merger = new UnifiedStream<Event>(options);
 ```
 
 ### Error Modes
@@ -107,7 +107,7 @@ var merger = new AsyncEnumerableMerger<Event>(options);
 ### Per-Source Filtering
 
 ```csharp
-var merger = new AsyncEnumerableMerger<LogEntry>()
+var merger = new UnifiedStream<LogEntry>()
     .Unify(webServerLogs, "web", log => log.Level >= LogLevel.Info)
     .Unify(databaseLogs, "db", log => log.Level >= LogLevel.Warning)
     .Unify(authServiceLogs, "auth", log => log.Level >= LogLevel.Error);
@@ -125,10 +125,10 @@ public class MultiSourceProcessor
     public async Task ProcessBusinessEvents()
     {
         // Create separate mergers for different event types
-        var orderStream = new AsyncEnumerableMerger<OrderEvent>()
+        var orderStream = new UnifiedStream<OrderEvent>()
             .Unify(orderChannel.Reader.ReadAllAsync(), "orders");
             
-        var inventoryStream = new AsyncEnumerableMerger<InventoryEvent>()
+        var inventoryStream = new UnifiedStream<InventoryEvent>()
             .Unify(inventoryChannel.Reader.ReadAllAsync(), "inventory");
 
         // Process each stream type with specialized logic
@@ -169,12 +169,12 @@ public class MultiSourceProcessor
 
 ```csharp
 // Create conditional mergers for different severity levels
-var criticalEvents = new AsyncEnumerableMerger<SystemEvent>()
+var criticalEvents = new UnifiedStream<SystemEvent>()
     .Unify(webEvents.Where(e => e.Severity == Severity.Critical), "web")
     .Unify(dbEvents.Where(e => e.Severity == Severity.Critical), "db")
     .Unify(authEvents.Where(e => e.Severity == Severity.Critical), "auth");
 
-var warningEvents = new AsyncEnumerableMerger<SystemEvent>()
+var warningEvents = new UnifiedStream<SystemEvent>()
     .Unify(webEvents.Where(e => e.Severity == Severity.Warning), "web")
     .Unify(dbEvents.Where(e => e.Severity == Severity.Warning), "db")
     .Unify(authEvents.Where(e => e.Severity == Severity.Warning), "auth");
@@ -244,16 +244,16 @@ var bufferedAsync = syncData.BufferAsync(
 
 ## 6. API Reference
 
-### AsyncEnumerableMerger<T>
+### UnifiedStream<T>
 
 ```csharp
-public sealed class AsyncEnumerableMerger<T> : IAsyncEnumerable<T>
+public sealed class UnifiedStream<T> : IAsyncEnumerable<T>
 {
     // Construction
-    public AsyncEnumerableMerger(UnifyOptions? options = null);
+    public UnifiedStream(UnifyOptions? options = null);
     
     // Source registration (before enumeration starts)
-    public AsyncEnumerableMerger<T> Unify(
+    public UnifiedStream<T> Unify(
         IAsyncEnumerable<T> source, 
         string name, 
         Func<T, bool>? predicate = null);

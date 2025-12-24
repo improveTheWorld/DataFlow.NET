@@ -217,7 +217,7 @@ public class CasesSelectCasesTests
                 s => char.IsLower(s[0]),
                 s => char.IsUpper(s[0])
             )
-            .SelectCase(
+            .SelectCase<string, string>(
                 lower => lower,
                 upper => upper.ToLower()
             )
@@ -272,7 +272,7 @@ public class CasesSelectCasesTests
         var source3 = new[] { "x", "y" };
 
         // Act
-        var merger = new AsyncEnumerable<string>()
+        var merger = new UnifiedStream<string>()
             .Unify(source1.Async(), "Source1")
             .Unify(source2.Async(), "Source2")
             .Unify(source3.Async(), "Source3");
@@ -295,7 +295,7 @@ public class CasesSelectCasesTests
         var emptySource = Array.Empty<string>();
 
         // Act
-        var merger = new AsyncEnumerable<string>()
+        var merger = new UnifiedStream<string>()
             .Unify(source1.Async(), "HasData")
             .Unify(emptySource.Async(), "Empty");
 
@@ -313,7 +313,7 @@ public class CasesSelectCasesTests
         var source = new[] { "single", "source", "test" };
 
         // Act
-        var merger = new AsyncEnumerable<string>()
+        var merger = new UnifiedStream<string>()
             .Unify(source.Async(), "OnlyOne");
 
         var result = new List<string>();
@@ -340,7 +340,7 @@ public class CasesSelectCasesTests
         var warnCount = 0;
         var infoCount = 0;
 
-        var merger = new AsyncEnumerable<LogEntry>()
+        var merger = new UnifiedStream<LogEntry>()
             .Unify(webLogs.Async(), "WebLogs")
             .Unify(dbLogs.Async(), "DBLogs");
 

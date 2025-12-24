@@ -25,7 +25,7 @@ public static class StreamMergingExamples
         Console.WriteLine("Merging logs from 3 sources...\n");
 
         // Merge all sources into a single stream
-        var merger = new AsyncEnumerable<LogEntry>()
+        var merger = new UnifiedStream<LogEntry>()
             .Unify(webServerLogs, "web")
             .Unify(databaseLogs, "db")
             .Unify(authLogs, "auth");
@@ -49,7 +49,7 @@ public static class StreamMergingExamples
         var errorLogs = SimulateErrorLogs("ErrorSource", 3);
 
         // Merge with predicate filter
-        var merger = new AsyncEnumerable<LogEntry>()
+        var merger = new UnifiedStream<LogEntry>()
             .Unify(allLogs, "all")
             .Unify(errorLogs, "errors", predicate: log => log.Level == "ERROR");
 
@@ -74,7 +74,7 @@ public static class StreamMergingExamples
         var source1 = SimulateMixedLogs("Server1", 3);
         var source2 = SimulateMixedLogs("Server2", 3);
 
-        var unified = new AsyncEnumerable<LogEntry>()
+        var unified = new UnifiedStream<LogEntry>()
             .Unify(source1, "s1")
             .Unify(source2, "s2");
 

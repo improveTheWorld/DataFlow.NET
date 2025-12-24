@@ -26,10 +26,10 @@ public class StreamVSBArchPlaygroundExamples
         var sensors = TestDataGenerators.GenerateSensorReadings(12).ToList();
 
         Console.WriteLine("?? Generated identical test data for comparison:");
-        Console.WriteLine($"   • Logs: {webLogs.Count + dbLogs.Count + cacheLogs.Count} entries");
-        Console.WriteLine($"   • Metrics: {cpuMetrics.Count + memoryMetrics.Count + networkMetrics.Count} readings");
-        Console.WriteLine($"   • Orders: {orders.Count} events");
-        Console.WriteLine($"   • Sensors: {sensors.Count} readings\n");
+        Console.WriteLine($"   ï¿½ Logs: {webLogs.Count + dbLogs.Count + cacheLogs.Count} entries");
+        Console.WriteLine($"   ï¿½ Metrics: {cpuMetrics.Count + memoryMetrics.Count + networkMetrics.Count} readings");
+        Console.WriteLine($"   ï¿½ Orders: {orders.Count} events");
+        Console.WriteLine($"   ï¿½ Sensors: {sensors.Count} readings\n");
 
         // ?? Run comparisons for each pipeline
         await CompareLogProcessingPipeline(webLogs, dbLogs, cacheLogs);
@@ -61,7 +61,7 @@ public class StreamVSBArchPlaygroundExamples
                 log => log.Level == "WARN",
                 log => log.Level == "INFO"
             )
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 critical => $"?? CRITICAL: [{critical.Source}] {critical.Message}",
                 warning => $"?? WARNING: [{warning.Source}] {warning.Message}",
                 info => $"?? INFO: [{info.Source}] {info.Message}"
@@ -78,10 +78,10 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("?? Processing logs as STREAM...");
         var streamStopwatch = Stopwatch.StartNew();
 
-       
 
-        var merger = new AsyncEnumerable<LogEntry>().Unify(webLogs.Async(),"WebServerLogs").
-            Unify(dbLogs.Async(),"DatabaseLogs").Unify(cacheLogs.Async(),"CacheLogs");
+
+        var merger = new UnifiedStream<LogEntry>().Unify(webLogs.Async(), "WebServerLogs").
+            Unify(dbLogs.Async(), "DatabaseLogs").Unify(cacheLogs.Async(), "CacheLogs");
 
 
         var streamResults = await merger
@@ -90,7 +90,7 @@ public class StreamVSBArchPlaygroundExamples
                 log => log.Level == "WARN",
                 log => log.Level == "INFO"
             )
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 critical => $"?? CRITICAL: [{critical.Source}] {critical.Message}",
                 warning => $"?? WARNING: [{warning.Source}] {warning.Message}",
                 info => $"?? INFO: [{info.Source}] {info.Message}"
@@ -107,7 +107,7 @@ public class StreamVSBArchPlaygroundExamples
         // ? COMPARISON
         CompareResults("LOG PROCESSING", batchResults, streamResults, batchStopwatch.ElapsedMilliseconds, streamStopwatch.ElapsedMilliseconds);
 
-       
+
     }
 
     /// <summary>
@@ -132,7 +132,7 @@ public class StreamVSBArchPlaygroundExamples
                 metric => metric.Name == "memory_usage" && metric.Value > 85,
                 metric => metric.Name == "network_latency" && metric.Value > 180
             )
-            .SelectCase(
+            .SelectCase<MetricEntry, string>(
                 cpu => $"?? HIGH CPU ALERT: {cpu.Value:F1}% on {cpu.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 75%",
                 memory => $"?? HIGH MEMORY ALERT: {memory.Value:F1}% on {memory.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 85%",
                 latency => $"?? HIGH LATENCY ALERT: {latency.Value:F1}ms on {latency.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 180ms"
@@ -149,11 +149,11 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("?? Processing metrics as STREAM...");
         var streamStopwatch = Stopwatch.StartNew();
 
-       
-        var merger = new AsyncEnumerable<MetricEntry>().Unify(cpuMetrics.Async(), "CpuMetrics").
+
+        var merger = new UnifiedStream<MetricEntry>().Unify(cpuMetrics.Async(), "CpuMetrics").
             Unify(memoryMetrics.Async(), "MemoryMetrics").
             Unify(networkMetrics.Async(), "NetworkMetrics");
- 
+
 
         var streamResults = await merger
             .Cases(
@@ -161,7 +161,7 @@ public class StreamVSBArchPlaygroundExamples
                 metric => metric.Name == "memory_usage" && metric.Value > 85,
                 metric => metric.Name == "network_latency" && metric.Value > 180
             )
-            .SelectCase(
+            .SelectCase<MetricEntry, string>(
                 cpu => $"?? HIGH CPU ALERT: {cpu.Value:F1}% on {cpu.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 75%",
                 memory => $"?? HIGH MEMORY ALERT: {memory.Value:F1}% on {memory.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 85%",
                 latency => $"?? HIGH LATENCY ALERT: {latency.Value:F1}ms on {latency.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 180ms"
@@ -178,7 +178,7 @@ public class StreamVSBArchPlaygroundExamples
         // ? COMPARISON
         CompareResults("METRICS MONITORING", batchResults, streamResults, batchStopwatch.ElapsedMilliseconds, streamStopwatch.ElapsedMilliseconds);
 
-        
+
     }
 
     /// <summary>
@@ -201,7 +201,7 @@ public class StreamVSBArchPlaygroundExamples
                 order => order.Amount > 500,
                 order => order.Status == "failed"
             )
-            .SelectCase(
+            .SelectCase<OrderEvent, string>(
                 cancelled => $"? CANCELLED ORDER: {cancelled.OrderId} - Amount: ${cancelled.Amount:F2}",
                 highValue => $"?? HIGH VALUE ORDER: {highValue.OrderId} - ${highValue.Amount:F2} - Priority Processing Required",
                 failed => $"?? FAILED ORDER: {failed.OrderId} - Needs Investigation"
@@ -221,8 +221,8 @@ public class StreamVSBArchPlaygroundExamples
                 sensor => sensor.Type == "humidity" && sensor.Value > 70,
                 sensor => sensor.Type == "pressure" && (sensor.Value < 980 || sensor.Value > 1020)
             )
-            .SelectCase(
-                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}°C (Sensor: {temp.SensorId})",
+            .SelectCase<SensorReading, string>(
+                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}ï¿½C (Sensor: {temp.SensorId})",
                 humidity => $"?? HIGH HUMIDITY: {humidity.Value:F1}% (Sensor: {humidity.SensorId})",
                 pressure => $"??? ABNORMAL PRESSURE: {pressure.Value:F1}hPa (Sensor: {pressure.SensorId})"
             )
@@ -233,19 +233,19 @@ public class StreamVSBArchPlaygroundExamples
         sensorBatchStopwatch.Stop();
 
         Console.WriteLine($"? Batch processing completed:");
-        Console.WriteLine($"   • Orders: {orderBatchResults.Count} results in {orderBatchStopwatch.ElapsedMilliseconds}ms");
-        Console.WriteLine($"   • Sensors: {sensorBatchResults.Count} results in {sensorBatchStopwatch.ElapsedMilliseconds}ms\n");
+        Console.WriteLine($"   ï¿½ Orders: {orderBatchResults.Count} results in {orderBatchStopwatch.ElapsedMilliseconds}ms");
+        Console.WriteLine($"   ï¿½ Sensors: {sensorBatchResults.Count} results in {sensorBatchStopwatch.ElapsedMilliseconds}ms\n");
 
         // ? STREAM PROCESSING
         Console.WriteLine("?? Processing mixed data as STREAM...");
         var streamStopwatch = Stopwatch.StartNew();
 
         // UPDATED: Added names to each data source.
-      
 
 
-        var orderMerger = new AsyncEnumerable<OrderEvent>().Unify(orders.Async(), "OrderEvents");
-        var sensorMerger = new AsyncEnumerable<SensorReading>().Unify(sensors.Async(), "SensorReadings");
+
+        var orderMerger = new UnifiedStream<OrderEvent>().Unify(orders.Async(), "OrderEvents");
+        var sensorMerger = new UnifiedStream<SensorReading>().Unify(sensors.Async(), "SensorReadings");
 
         var orderTask = orderMerger
             .Cases(
@@ -253,7 +253,7 @@ public class StreamVSBArchPlaygroundExamples
                 order => order.Amount > 500,
                 order => order.Status == "failed"
             )
-            .SelectCase(
+            .SelectCase<OrderEvent, string>(
                 cancelled => $"? CANCELLED ORDER: {cancelled.OrderId} - Amount: ${cancelled.Amount:F2}",
                 highValue => $"?? HIGH VALUE ORDER: {highValue.OrderId} - ${highValue.Amount:F2} - Priority Processing Required",
                 failed => $"?? FAILED ORDER: {failed.OrderId} - Needs Investigation"
@@ -267,8 +267,8 @@ public class StreamVSBArchPlaygroundExamples
                 sensor => sensor.Type == "humidity" && sensor.Value > 70,
                 sensor => sensor.Type == "pressure" && (sensor.Value < 980 || sensor.Value > 1020)
             )
-            .SelectCase(
-                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}°C (Sensor: {temp.SensorId})",
+            .SelectCase<SensorReading, string>(
+                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}ï¿½C (Sensor: {temp.SensorId})",
                 humidity => $"?? HIGH HUMIDITY: {humidity.Value:F1}% (Sensor: {humidity.SensorId})",
                 pressure => $"??? ABNORMAL PRESSURE: {pressure.Value:F1}hPa (Sensor: {pressure.SensorId})"
             )
@@ -283,8 +283,8 @@ public class StreamVSBArchPlaygroundExamples
         streamStopwatch.Stop();
 
         Console.WriteLine($"? Stream processing completed in {streamStopwatch.ElapsedMilliseconds}ms");
-        Console.WriteLine($"   • Orders: {orderStreamResults.Count} results");
-        Console.WriteLine($"   • Sensors: {sensorStreamResults.Count} results\n");
+        Console.WriteLine($"   ï¿½ Orders: {orderStreamResults.Count} results");
+        Console.WriteLine($"   ï¿½ Sensors: {sensorStreamResults.Count} results\n");
 
         // ? COMPARISONS
         CompareResults("ORDER PROCESSING", orderBatchResults, orderStreamResults,
@@ -318,10 +318,10 @@ public class StreamVSBArchPlaygroundExamples
         }
 
         Console.WriteLine($"\n?? COMPARISON SUMMARY:");
-        Console.WriteLine($"   • Total items compared: {Math.Max(batchResults.Count, streamResults.Count)}");
-        Console.WriteLine($"   • Mismatches: {mismatches} {(mismatches > 0 ? "?" : "?")}");
+        Console.WriteLine($"   ï¿½ Total items compared: {Math.Max(batchResults.Count, streamResults.Count)}");
+        Console.WriteLine($"   ï¿½ Mismatches: {mismatches} {(mismatches > 0 ? "?" : "?")}");
         string verdict = mismatches == 0 && countMatch ? "?? PERFECT MATCH" : "?? DIFFERENCES DETECTED";
-        Console.WriteLine($"   • Verdict: {verdict}");
+        Console.WriteLine($"   ï¿½ Verdict: {verdict}");
 
         Console.WriteLine(new string('-', 60) + "\n");
     }
@@ -338,7 +338,7 @@ public class StreamVSBArchPlaygroundExamples
 
 
         // Create a DataFlow merger to process all log entries
-        var merger = new AsyncEnumerable<LogEntry>().Unify(TestDataGenerators.GenerateLogEntries(15).Async(), "WebServerLogs").
+        var merger = new UnifiedStream<LogEntry>().Unify(TestDataGenerators.GenerateLogEntries(15).Async(), "WebServerLogs").
             Unify(TestDataGenerators.GenerateLogEntries(10).Async(), "DatabaseLogs").
             Unify(TestDataGenerators.GenerateLogEntries(8).Async(), "CacheLogs");
 
@@ -351,7 +351,7 @@ public class StreamVSBArchPlaygroundExamples
                     log => log.Level == "WARN",                          // Case 2: Warning logs
                     log => log.Level == "INFO"                           // Case 3: Info logs
                 )
-                .SelectCase(
+                .SelectCase<LogEntry, string>(
                     critical => $"?? CRITICAL: [{critical.Source}] {critical.Message}",
                     warning => $"?? WARNING: [{warning.Source}] {warning.Message}",
                     info => $"?? INFO: [{info.Source}] {info.Message}"
@@ -376,8 +376,8 @@ public class StreamVSBArchPlaygroundExamples
         Console.WriteLine("Simulating a stream of metrics to generate real-time alerts...");
         Console.WriteLine(new string('-', 70));
 
- 
-        var merger = new AsyncEnumerable<MetricEntry>().Unify(TestDataGenerators.GenerateMetrics().Async(), "CpuMetrics").
+
+        var merger = new UnifiedStream<MetricEntry>().Unify(TestDataGenerators.GenerateMetrics().Async(), "CpuMetrics").
             Unify(TestDataGenerators.GenerateMetrics().Async(), "MemoryMetrics").
             Unify(TestDataGenerators.GenerateMetrics().Async(), "NetworkMetrics");
 
@@ -390,7 +390,7 @@ public class StreamVSBArchPlaygroundExamples
                     metric => metric.Name == "memory_usage" && metric.Value > 85,
                     metric => metric.Name == "network_latency" && metric.Value > 180
                 )
-                .SelectCase(
+                .SelectCase<MetricEntry, string>(
                     cpu => $"?? HIGH CPU ALERT: {cpu.Value:F1}% on {cpu.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 75%",
                     memory => $"?? HIGH MEMORY ALERT: {memory.Value:F1}% on {memory.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 85%",
                     latency => $"?? HIGH LATENCY ALERT: {latency.Value:F1}ms on {latency.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 180ms"
@@ -418,8 +418,8 @@ public class StreamVSBArchPlaygroundExamples
         // Setup sources for two different data types
 
         // Create a separate DataFlow instance for each data type
-        var orderMerger = new AsyncEnumerable<OrderEvent>().Unify(TestDataGenerators.GenerateOrderEvents(15).Async(), "OrderEvents");
-        var sensorMerger = new AsyncEnumerable<SensorReading>().Unify(TestDataGenerators.GenerateSensorReadings(20).Async(), "SensorReadings");
+        var orderMerger = new UnifiedStream<OrderEvent>().Unify(TestDataGenerators.GenerateOrderEvents(15).Async(), "OrderEvents");
+        var sensorMerger = new UnifiedStream<SensorReading>().Unify(TestDataGenerators.GenerateSensorReadings(20).Async(), "SensorReadings");
 
         try
         {
@@ -429,7 +429,7 @@ public class StreamVSBArchPlaygroundExamples
                     order => order.EventType == "cancelled",
                     order => order.Amount > 500
                 )
-                .SelectCase(
+                .SelectCase<OrderEvent, string>(
                     cancelled => $"[Order] ? CANCELLED: {cancelled.OrderId}, Amount: ${cancelled.Amount:F2}",
                     highValue => $"[Order] ?? HIGH VALUE: {highValue.OrderId}, Amount: ${highValue.Amount:F2}"
                 )
@@ -442,8 +442,8 @@ public class StreamVSBArchPlaygroundExamples
                     sensor => sensor.Type == "temperature" && sensor.Value > 30,
                     sensor => sensor.Type == "pressure" && (sensor.Value < 980 || sensor.Value > 1020)
                 )
-                .SelectCase(
-                    temp => $"[Sensor] ??? HIGH TEMP: {temp.Value:F1}°C (ID: {temp.SensorId})",
+                .SelectCase<SensorReading, string>(
+                    temp => $"[Sensor] ??? HIGH TEMP: {temp.Value:F1}ï¿½C (ID: {temp.SensorId})",
                     pressure => $"[Sensor] ??? ABNORMAL PRESSURE: {pressure.Value:F1}hPa (ID: {pressure.SensorId})"
                 )
                 .AllCases()
@@ -481,7 +481,7 @@ public class StreamVSBArchPlaygroundExamples
             // ? Optionally run individual playgrounds
             Console.WriteLine("?? Running individual playground examples...\n");
 
-            await LogProcessingPlayground();;
+            await LogProcessingPlayground(); ;
 
             await MetricsMonitoringPlayground();
 
@@ -502,5 +502,5 @@ public class StreamVSBArchPlaygroundExamples
         }
     }
 
-    
+
 }

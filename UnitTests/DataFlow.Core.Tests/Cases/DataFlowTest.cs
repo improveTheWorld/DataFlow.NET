@@ -1,4 +1,4 @@
-
+ï»¿
 using DataFlow.Extensions;
 using DataFlow.Framework;
 
@@ -21,15 +21,15 @@ public class DataFlowPlaygroundExamples
         // ? Create and name test data sources
 
         Console.WriteLine("?? Generated test data:");
-        Console.WriteLine($"   • WebServer: {webLogs.Count} logs");
-        Console.WriteLine($"   • Database: {dbLogs.Count} logs");
-        Console.WriteLine($"   • Cache: {cacheLogsList.Count} logs\n");
+        Console.WriteLine($"   ï¿½ WebServer: {webLogs.Count} logs");
+        Console.WriteLine($"   ï¿½ Database: {dbLogs.Count} logs");
+        Console.WriteLine($"   ï¿½ Cache: {cacheLogsList.Count} logs\n");
 
         // ? Create a single DataFlow merger for all log sources
-        var logMerger = new AsyncEnumerable<LogEntry>().
-            Unify(webLogs.Async(),"WebServerLogs").
-            Unify(dbLogs.Async(),"DatabaseLogs").
-            Unify(cacheLogsList.Async(),"CacheLogs");
+        var logMerger = new UnifiedStream<LogEntry>().
+            Unify(webLogs.Async(), "WebServerLogs").
+            Unify(dbLogs.Async(), "DatabaseLogs").
+            Unify(cacheLogsList.Async(), "CacheLogs");
 
 
         Console.WriteLine("?? Streaming started with different intervals...\n");
@@ -41,8 +41,7 @@ public class DataFlowPlaygroundExamples
                 log => log.Level == "WARN",                           // Warning
                 log => log.Level == "INFO"                            // Info
             )
-            .SelectCase(
-                critical => $"?? CRITICAL: [{critical.Source}] {critical.Message}",
+            .SelectCase<LogEntry, string>(critical => $"?? CRITICAL: [{critical.Source}] {critical.Message}",
                 warning => $"?? WARNING: [{warning.Source}] {warning.Message}",
                 info => $"?? INFO: [{info.Source}] {info.Message}"
             )
@@ -51,7 +50,7 @@ public class DataFlowPlaygroundExamples
 
         Console.WriteLine("\n\n? Log Processing Pipeline completed!\n");
 
-        
+
     }
 
     /// <summary>
@@ -70,15 +69,15 @@ public class DataFlowPlaygroundExamples
         // UPDATED: Added names to each data source.
 
 
-        var merger = new AsyncEnumerable<MetricEntry>().Unify(cpuData.Async(), "CpuMetrics").
+        var merger = new UnifiedStream<MetricEntry>().Unify(cpuData.Async(), "CpuMetrics").
             Unify(memoryData.Async(), "MemoryMetrics").
             Unify(networkData.Async(), "NetworkMetrics");
-    
+
 
         Console.WriteLine("?? Generated metrics data:");
-        Console.WriteLine($"   • CPU metrics: {cpuData.Count} readings");
-        Console.WriteLine($"   • Memory metrics: {memoryData.Count} readings");
-        Console.WriteLine($"   • Network metrics: {networkData.Count} readings\n");
+        Console.WriteLine($"   ï¿½ CPU metrics: {cpuData.Count} readings");
+        Console.WriteLine($"   ï¿½ Memory metrics: {memoryData.Count} readings");
+        Console.WriteLine($"   ï¿½ Network metrics: {networkData.Count} readings\n");
 
         Console.WriteLine("?? Metrics streaming started...\n");
 
@@ -89,7 +88,7 @@ public class DataFlowPlaygroundExamples
                 metric => metric.Name == "memory_usage" && metric.Value > 85,   // High Memory
                 metric => metric.Name == "network_latency" && metric.Value > 180 // High Latency
             )
-            .SelectCase(
+            .SelectCase<MetricEntry, string>(
                 cpu => $"?? HIGH CPU ALERT: {cpu.Value:F1}% on {cpu.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 75%",
                 memory => $"?? HIGH MEMORY ALERT: {memory.Value:F1}% on {memory.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 85%",
                 latency => $"?? HIGH LATENCY ALERT: {latency.Value:F1}ms on {latency.Tags.GetValueOrDefault("host", "unknown")} - Threshold: 180ms"
@@ -113,12 +112,12 @@ public class DataFlowPlaygroundExamples
         var sensors = TestDataGenerators.GenerateSensorReadings(12).ToList();
 
 
-        var orderMerger = new AsyncEnumerable<OrderEvent>().Unify(orders.Async(), "OrderEvents");
-        var sensorMerger = new AsyncEnumerable<SensorReading>().Unify(sensors.Async(), "SensorReadings");
+        var orderMerger = new UnifiedStream<OrderEvent>().Unify(orders.Async(), "OrderEvents");
+        var sensorMerger = new UnifiedStream<SensorReading>().Unify(sensors.Async(), "SensorReadings");
 
         Console.WriteLine("?? Generated mixed data:");
-        Console.WriteLine($"   • Orders: {orders.Count} events");
-        Console.WriteLine($"   • Sensor readings: {sensors.Count} readings\n");
+        Console.WriteLine($"   ï¿½ Orders: {orders.Count} events");
+        Console.WriteLine($"   ï¿½ Sensor readings: {sensors.Count} readings\n");
 
         Console.WriteLine("?? Multi-stream processing started...\n");
 
@@ -129,7 +128,7 @@ public class DataFlowPlaygroundExamples
                 order => order.Amount > 500,
                 order => order.Status == "failed"
             )
-            .SelectCase(
+            .SelectCase<OrderEvent, string>(
                 cancelled => $"? CANCELLED ORDER: {cancelled.OrderId} - Amount: ${cancelled.Amount:F2}",
                 highValue => $"?? HIGH VALUE ORDER: {highValue.OrderId} - ${highValue.Amount:F2} - Priority Processing Required",
                 failed => $"?? FAILED ORDER: {failed.OrderId} - Needs Investigation"
@@ -144,8 +143,8 @@ public class DataFlowPlaygroundExamples
                 sensor => sensor.Type == "humidity" && sensor.Value > 70,
                 sensor => sensor.Type == "pressure" && (sensor.Value < 980 || sensor.Value > 1020)
             )
-            .SelectCase(
-                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}°C (Sensor: {temp.SensorId})",
+            .SelectCase<SensorReading, string>(
+                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}Â°C (Sensor: {temp.SensorId})",
                 humidity => $"?? HIGH HUMIDITY: {humidity.Value:F1}% (Sensor: {humidity.SensorId})",
                 pressure => $"??? ABNORMAL PRESSURE: {pressure.Value:F1}hPa (Sensor: {pressure.SensorId})"
             )
@@ -157,7 +156,7 @@ public class DataFlowPlaygroundExamples
 
         Console.WriteLine("\n\n? Mixed Data Types Processing completed!\n");
 
-       
+
     }
 
     public static async Task RunAllPlaygrounds()
@@ -198,4 +197,5 @@ public class DataFlowPlaygroundExamples
     }
 
 }
+
 

@@ -1,4 +1,4 @@
-# Unified Processing Architecture
+# Cases/SelectCase/ForEachCase Pattern
 
 > **This document covers DataFlow.NET's core innovation: writing processing logic once and deploying it across batch, streaming, and distributed paradigms.**
 
@@ -10,7 +10,8 @@
 2. [Write Once, Process Anywhere](#2-write-once-process-anywhere)
 3. [The Cases/SelectCase/ForEachCase Pattern](#3-the-casesselectcaseforeachcase-pattern)
 4. [The Supra Category Pattern](#4-the-supra-category-pattern)
-5. [API Reference](#5-api-reference)
+5. [Multi-Type Branching](#5-multi-type-branching)
+6. [API Reference](#6-api-reference)
 
 ---
 
@@ -250,7 +251,84 @@ var transactionAlerts = await liveTransactionStream
 
 ---
 
-## 5. API Reference
+## 5. Multi-Type Branching
+
+When different branches require **different return types**, DataFlow.NET provides multi-type `SelectCase` overloads that maintain full type safety without requiring a common base type.
+
+### The Challenge
+
+In standard C#, all branches of a switch expression must return the same type. But real-world processing often requires different types per branch:
+
+```csharp
+// ❌ This doesn't compile - different return types
+.SelectCase(
+    error => new ErrorReport { ... },      // Returns ErrorReport
+    warning => new WarningLog { ... },     // Returns WarningLog  
+    info => new InfoMetric { ... }         // Returns InfoMetric
+)
+```
+
+### The Solution: Tuple of Nullables
+
+DataFlow.NET solves this with multi-type `SelectCase` overloads that return a **tuple of nullable types**. Only the slot matching the executed branch contains a value:
+
+```csharp
+await logs
+    .Cases(
+        log => log.Level == "ERROR",
+        log => log.Level == "WARNING",
+        log => log.Level == "INFO"
+    )
+    // Each branch returns a DIFFERENT type
+    .SelectCase<Log, ErrorReport, WarningLog, InfoMetric>(
+        error => new ErrorReport { Severity = 1, Message = error.Text },
+        warning => new WarningLog { Category = warning.Source },
+        info => new InfoMetric { MetricName = info.Key, Value = info.Count }
+    )
+    // ForEachCase receives the correct type for each branch
+    .ForEachCase<Log, ErrorReport, WarningLog, InfoMetric>(
+        error => await errorDb.SaveAsync(error),
+        warning => await logDb.SaveAsync(warning),
+        info => await metricsDb.SaveAsync(info)
+    )
+    .UnCase();  // Returns to original items
+```
+
+### How It Works
+
+| Branch | Result Tuple |
+|--------|-------------|
+| Category 0 (ERROR) | `(ErrorReport, null, null)` |
+| Category 1 (WARNING) | `(null, WarningLog, null)` |
+| Category 2 (INFO) | `(null, null, InfoMetric)` |
+
+### Supported Overloads
+
+Multi-type branching supports **2 to 7 different types**:
+
+```csharp
+// 2 types
+.SelectCase<T, R1, R2>(selector1, selector2)
+
+// 3 types
+.SelectCase<T, R1, R2, R3>(selector1, selector2, selector3)
+
+// Up to 7 types
+.SelectCase<T, R1, R2, R3, R4, R5, R6, R7>(...)
+```
+
+### Available Collections
+
+Multi-type branching is available for:
+- `IAsyncEnumerable<T>` (2-7 types)
+- `IEnumerable<T>` (2-7 types)
+- `ParallelQuery<T>` (2-7 types)
+- `ParallelAsyncQuery<T>` (2-7 types)
+- `SparkQuery<T>` (2-4 types) — *Premium*
+
+---
+
+## 6. API Reference
 
 ### Cases<T>
 

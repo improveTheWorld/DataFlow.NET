@@ -85,14 +85,14 @@ public class EnumerableCasesExtensionTests
             .Cases(n => n == 1, n => n == 2);
 
         // Act - first transform
-        var firstTransform = items.SelectCase(
+        var firstTransform = items.SelectCase<int, int>(
             n => n * 10,
             n => n * 20,
             n => n * 30
         );
 
         // Second transform on newItem
-        var result = firstTransform.SelectCase(
+        var result = firstTransform.SelectCase<int, int, string>(
             n => $"one:{n}",
             n => $"two:{n}",
             n => $"other:{n}"
@@ -113,7 +113,7 @@ public class EnumerableCasesExtensionTests
 
         // Act - only 2 selectors provided
         var result = items
-            .SelectCase(
+            .SelectCase<string, string>(
                 s => "matched-a",
                 s => "matched-b"
             )
@@ -249,7 +249,7 @@ public class EnumerableCasesExtensionTests
         // Arrange - category 2 has no selector -> null
         var items = new[] { "a", "b", "c" }
             .Cases(s => s == "a", s => s == "b")
-            .SelectCase(
+            .SelectCase<string, string>(
                 s => "A",
                 s => "B"
                 // No selector for category 2
@@ -269,7 +269,7 @@ public class EnumerableCasesExtensionTests
         // Arrange
         var items = new[] { "a", "b", "c" }
             .Cases(s => s == "a", s => s == "b")
-            .SelectCase(
+            .SelectCase<string, string>(
                 s => "A",
                 s => "B"
             );

@@ -94,7 +94,7 @@ The DataFlow.NET framework follows a **four-layer architecture**:
 
 **Stream Processing Infrastructure Layer**
 
-- **AsyncEnumerableMerger<T>** for multi-source stream union/merging
+- **UnifiedStream<T>** for multi-source stream union/merging
 - Channel-based async communication
 - Regular expression utilities
 
@@ -159,12 +159,12 @@ data
 > [!NOTE]
 > For full pattern documentation, see [Unified Processing](Unified-Processing.md).
 
-### 3.4 AsyncEnumerableMerger
+### 3.4 UnifiedStream
 
 Merge multiple async sources into a single stream:
 
 ```csharp
-var merger = new AsyncEnumerableMerger<T>(new UnifyOptions
+var merger = new UnifiedStream<T>(new UnifyOptions
 {
     ErrorMode = UnifyErrorMode.ContinueOnError,
     Fairness = UnifyFairness.RoundRobin
@@ -270,7 +270,7 @@ public async Task TestProcessingLogic()
 | Document | Description |
 |----------|-------------|
 | [Unified Processing](Unified-Processing.md) | Cases/SelectCase pattern, Supra Category |
-| [Stream Merging](Stream-Merging.md) | AsyncEnumerableMerger, multi-source streams |
+| [Stream Merging](Stream-Merging.md) | UnifiedStream, multi-source streams |
 | [Data Reading Infrastructure](DataFlow-Data-Reading-Infrastructure.md) | CSV, JSON, YAML readers with full options |
 | [LINQ-to-Spark](LINQ-to-Spark.md) | Distributed processing with SparkQuery |
 | [Roadmap](Roadmap.md) | Future enhancements and versions |

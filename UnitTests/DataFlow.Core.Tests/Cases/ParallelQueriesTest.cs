@@ -40,10 +40,10 @@ public class ParallelQueriesPlaygroundExamples
         webLogs.WriteCsvSync("LogEntry.csv");
 
         Console.WriteLine("?? Generated identical test data for all execution paths:");
-        Console.WriteLine($"   • Logs: {webLogs.Count + dbLogs.Count + cacheLogs.Count} entries");
-        Console.WriteLine($"   • Metrics: {cpuMetrics.Count + memoryMetrics.Count + networkMetrics.Count} readings");
-        Console.WriteLine($"   • Orders: {orders.Count} events");
-        Console.WriteLine($"   • Sensors: {sensors.Count} readings\n");
+        Console.WriteLine($"   ï¿½ Logs: {webLogs.Count + dbLogs.Count + cacheLogs.Count} entries");
+        Console.WriteLine($"   ï¿½ Metrics: {cpuMetrics.Count + memoryMetrics.Count + networkMetrics.Count} readings");
+        Console.WriteLine($"   ï¿½ Orders: {orders.Count} events");
+        Console.WriteLine($"   ï¿½ Sensors: {sensors.Count} readings\n");
 
         // ?? Run comparisons for each pipeline across all execution paths
         await CompareLogProcessingAllPaths(webLogs, dbLogs, cacheLogs);
@@ -81,7 +81,7 @@ public class ParallelQueriesPlaygroundExamples
                 log => log.Level == "WARN",
                 log => log.Level == "INFO"
             )
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 critical => $"?? CRITICAL: [{critical.Source}] {critical.Message}",
                 warning => $"?? WARNING: [{warning.Source}] {warning.Message}",
                 info => $"?? INFO: [{info.Source}] {info.Message}"
@@ -104,7 +104,7 @@ public class ParallelQueriesPlaygroundExamples
                 log => log.Level == "WARN",
                 log => log.Level == "INFO"
             )
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 critical => $"?? CRITICAL: [{critical.Source}] {critical.Message}",
                 warning => $"?? WARNING: [{warning.Source}] {warning.Message}",
                 info => $"?? INFO: [{info.Source}] {info.Message}"
@@ -123,7 +123,7 @@ public class ParallelQueriesPlaygroundExamples
 
 
 
-        var merger = new AsyncEnumerable<LogEntry>().
+        var merger = new UnifiedStream<LogEntry>().
             Unify(webLogs.Async(), "WebServerLogs").
             Unify(dbLogs.Async(), "DatabaseLogs").
             Unify(cacheLogs.Async(), "CacheLogs");
@@ -134,7 +134,7 @@ public class ParallelQueriesPlaygroundExamples
                 log => log.Level == "WARN",
                 log => log.Level == "INFO"
             )
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 critical => $"?? CRITICAL: [{critical.Source}] {critical.Message}",
                 warning => $"?? WARNING: [{warning.Source}] {warning.Message}",
                 info => $"?? INFO: [{info.Source}] {info.Message}"
@@ -177,7 +177,7 @@ public class ParallelQueriesPlaygroundExamples
             ("Async Sequential", asyncSequentialResults, asyncSequentialStopwatch.ElapsedMilliseconds),
             ("Async Parallel", asyncParallelResults, asyncParallelStopwatch.ElapsedMilliseconds));
 
-      
+
     }
 
     /// <summary>
@@ -203,7 +203,7 @@ public class ParallelQueriesPlaygroundExamples
                 metric => metric.Name == "memory_usage" && metric.Value > 85,
                 metric => metric.Name == "network_latency" && metric.Value > 180
             )
-            .SelectCase(
+            .SelectCase<MetricEntry, string>(
                 cpu => $"?? HIGH CPU ALERT: {cpu.Value:F1}% on {cpu.Tags.GetValueOrDefault("host", "unknown")}",
                 memory => $"?? HIGH MEMORY ALERT: {memory.Value:F1}% on {memory.Tags.GetValueOrDefault("host", "unknown")}",
                 latency => $"?? HIGH LATENCY ALERT: {latency.Value:F1}ms on {latency.Tags.GetValueOrDefault("host", "unknown")}"
@@ -226,7 +226,7 @@ public class ParallelQueriesPlaygroundExamples
                 metric => metric.Name == "memory_usage" && metric.Value > 85,
                 metric => metric.Name == "network_latency" && metric.Value > 180
             )
-            .SelectCase(
+            .SelectCase<MetricEntry, string>(
                 cpu => $"?? HIGH CPU ALERT: {cpu.Value:F1}% on {cpu.Tags.GetValueOrDefault("host", "unknown")}",
                 memory => $"?? HIGH MEMORY ALERT: {memory.Value:F1}% on {memory.Tags.GetValueOrDefault("host", "unknown")}",
                 latency => $"?? HIGH LATENCY ALERT: {latency.Value:F1}ms on {latency.Tags.GetValueOrDefault("host", "unknown")}"
@@ -242,8 +242,8 @@ public class ParallelQueriesPlaygroundExamples
         Console.WriteLine("?? Path 3: Async Sequential Processing...");
         var asyncSequentialStopwatch = Stopwatch.StartNew();
 
-      
-        var merger = new AsyncEnumerable<MetricEntry>().Unify(cpuMetrics.Async(), "CpuMetrics").
+
+        var merger = new UnifiedStream<MetricEntry>().Unify(cpuMetrics.Async(), "CpuMetrics").
             Unify(memoryMetrics.Async(), "MemoryMetrics").
             Unify(networkMetrics.Async(), "NetworkMetrics");
 
@@ -253,7 +253,7 @@ public class ParallelQueriesPlaygroundExamples
                 metric => metric.Name == "memory_usage" && metric.Value > 85,
                 metric => metric.Name == "network_latency" && metric.Value > 180
             )
-            .SelectCase(
+            .SelectCase<MetricEntry, string>(
                 cpu => $"?? HIGH CPU ALERT: {cpu.Value:F1}% on {cpu.Tags.GetValueOrDefault("host", "unknown")}",
                 memory => $"?? HIGH MEMORY ALERT: {memory.Value:F1}% on {memory.Tags.GetValueOrDefault("host", "unknown")}",
                 latency => $"?? HIGH LATENCY ALERT: {latency.Value:F1}ms on {latency.Tags.GetValueOrDefault("host", "unknown")}"
@@ -300,7 +300,7 @@ public class ParallelQueriesPlaygroundExamples
             ("Async Sequential", asyncSequentialResults, asyncSequentialStopwatch.ElapsedMilliseconds),
             ("Async Parallel", asyncParallelResults, asyncParallelStopwatch.ElapsedMilliseconds));
 
-       
+
     }
 
     /// <summary>
@@ -324,7 +324,7 @@ public class ParallelQueriesPlaygroundExamples
                 order => order.Amount > 500,
                 order => order.Status == "failed"
             )
-            .SelectCase(
+            .SelectCase<OrderEvent, string>(
                 cancelled => $"? CANCELLED ORDER: {cancelled.OrderId} - Amount: ${cancelled.Amount:F2}",
                 highValue => $"?? HIGH VALUE ORDER: {highValue.OrderId} - ${highValue.Amount:F2}",
                 failed => $"?? FAILED ORDER: {failed.OrderId} - Needs Investigation"
@@ -343,7 +343,7 @@ public class ParallelQueriesPlaygroundExamples
                 order => order.Amount > 500,
                 order => order.Status == "failed"
             )
-            .SelectCase(
+            .SelectCase<OrderEvent, string>(
                 cancelled => $"? CANCELLED ORDER: {cancelled.OrderId} - Amount: ${cancelled.Amount:F2}",
                 highValue => $"?? HIGH VALUE ORDER: {highValue.OrderId} - ${highValue.Amount:F2}",
                 failed => $"?? FAILED ORDER: {failed.OrderId} - Needs Investigation"
@@ -357,7 +357,7 @@ public class ParallelQueriesPlaygroundExamples
         var orderAsyncSequentialStopwatch = Stopwatch.StartNew();
         // UPDATED: Data source is now named directly upon creation.
 
-        var orderMerger = new AsyncEnumerable<OrderEvent>().Unify(orders.Async(), "OrderEvents");
+        var orderMerger = new UnifiedStream<OrderEvent>().Unify(orders.Async(), "OrderEvents");
 
 
         var orderAsyncSequentialResults = await orderMerger
@@ -366,7 +366,7 @@ public class ParallelQueriesPlaygroundExamples
                 order => order.Amount > 500,
                 order => order.Status == "failed"
             )
-            .SelectCase(
+            .SelectCase<OrderEvent, string>(
                 cancelled => $"? CANCELLED ORDER: {cancelled.OrderId} - Amount: ${cancelled.Amount:F2}",
                 highValue => $"?? HIGH VALUE ORDER: {highValue.OrderId} - ${highValue.Amount:F2}",
                 failed => $"?? FAILED ORDER: {failed.OrderId} - Needs Investigation"
@@ -410,8 +410,8 @@ public class ParallelQueriesPlaygroundExamples
                 sensor => sensor.Type == "humidity" && sensor.Value > 70,
                 sensor => sensor.Type == "pressure" && (sensor.Value < 980 || sensor.Value > 1020)
             )
-            .SelectCase(
-                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}°C (Sensor: {temp.SensorId})",
+            .SelectCase<SensorReading, string>(
+                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}ï¿½C (Sensor: {temp.SensorId})",
                 humidity => $"?? HIGH HUMIDITY: {humidity.Value:F1}% (Sensor: {humidity.SensorId})",
                 pressure => $"??? ABNORMAL PRESSURE: {pressure.Value:F1}hPa (Sensor: {pressure.SensorId})"
             )
@@ -429,8 +429,8 @@ public class ParallelQueriesPlaygroundExamples
                 sensor => sensor.Type == "humidity" && sensor.Value > 70,
                 sensor => sensor.Type == "pressure" && (sensor.Value < 980 || sensor.Value > 1020)
             )
-            .SelectCase(
-                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}°C (Sensor: {temp.SensorId})",
+            .SelectCase<SensorReading, string>(
+                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}ï¿½C (Sensor: {temp.SensorId})",
                 humidity => $"?? HIGH HUMIDITY: {humidity.Value:F1}% (Sensor: {humidity.SensorId})",
                 pressure => $"??? ABNORMAL PRESSURE: {pressure.Value:F1}hPa (Sensor: {pressure.SensorId})"
             )
@@ -442,7 +442,7 @@ public class ParallelQueriesPlaygroundExamples
         // PATH 3: Async Sequential Sensors
         var sensorAsyncSequentialStopwatch = Stopwatch.StartNew();
         // UPDATED: Data source is now named directly upon creation.
-        var sensorMerger = new AsyncEnumerable<SensorReading>().Unify(sensors.Async(), "SensorReadings");
+        var sensorMerger = new UnifiedStream<SensorReading>().Unify(sensors.Async(), "SensorReadings");
 
         var sensorAsyncSequentialResults = await sensorMerger
             .Cases(
@@ -450,8 +450,8 @@ public class ParallelQueriesPlaygroundExamples
                 sensor => sensor.Type == "humidity" && sensor.Value > 70,
                 sensor => sensor.Type == "pressure" && (sensor.Value < 980 || sensor.Value > 1020)
             )
-            .SelectCase(
-                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}°C (Sensor: {temp.SensorId})",
+            .SelectCase<SensorReading, string>(
+                temp => $"??? HIGH TEMPERATURE: {temp.Value:F1}ï¿½C (Sensor: {temp.SensorId})",
                 humidity => $"?? HIGH HUMIDITY: {humidity.Value:F1}% (Sensor: {humidity.SensorId})",
                 pressure => $"??? ABNORMAL PRESSURE: {pressure.Value:F1}hPa (Sensor: {pressure.SensorId})"
             )
@@ -473,7 +473,7 @@ public class ParallelQueriesPlaygroundExamples
             .Select(sensor => sensor.Type switch
             {
                 "temperature" when sensor.Value > 30 =>
-                    $"??? HIGH TEMPERATURE: {sensor.Value:F1}°C (Sensor: {sensor.SensorId})",
+                    $"??? HIGH TEMPERATURE: {sensor.Value:F1}ï¿½C (Sensor: {sensor.SensorId})",
                 "humidity" when sensor.Value > 70 =>
                     $"?? HIGH HUMIDITY: {sensor.Value:F1}% (Sensor: {sensor.SensorId})",
                 "pressure" when sensor.Value < 980 || sensor.Value > 1020 =>
@@ -502,7 +502,7 @@ public class ParallelQueriesPlaygroundExamples
             ("Async Sequential", sensorAsyncSequentialResults, sensorAsyncSequentialStopwatch.ElapsedMilliseconds),
             ("Async Parallel", sensorAsyncParallelResults, sensorAsyncParallelStopwatch.ElapsedMilliseconds));
 
-       
+
     }
 
     /// <summary>
@@ -586,7 +586,7 @@ public class ParallelQueriesPlaygroundExamples
         // Sequential
         var sequentialResult = logs
             .Cases(log => log.Level == "ERROR", log => log.Level == "WARNING")
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 error => $"?? {error.Message}",
                 warning => $"?? {warning.Message}",
                 info => $"?? {info.Message}")
@@ -600,7 +600,7 @@ public class ParallelQueriesPlaygroundExamples
         var plinqResult = logs
             .AsParallel()
             .Cases(log => log.Level == "ERROR", log => log.Level == "WARNING")
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 error => $"?? {error.Message}",
                 warning => $"?? {warning.Message}",
                 info => $"?? {info.Message}")
@@ -648,7 +648,7 @@ public class ParallelQueriesPlaygroundExamples
         var sequentialTask = orders
             .Async()
             .Cases(o => o.Amount > 1000, o => o.EventType == "cancelled")
-            .SelectCase(
+            .SelectCase<OrderEvent, string>(
                 highValue => $"?? High Value: ${highValue.Amount:F2}",
                 cancelled => $"? Cancelled: {cancelled.OrderId}",
                 standard => $"? Standard: {standard.OrderId}")
@@ -727,17 +727,17 @@ public class ParallelQueriesPlaygroundExamples
         {
             Console.Clear();
             Console.WriteLine("+------------------------------------------------------+");
-            Console.WriteLine("¦         DataFlow.NET Playground & Test Runner        ¦");
-            Console.WriteLine("¦------------------------------------------------------¦");
-            Console.WriteLine("¦ Please choose an option to run:                      ¦");
-            Console.WriteLine("¦                                                      ¦");
-            Console.WriteLine("¦  1. Comprehensive Batch vs. Stream Comparison        ¦");
-            Console.WriteLine("¦  2. Log Processing Playground                        ¦");
-            Console.WriteLine("¦  3. Metrics Monitoring Playground                    ¦");
-            Console.WriteLine("¦  4. Mixed Data Types Playground                      ¦");
-            Console.WriteLine("¦                                                      ¦");
-            Console.WriteLine("¦  5. Run All (1-4) in sequence                        ¦");
-            Console.WriteLine("¦  6. Exit                                             ¦");
+            Console.WriteLine("ï¿½         DataFlow.NET Playground & Test Runner        ï¿½");
+            Console.WriteLine("ï¿½------------------------------------------------------ï¿½");
+            Console.WriteLine("ï¿½ Please choose an option to run:                      ï¿½");
+            Console.WriteLine("ï¿½                                                      ï¿½");
+            Console.WriteLine("ï¿½  1. Comprehensive Batch vs. Stream Comparison        ï¿½");
+            Console.WriteLine("ï¿½  2. Log Processing Playground                        ï¿½");
+            Console.WriteLine("ï¿½  3. Metrics Monitoring Playground                    ï¿½");
+            Console.WriteLine("ï¿½  4. Mixed Data Types Playground                      ï¿½");
+            Console.WriteLine("ï¿½                                                      ï¿½");
+            Console.WriteLine("ï¿½  5. Run All (1-4) in sequence                        ï¿½");
+            Console.WriteLine("ï¿½  6. Exit                                             ï¿½");
             Console.WriteLine("+------------------------------------------------------+");
             Console.Write("Enter your choice (1-6): ");
 

@@ -14,7 +14,7 @@ namespace DataFlow.Extensions
     /// <list type="bullet">
     ///   <item>
     ///     <description>Creating a named <see cref="IDataSource{T}"/> from any <see cref="IAsyncEnumerable{T}"/>
-    ///     so it can participate in a <see cref="AsyncEnumerable{T}"/> multi-source aggregation.</description>
+    ///     so it can participate in a <see cref="UnifiedStream{T}"/> multi-source aggregation.</description>
     ///   </item>
     ///   <item>
     ///     <description>Throttling emission rate to introduce a minimum delay between items (useful for
@@ -135,22 +135,22 @@ namespace DataFlow.Extensions
         }
 
         // Convenience unifier for two sources into an AsyncEnumerable<T>
-        public static AsyncEnumerable<T> Unify<T>(
+        public static UnifiedStream<T> Unify<T>(
             this (IAsyncEnumerable<T> source, string name) source1,
             IAsyncEnumerable<T> source2,
             string name2,
             UnifyErrorMode errorMode = UnifyErrorMode.FailFast,
             UnifyFairness fairness = UnifyFairness.RoundRobin)
         {
-            return new AsyncEnumerable<T>(new UnifyOptions { Fairness = fairness, ErrorMode = errorMode })
+            return new UnifiedStream<T>(new UnifyOptions { Fairness = fairness, ErrorMode = errorMode })
                 .Unify(source1.source, source1.name)
                 .Unify(source2, name2);
         }
 
         // Add a named source to an existing AsyncEnumerable<T>
-        public static AsyncEnumerable<T> Unify<T>(
+        public static UnifiedStream<T> Unify<T>(
             this (IAsyncEnumerable<T> source, string name) source1,
-            AsyncEnumerable<T> target)
+            UnifiedStream<T> target)
         {
             if (target is null) throw new ArgumentNullException(nameof(target));
             return target.Unify(source1.source, source1.name);

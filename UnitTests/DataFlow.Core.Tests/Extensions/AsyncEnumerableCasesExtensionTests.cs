@@ -82,7 +82,7 @@ public class AsyncEnumerableCasesExtensionTests
 
         // Act
         var result = await CollectAsync(
-            items.SelectCase(
+            items.SelectCase<int, int>(
                 n => n * 10,
                 n => n * 20,
                 n => n * 30

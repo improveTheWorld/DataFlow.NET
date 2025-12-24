@@ -146,7 +146,7 @@ var dbOrders = context.Orders
 var fileOrders = Read.CsvAsync<Order>("historical_orders.csv");
 
 // Merge both sources
-var allOrders = new AsyncEnumerable<Order>()
+var allOrders = new UnifiedStream<Order>()
     .Add(dbOrders)
     .Add(fileOrders);
 

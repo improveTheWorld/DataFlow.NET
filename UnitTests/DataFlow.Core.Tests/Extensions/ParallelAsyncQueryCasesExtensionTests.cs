@@ -82,7 +82,7 @@ public class ParallelAsyncQueryCasesExtensionTests
 
         // Act
         var result = await CollectAsync(
-            items.SelectCase(
+            items.SelectCase<int, int>(
                 n => n * 10,
                 n => n * 20,
                 n => n * 30
@@ -104,7 +104,7 @@ public class ParallelAsyncQueryCasesExtensionTests
 
         // Act
         var result = await CollectAsync(
-            items.SelectCase(
+            items.SelectCase<string, string>(
                 s => "matched-a",
                 s => "matched-b"
             )
@@ -195,7 +195,7 @@ public class ParallelAsyncQueryCasesExtensionTests
         // Arrange
         var items = ToParallelAsync(new[] { "a", "b", "c" })
             .Cases(s => s == "a", s => s == "b")
-            .SelectCase(
+            .SelectCase<string, string>(
                 s => "A",
                 s => "B"
             );
@@ -215,7 +215,7 @@ public class ParallelAsyncQueryCasesExtensionTests
         // Arrange
         var items = ToParallelAsync(new[] { "a", "b", "c" })
             .Cases(s => s == "a", s => s == "b")
-            .SelectCase(
+            .SelectCase<string, string>(
                 s => "A",
                 s => "B"
             );

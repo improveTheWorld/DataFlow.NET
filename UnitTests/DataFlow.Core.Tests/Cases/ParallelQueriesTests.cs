@@ -30,7 +30,7 @@ public class ParallelQueriesTests
                 log => log.Level == "ERROR" || log.Level == "FATAL",
                 log => log.Level == "WARN"
             )
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 critical => $"CRITICAL: {critical.Message}",
                 warning => $"WARNING: {warning.Message}",
                 info => $"INFO: {info.Message}"
@@ -60,7 +60,7 @@ public class ParallelQueriesTests
                 metric => metric.Name == "memory_usage" && metric.Value > 85,
                 metric => metric.Name == "network_latency" && metric.Value > 180
             )
-            .SelectCase(
+            .SelectCase<MetricEntry, string>(
                 cpu => $"CPU ALERT: {cpu.Value:F1}%",
                 memory => $"MEMORY ALERT: {memory.Value:F1}%",
                 latency => $"LATENCY ALERT: {latency.Value:F1}ms"
@@ -89,7 +89,7 @@ public class ParallelQueriesTests
                 order => order.Amount > 500,
                 order => order.Status == "failed"
             )
-            .SelectCase(
+            .SelectCase<OrderEvent, string>(
                 cancelled => $"CANCELLED: {cancelled.OrderId}",
                 highValue => $"HIGH VALUE: {highValue.OrderId}",
                 failed => $"FAILED: {failed.OrderId}"
@@ -212,7 +212,7 @@ public class ParallelQueriesTests
                 log => log.Level == "ERROR" || log.Level == "FATAL",
                 log => log.Level == "WARN"
             )
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 critical => $"CRITICAL: [{critical.Source}] {critical.Message}",
                 warning => $"WARNING: [{warning.Source}] {warning.Message}",
                 info => $"INFO: [{info.Source}] {info.Message}"
@@ -228,7 +228,7 @@ public class ParallelQueriesTests
                 log => log.Level == "ERROR" || log.Level == "FATAL",
                 log => log.Level == "WARN"
             )
-            .SelectCase(
+            .SelectCase<LogEntry, string>(
                 critical => $"CRITICAL: [{critical.Source}] {critical.Message}",
                 warning => $"WARNING: [{warning.Source}] {warning.Message}",
                 info => $"INFO: [{info.Source}] {info.Message}"
@@ -297,7 +297,7 @@ public class ParallelQueriesTests
                 sensor => sensor.Type == "humidity" && sensor.Value > 70,
                 sensor => sensor.Type == "pressure" && (sensor.Value < 980 || sensor.Value > 1020)
             )
-            .SelectCase(
+            .SelectCase<SensorReading, string>(
                 temp => $"HIGH TEMP: {temp.Value:F1}°C (Sensor: {temp.SensorId})",
                 humidity => $"HIGH HUMIDITY: {humidity.Value:F1}% (Sensor: {humidity.SensorId})",
                 pressure => $"ABNORMAL PRESSURE: {pressure.Value:F1}hPa (Sensor: {pressure.SensorId})"

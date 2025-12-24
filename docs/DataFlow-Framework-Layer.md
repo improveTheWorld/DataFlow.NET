@@ -5,7 +5,7 @@ The DataFlow.Framework layer provides core infrastructure components: async stre
 ## Table of Contents
 
 1. [Framework Projects](#framework-projects)
-2. [AsyncEnumerable<T> — Stream Merging](#asyncenumerablet--stream-merging)
+2. [UnifiedStream<T> — Stream Merging](#unifiedstreamt--stream-merging)
 3. [Guard Class — Defensive Programming](#guard-class--defensive-programming)
 4. [RegexTokenizer — Pattern Matching](#regextokenizer--pattern-matching)
 5. [EnumerableWithNote<T, P> — Context Preservation](#enumerablewithnotetp--context-preservation)
@@ -27,7 +27,7 @@ The DataFlow.Framework layer provides core infrastructure components: async stre
 
 ---
 
-## AsyncEnumerable<T> — Stream Merging
+## UnifiedStream<T> — Stream Merging
 
 The unified multi-source stream merger for `IAsyncEnumerable<T>`.
 
@@ -56,7 +56,7 @@ public sealed class UnifyOptions
 ### Usage
 
 ```csharp
-var unified = new AsyncEnumerable<LogEntry>(new UnifyOptions
+var unified = new UnifiedStream<LogEntry>(new UnifyOptions
 {
     ErrorMode = UnifyErrorMode.ContinueOnError,
     Fairness = UnifyFairness.RoundRobin

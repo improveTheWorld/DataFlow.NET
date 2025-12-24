@@ -424,6 +424,36 @@ categorized.filter(col("category") === 1).write.parquet("international_orders")
 categorized.filter(col("category") === 2).write.parquet("standard_orders")
 ```
 
+#### Multi-Type Branching
+
+When different branches require **different return types**, SparkQuery provides multi-type `SelectCase` overloads (2-4 types):
+
+```csharp
+ordersQuery
+    .Cases(
+        o => o.Amount > 10000,     // Case 0
+        o => o.IsInternational,    // Case 1
+        o => o.Customer.IsVIP      // Case 2
+    )
+    // Each branch returns a DIFFERENT type
+    .SelectCase<Order, ComplianceReview, CurrencyConversion, VIPProcessing>(
+        highValue => new ComplianceReview { OrderId = highValue.Id, Priority = 1 },
+        international => new CurrencyConversion { Rate = GetRate(international.Currency) },
+        vip => new VIPProcessing { FastTrack = true, CustomerId = vip.Customer.Id }
+    )
+    .ForEachCase<Order, ComplianceReview, CurrencyConversion, VIPProcessing>(
+        complianceQuery => complianceQuery.ToDataFrame().Write().Parquet("compliance_reviews"),
+        currencyQuery => currencyQuery.ToDataFrame().Write().Parquet("currency_conversions"),
+        vipQuery => vipQuery.ToDataFrame().Write().Parquet("vip_processing")
+    );
+```
+
+**Key Points:**
+- Each branch can return a completely different type
+- Results stored as `(R1, R2, R3)` tuple - only the active slot has data
+- The `category` index determines which slot is active (not nullability)
+- Supports 2-4 different types per `SelectCase`
+
 ---
 
 ## What This Enables

@@ -19,7 +19,7 @@ public sealed class UnifyOptions
 }
 
 // New unified merger: AsyncEnumerable<T> (aka DataFlow)
-public sealed class AsyncEnumerable<T> : IAsyncEnumerable<T>
+public sealed class UnifiedStream<T> : IAsyncEnumerable<T>
 {
     private readonly List<SourceEntry> _sources = new();
     private readonly UnifyOptions _options;
@@ -27,13 +27,13 @@ public sealed class AsyncEnumerable<T> : IAsyncEnumerable<T>
     private bool _frozen; // Prevent mutation after enumeration starts
     private int _activeEnumerations; // For guarding disposal if needed later
 
-    public AsyncEnumerable(UnifyOptions? options = null)
+    public UnifiedStream(UnifyOptions? options = null)
     {
         _options = options ?? new UnifyOptions();
     }
 
     // Merge a source (aka ListenTo)
-    public AsyncEnumerable<T> Unify(IAsyncEnumerable<T> source, string name, Func<T, bool>? predicate = null)
+    public UnifiedStream<T> Unify(IAsyncEnumerable<T> source, string name, Func<T, bool>? predicate = null)
     {
         if (source is null) throw new ArgumentNullException(nameof(source));
         if (name is null) throw new ArgumentNullException(nameof(name));

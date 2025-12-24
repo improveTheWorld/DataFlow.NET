@@ -68,7 +68,7 @@ public class ParallelQueryCasesExtensionTests
             .Cases(n => n == 1, n => n == 2);
 
         // Act
-        var result = items.SelectCase(
+        var result = items.SelectCase<int, int>(
             n => n * 10,
             n => n * 20,
             n => n * 30
@@ -89,7 +89,7 @@ public class ParallelQueryCasesExtensionTests
             .Cases(s => s == "a", s => s == "b");
 
         // Act - only 2 selectors
-        var result = items.SelectCase(
+        var result = items.SelectCase<string, string>(
             s => "matched-a",
             s => "matched-b"
         ).ToList();
@@ -107,10 +107,10 @@ public class ParallelQueryCasesExtensionTests
         var items = new[] { 1, 2 }
             .AsParallel()
             .Cases(n => n == 1)
-            .SelectCase(n => n * 10, n => n * 20);
+            .SelectCase<int, int>(n => n * 10, n => n * 20);
 
         // Act - chain another SelectCase
-        var result = items.SelectCase(
+        var result = items.SelectCase<int, int, string>(
             n => $"ten:{n}",
             n => $"twenty:{n}"
         ).ToList();
@@ -195,7 +195,7 @@ public class ParallelQueryCasesExtensionTests
         var items = new[] { 1, 2, 3 }
             .AsParallel()
             .Cases(n => n > 1)
-            .SelectCase(n => n * 10, n => n * 20);
+            .SelectCase<int, int>(n => n * 10, n => n * 20);
 
         // Act
         var result = items.UnCase().ToList();
@@ -218,7 +218,7 @@ public class ParallelQueryCasesExtensionTests
         var items = new[] { "a", "b", "c" }
             .AsParallel()
             .Cases(s => s == "a", s => s == "b")
-            .SelectCase(
+            .SelectCase<string, string>(
                 s => "A",
                 s => "B"
             );
@@ -239,7 +239,7 @@ public class ParallelQueryCasesExtensionTests
         var items = new[] { "a", "b", "c" }
             .AsParallel()
             .Cases(s => s == "a", s => s == "b")
-            .SelectCase(
+            .SelectCase<string, string>(
                 s => "A",
                 s => "B"
             );

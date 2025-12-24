@@ -217,7 +217,7 @@ IAsyncEnumerable<Item> throttled = items.Throttle(TimeSpan.FromMilliseconds(100)
 
 ```csharp
 // Merge multiple async sources into one stream
-var merged = new AsyncEnumerable<LogEntry>()
+var merged = new UnifiedStream<LogEntry>()
     .Add(server1Logs)
     .Add(server2Logs)
     .Add(server3Logs.Async())  // Convert sync to async first
@@ -401,7 +401,7 @@ var result = source
 // LAYER 1: Entry
 var orders = Read.CsvAsync<Order>("orders.csv");
 var liveOrders = api.GetOrders.Poll(TimeSpan.FromSeconds(5), token);
-var allOrders = new AsyncEnumerable<Order>()
+var allOrders = new UnifiedStream<Order>()
     .Add(orders)
     .Add(liveOrders);
 
