@@ -207,7 +207,7 @@ orders.Where(o => o.Items.Any(i => i.Price > 100))
     .Where(x => x.Name.ToUpper() == "JOHN")
     ```
 
-2.  **Parameterization**: currently, the prototype captures constants as literals. A future update involves full parameterization. Avoid passing direct raw user string input into expressions if possible to minimize SQL injection risks (roadmap item).
+2.  **Parameterization**: All query values are automatically parameterized using `SnowflakeDbParameter`. This prevents SQL injection attacks — you can safely use user input in LINQ expressions.
 
 3.  **Streaming**: For large datasets, prefer `GetAsyncEnumerator()` (streaming) over `ToListAsync()` (buffering).
     ```csharp
