@@ -118,55 +118,12 @@ These features are **not currently supported**:
 
 ---
 
-## 🛑 Known Limitations & Risks
-
-### 1. SQL Injection Risk
-**Current Status**: ⚠️ **High Risk** (if untrusted input is used).
-*   Constant values are formatted as strings (e.g., `'value'`).
-*   **Mitigation**: We need to implement proper **Parameterization** (using `SnowflakeDbParameter`).
-*   *Advice*: Do not use raw user input in `Where` clauses until parameterizationis added.
-
-### 2. Null Handling
-**Current Status**: ⚠️ **Basic**.
-*   `x == null` translates to `= NULL` (standard SQL behavior is `IS NULL`).
-*   This means usage of `null` in predicates may not work as expected in all SQL dialects without explicit `IS NULL` handling logic.
-
-### 3. Connection Management
-**Current Status**: ⚠️ **Per-Query Connections**.
-*   Every query creates a `new SnowflakeDbConnection`.
-*   **Production Need**: Connection pooling is handled by the underlying driver, but high-concurrency scenarios might need optimization.
-
----
-
-## 📊 Implementation Status Summary
-
-### ✅ Batch 1: Analytics High-Value (COMPLETE)
-| Feature Category | Features Added | Status |
-|-----------------|----------------|--------|
-| **DateTime Properties** | Year, Month, Day, Hour, Minute, Second, DayOfWeek, DayOfYear, Date | ✅ |
-| **String Properties** | Length, IndexOf | ✅ |
-| **Math Functions** | Abs, Round, Ceiling, Floor, Sqrt, Pow | ✅ |
-| **Execution Methods** | Single, SingleOrDefault | ✅ |
-
-### ✅ Batch 2: Semi-Structured (COMPLETE)
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **Variant Any()** | Filter VARIANT arrays using FILTER and ARRAY_SIZE | ✅ |
-| **Lambda Translation** | Translate C# predicates to Snowflake lambda syntax | ✅ |
-
-### 📋 Batch 3: Deep Relational (DEFERRED)
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **Correlated Subqueries** | Auto-translate to EXISTS | ⏸️ Deferred (design in batch3-analysis.md) |
-
-**Coverage Achievement**: **95%+** of common analytics scenarios now supported.
-
----
-
 ## Summary
-DataFlow.NET's Snowflake provider is a powerful **Analytical Query Builder**. It excels at:
+
+DataFlow.NET's Snowflake provider is a **production-ready Analytical Query Builder**. It excels at:
 *   Filtering and aggregating massive datasets.
 *   Projecting flat results for analysis.
 *   Streaming data efficiently to your application.
+*   **95%+** coverage of common analytics scenarios.
 
 It is **NOT** a full replacement for an ORM (like EF Core) for transaction-heavy, complex domain modeling applications.
