@@ -74,10 +74,10 @@ public static class DataSetGenerator
                 // Possible multi-line
                 if (rnd.NextDouble() < cfg.CsvMultilineRate)
                     baseVal = $"\"Line1-{r}-{c}\r\nLine2-{r}-{c}\"";
-                // Stray quote error injection
-                else if (rnd.NextDouble() < cfg.CsvStrayQuoteRate)
+                // Stray quote error injection (only when InjectErrors is enabled)
+                else if (cfg.InjectErrors && rnd.NextDouble() < cfg.CsvStrayQuoteRate)
                     baseVal = $"Bad\"Quote{r}-{c}";
-                else if (rnd.NextDouble() < cfg.CsvTrailingGarbageRate)
+                else if (cfg.InjectErrors && rnd.NextDouble() < cfg.CsvTrailingGarbageRate)
                     baseVal = $"\"OK{r}-{c}\"XYZ";
 
                 // Wrap some random plain strings also with quotes to exercise quotes

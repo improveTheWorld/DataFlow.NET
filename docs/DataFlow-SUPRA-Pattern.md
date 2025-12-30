@@ -47,12 +47,12 @@ The SUPRA pattern proposes a different way:
 
 ```csharp
 // ✅ The SUPRA approach: Sink → Unify → Process → Route → Apply
-await Read.CsvAsync<Order>("orders.csv")            // SINK: Stream in
+await Read.Csv<Order>("orders.csv")            // SINK: Stream in
     .Where(x => x.Amount > 100)                     // PROCESS: Lazy filter
     .Cases(x => x.Category == "VIP")                // ROUTE: Branch
     .SelectCase(vip => Process(vip), std => Process(std))
     .AllCases()
-    .WriteCsvAsync("output.csv");                   // APPLY: Stream out
+    .WriteCsv("output.csv");                   // APPLY: Stream out
 ```
 
 **The difference:** Memory stays constant. Items flow one at a time. The pipeline is declarative.
@@ -103,7 +103,7 @@ var pipeline = source                                    // SINK
     .AllCases();
 
 // APPLY: Execution happens only when consumed
-await pipeline.WriteCsvAsync("output.csv");
+await pipeline.WriteCsv("output.csv");
 ```
 
 ---
@@ -217,14 +217,13 @@ IAsyncEnumerable<Item> throttled = items.Throttle(TimeSpan.FromMilliseconds(100)
 
 ```csharp
 // Merge multiple async sources into one stream
-var merged = new UnifiedStream<LogEntry>()
-    .Add(server1Logs)
-    .Add(server2Logs)
-    .Add(server3Logs.Async())  // Convert sync to async first
-    .WithOptions(new UnifyOptions {
+var merged = new UnifiedStream<LogEntry>(new UnifyOptions {
         Fairness = UnifyFairness.RoundRobin,
         ErrorMode = UnifyErrorMode.ContinueOnError
-    });
+    })
+    .Unify(server1Logs, "server1")
+    .Unify(server2Logs, "server2")
+    .Unify(server3Logs.Async(), "server3");  // Convert sync to async first
 
 await foreach (var log in merged)
 {
@@ -238,13 +237,13 @@ await foreach (var log in merged)
 
 ```csharp
 // CSV file → IAsyncEnumerable<Order>
-var orders = Read.CsvAsync<Order>("orders.csv");
+var orders = Read.Csv<Order>("orders.csv");
 
 // JSON Lines file
-var events = Read.JsonLinesAsync<Event>("events.jsonl");
+var events = Read.JsonLines<Event>("events.jsonl");
 
 // With options
-var data = Read.CsvAsync<Record>("data.csv", new CsvReadOptions {
+var data = Read.Csv<Record>("data.csv", new CsvReadOptions {
     HasHeader = true,
     Delimiter = ';',
     ErrorAction = ReaderErrorAction.Skip
@@ -326,13 +325,13 @@ var asyncResults = asyncSource
 
 ```csharp
 // Write to CSV
-await processedData.WriteCsvAsync("output.csv");
+await processedData.WriteCsv("output.csv");
 
 // Write to JSON Lines
-await results.WriteJsonLinesAsync("results.jsonl");
+await results.WriteJsonLines("results.jsonl");
 
 // With options
-await data.WriteCsvAsync("data.csv", new CsvWriteOptions {
+await data.WriteCsv("data.csv", new CsvWriteOptions {
     Delimiter = ';',
     IncludeHeader = true
 });
@@ -399,11 +398,11 @@ var result = source
 
 ```csharp
 // LAYER 1: Entry
-var orders = Read.CsvAsync<Order>("orders.csv");
+var orders = Read.Csv<Order>("orders.csv");
 var liveOrders = api.GetOrders.Poll(TimeSpan.FromSeconds(5), token);
 var allOrders = new UnifiedStream<Order>()
-    .Add(orders)
-    .Add(liveOrders);
+    .Unify(orders, "file")
+    .Unify(liveOrders, "api");
 
 // LAYER 2: Transformation
 var processed = allOrders
@@ -422,7 +421,7 @@ var processed = allOrders
     .Spy("After categorization");
 
 // LAYER 3: Output
-await processed.WriteCsvAsync("processed_orders.csv");
+await processed.WriteCsv("processed_orders.csv");
 ```
 
 ---

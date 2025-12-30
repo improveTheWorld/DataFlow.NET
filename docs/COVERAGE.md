@@ -8,15 +8,19 @@
 
 ## Coverage Summary
 
+> **Core Packages:** UnifiedStream, ObjectMaterialization, ParallelAsyncQuery, SparkQuery, SnowflakeQuery, Read, Write
+
 | Status | Component | Line Coverage | Branch Coverage |
 |--------|-----------|---------------|-----------------|
-| ✅ | **AsyncEnumerable** | 91.5% | 88.9% |
+| ✅ | **UnifiedStream** | 91.5% | 88.9% |
 | ✅ | **ObjectMaterialization** | 84.0% | 72.1% |
+| ✅ | **Write** | 87.3% | - |
 | ✅ | **ParallelAsyncQuery** | 70.1% | 60.2% |
 | ✅ | **Read** | 55.0% | 45.0% |
-| ✅ | **SnowflakeQuery** | *(part of Read)* | - |
-| ✅ | **Write** | 87.3% | - |
+| ✅ | **SparkQuery** | ~75% | - |
+| ✅ | **SnowflakeQuery** | *(validated via SQL generation tests)* | - |
 
+**Core Average:** ~77% (UnifiedStream + ObjectMaterialization + Write + ParallelAsyncQuery + Read)  
 **Overall Status:** ✅ Release Ready
 
 ---
@@ -92,7 +96,7 @@
 
 | Package | Lines | Branches | Status |
 |---------|-------|----------|--------|
-| `DataFlow.Framework.AsyncEnumerable` | 91.5% | 88.9% | ✅ Excellent |
+| `DataFlow.Framework.UnifiedStream` | 91.5% | 88.9% | ✅ Excellent |
 | `DataFlow.Framework.ObjectMaterialization` | 84.0% | 72.1% | ✅ Excellent |
 | `DataFlow.Framework.SparkQuery` | 75%+ | - | ✅ Good |
 | `DataFlow.Framework.ParallelAsyncQuery` | 70.1% | 60.2% | ✅ Good |
@@ -138,7 +142,7 @@
 
 | Coverage Level | Industry Standard | DataFlow Status |
 |----------------|-------------------|-----------------|
-| Core API (80%+) | Critical | ✅ 77.6% |
+| Core API (80%+) | Critical | ✅ ~77% |
 
 ---
 
@@ -163,9 +167,6 @@ dotnet test --collect:"XPlat Code Coverage"
 # Generate HTML report (requires reportgenerator-globaltool)
 dotnet tool install -g dotnet-reportgenerator-globaltool
 reportgenerator -reports:**/coverage.cobertura.xml -targetdir:coverage/html
-
-# Update this report
-python scripts/update_coverage_report.py
 ```
 
 ---
@@ -219,16 +220,12 @@ We use **Coverlet** - an open-source cross-platform code coverage library for .N
 
 ## How to Update This Report
 
-This report is auto-generated. To update:
+This report is manually maintained. To update:
 
-```bash
-# 1. Run tests with coverage
-dotnet test src/UnitTests --collect:"XPlat Code Coverage"
-
-# 2. Run the update script
-python scripts/update_coverage_report.py
-```
+1. Run tests with coverage: `dotnet test src/UnitTests --collect:"XPlat Code Coverage"`
+2. Generate HTML report with `reportgenerator`
+3. Update the coverage percentages in this document based on the report
 
 ---
 
-*Report generated automatically by `scripts/update_coverage_report.py`*
+*Last updated: December 2025*

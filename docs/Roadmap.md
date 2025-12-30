@@ -114,6 +114,12 @@ DataFlowMetrics.ItemsProcessed.Add(1);
 DataFlowMetrics.ProcessingDuration.Record(elapsed.TotalMilliseconds);
 ```
 
+### ❄️ SnowflakeQuery Enhancements
+
+| # | Feature | Description | Effort |
+|---|---------|-------------|--------|
+| 9 | **Correlated Subqueries** | Auto-translate `Any()`/`All()` on navigation properties to `EXISTS` subqueries | High |
+
 ---
 
 ## V1.2 — Performance & Scale

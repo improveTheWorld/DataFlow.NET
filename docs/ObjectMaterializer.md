@@ -212,7 +212,8 @@ var invoice = ObjectMaterializer.Create<Invoice>(
 **Supported Types:**
 - **Numeric:** `int`, `long`, `decimal`, `double`, `float`, `short`, `byte`
 - **Temporal:** `DateTime`, `DateTimeOffset`, `TimeSpan`
-- **Other:** `bool`, `Guid`, `char`, `enum`, `Nullable<T>`
+- **Boolean:** `true`/`false`, `1`/`0` (common CSV convention)
+- **Other:** `Guid`, `char`, `enum`, `Nullable<T>`
 
 ---
 
@@ -226,11 +227,12 @@ A **plan** is a compiled, cached blueprint for populating type `T`:
 internal sealed class MemberMaterializationPlan<T>
 {
     public readonly MemberSetter[] Members;      // Compiled setters
-    public readonly StringComparer NameComparer; // Case sensitivity
     public CultureInfo Culture { get; init; }
     public string[] DateTimeFormats { get; init; }
 }
 ```
+
+**Note:** Schema lookups are **case-insensitive** by default (`StringComparer.OrdinalIgnoreCase`).
 
 **Key Points:**
 - Built **once per type** (per configuration)
@@ -246,7 +248,7 @@ internal sealed class MemberMaterializationPlan<T>
 ```csharp
 public interface IHasSchema
 {
-    Dictionary<string, int> GetSchema();
+    Dictionary<string, int> GetDictSchema();
 }
 
 public class CsvRow : IHasSchema
@@ -315,14 +317,35 @@ var dto = ObjectMaterializer.Create<OrderDto>("ORD123", 500m);
 
 ---
 
-#### `CreateWithSchema<T>(string[] schema, object[] parameters)`
-Explicit schema-based creation (no constructor fallback).
+### Session Classes (High-Performance Reusable Sessions)
+
+For high-throughput scenarios (e.g., processing millions of CSV rows), use session classes to avoid repeated plan lookups:
+
+#### `GeneralMaterializationSession<T>`
+Auto-selects the best strategy (constructor or member feeding):
 
 ```csharp
-var person = ObjectMaterializer.CreateWithSchema<Person>(
-    new[] { "Name", "Email" },
-    new object[] { "Alice", "alice@test.com" }
-);
+var schema = new[] { "Name", "Age" };
+var session = ObjectMaterializer.CreateGeneralSession<Person>(schema);
+
+// Reuse for many rows
+var person1 = session.Create(new object[] { "Alice", 25 });
+var person2 = session.Create(new object[] { "Bob", 30 });
+var person3 = session.Create(new object[] { "Charlie", 35 });
+```
+
+#### `CtorMaterializationSession<T>`
+Forces constructor-based materialization (for records/immutable types):
+
+```csharp
+var session = ObjectMaterializer.CreateCtorSession<RecordType>(schema);
+```
+
+#### `MaterializationSession<T>`
+Forces parameterless constructor + member feeding:
+
+```csharp
+var session = ObjectMaterializer.CreateFeedSession<PersonMutable>(schema);
 ```
 
 ---
@@ -382,7 +405,6 @@ Retrieves or builds cached materialization plan.
 
 ```csharp
 var plan = MemberMaterializationPlanner.Get<Invoice>(
-    caseInsensitiveHeaders: true,           // Default: true
     culture: CultureInfo.CurrentCulture,    // Default: InvariantCulture
     allowThousandsSeparators: true,         // Default: true
     dateTimeFormats: new[] { "yyyy-MM-dd" } // Default: empty (lenient parsing)
@@ -391,10 +413,9 @@ var plan = MemberMaterializationPlanner.Get<Invoice>(
 
 **Cache Key Includes:**
 - Target type
-- Case sensitivity
 - Culture name
 - Thousands separator setting
-- DateTime format strings (hashed)
+- DateTime format strings (joined with `|`)
 
 ---
 

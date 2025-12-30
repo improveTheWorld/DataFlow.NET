@@ -46,13 +46,13 @@ var lines = Read.text("data.txt");
 ```
 
 ```csharp
-public static IEnumerable<T?> csv<T>(string path, string separator = ";", bool autoClose = true, params string[] schema)
+public static IEnumerable<T?> csv<T>(string path, string separator = ",", bool autoClose = true, params string[] schema)
 ```
 **Description:** Reads and parses CSV files into strongly-typed objects  
 **Type Constraints:** None  
 **Parameters:**
 - `path`: CSV file path
-- `separator`: Field separator (default: ";")
+- `separator`: Field separator (default: ",")
 - `autoClose`: Whether to automatically close the file (default: true)
 - `schema`: Optional custom field schema (uses file header if not provided)  
 **Returns:** `IEnumerable<T?>` - Lazy enumerable of parsed objects  
@@ -93,7 +93,7 @@ processedLines.WriteText("output.txt");
 ```
 
 ```csharp
-public static void WriteCSV<T>(this IEnumerable<T> records, StreamWriter file, bool withTitle = true, string separator = ";") where T : struct
+public static void WriteCSV<T>(this IEnumerable<T> records, StreamWriter file, bool withTitle = true, string separator = ",") where T : struct
 ```
 **Description:** Writes strongly-typed objects to CSV format using StreamWriter  
 **Type Constraints:** `where T : struct`  
@@ -101,14 +101,14 @@ public static void WriteCSV<T>(this IEnumerable<T> records, StreamWriter file, b
 - `records`: Enumerable of objects to write
 - `file`: StreamWriter instance
 - `withTitle`: Whether to include header row (default: true)
-- `separator`: Field separator (default: ";")  
+- `separator`: Field separator (default: ",")  
 **Example:**
 ```csharp
 products.WriteCSV(writer, withTitle: true, separator: ",");
 ```
 
 ```csharp
-public static void WriteCSV<T>(this IEnumerable<T> records, string path, bool withTitle = true, string separator = ";") where T : struct
+public static void WriteCSV<T>(this IEnumerable<T> records, string path, bool withTitle = true, string separator = ",") where T : struct
 ```
 **Description:** Writes strongly-typed objects to CSV file  
 **Type Constraints:** `where T : struct`  
@@ -116,7 +116,7 @@ public static void WriteCSV<T>(this IEnumerable<T> records, string path, bool wi
 - `records`: Enumerable of objects to write
 - `path`: Output CSV file path
 - `withTitle`: Whether to include header row (default: true)
-- `separator`: Field separator (default: ";")  
+- `separator`: Field separator (default: ",")  
 **Example:**
 ```csharp
 products.WriteCSV("products.csv", withTitle: true, separator: ",");
