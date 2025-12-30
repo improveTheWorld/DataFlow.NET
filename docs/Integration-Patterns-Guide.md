@@ -55,7 +55,7 @@ var ordersStream = (() => http.GetFromJsonAsync<Order[]>("/api/orders"))
 await ordersStream
     .Where(o => o.Amount > 100)
     .Select(o => EnrichOrder(o))
-    .WriteCsvAsync("orders.csv");
+    .WriteCsv("orders.csv");
 ```
 
 ### Visual: Why SelectMany?
@@ -132,7 +132,7 @@ await context.Orders
     .AsAsyncEnumerable()                    // ← EF Core native method
     .Where(o => o.Amount > 100)             // DataFlow processing
     .Select(o => new OrderDto(o))
-    .WriteCsvAsync("active_orders.csv");
+    .WriteCsv("active_orders.csv");
 ```
 
 ### EF Core + DataFlow Patterns
@@ -143,12 +143,12 @@ var dbOrders = context.Orders
     .Where(o => o.CreatedDate > DateTime.Today.AddDays(-7))
     .AsAsyncEnumerable();
 
-var fileOrders = Read.CsvAsync<Order>("historical_orders.csv");
+var fileOrders = Read.Csv<Order>("historical_orders.csv");
 
 // Merge both sources
 var allOrders = new UnifiedStream<Order>()
-    .Add(dbOrders)
-    .Add(fileOrders);
+    .Unify(dbOrders, "database")
+    .Unify(fileOrders, "file");
 
 await allOrders
     .Cases(o => o.Priority == "High")
@@ -213,7 +213,7 @@ await kafkaStream
     .AsParallel()
     .WithMaxConcurrency(4)
     .Select(async o => await EnrichAsync(o))
-    .WriteCsvAsync("kafka_orders.csv");
+    .WriteCsv("kafka_orders.csv");
 ```
 
 ### Visual: Kafka Integration

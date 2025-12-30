@@ -11,7 +11,7 @@ Let IntelliSense and the compiler do the work.
 ```
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE) 
-[![Coverage](https://img.shields.io/badge/Core%20Coverage-91%25-brightgreen)](docs/COVERAGE.md)
+[![Coverage](https://img.shields.io/badge/Core%20Coverage-77%25-brightgreen)](docs/COVERAGE.md)
 
 ---
 
@@ -37,7 +37,7 @@ Let IntelliSense and the compiler do the work.
 **DataFlow.NET was built to stop this cycle:**
 
 - ✅ **Unified API** — Same code for CSV, JSON, Kafka, Spark
-- ✅ **Constant memory** — Stream billions of rows without `OutOfMemoryException`
+- ✅ **Constant memory** — Stream billions of rows without `OutOfMemoryException` ([see benchmarks](docs/Benchmarks.md))
 - ✅ **No spaghetti** — Declarative `Cases` pattern replaces nested `if/else`
 - ✅ **Pure C#** — LINQ all the way down
 
@@ -117,10 +117,10 @@ var kafkaStream = ConsumeKafka(token).WithBoundedBuffer(1024);
 
 ### High-Performance Streaming File Readers
 
-DataFlow.NET provides high-performance file readers: no Reflection; expression trees are compiled on the fly.
+DataFlow.NET provides high-performance file readers: no Reflection on the hot path; expression trees are compiled once and cached.
 
-*   **Significantly faster** than standard reflection (validated via our `benchmarks/` project)
-*   **Minimal allocations** — no per-item reflection on the hot path
+*   **Up to 10x faster** than standard reflection-based creation ([benchmark results →](docs/Benchmarks.md))
+*   **Minimal allocations** — ~25 bytes per object on hot path
 *   Handles CSV, JSON, and YAML files generically.
 
 We carefully crafted an intuitive, fully-featured readers API with advanced error handling — all while streaming row-by-row.
@@ -272,7 +272,7 @@ SparkQueryFactory.Create<Order>(spark, ordersDf)
 | 🧩 **[Extension Methods](docs/Extension-Methods-API-Reference.md)** | IEnumerable/IAsyncEnumerable/Parallel API Matrix |
 | 🔌 **[Integration Patterns](docs/Integration-Patterns-Guide.md)** | HTTP, Kafka, EF Core, WebSocket examples |
 | ⚡ **[ParallelAsyncQuery](docs/ParallelAsyncQuery-API-Reference.md)** | Parallel async processing API |
-| 🧪 **[Test Coverage](docs/COVERAGE.md)** | Coverage Reports (91% Core) |
+| 🧪 **[Test Coverage](docs/COVERAGE.md)** | Coverage Reports (~77% Core) |
 | 🗺️ **[Roadmap](docs/Roadmap.md)** | Future Enterprise Connectors |
 
 ---

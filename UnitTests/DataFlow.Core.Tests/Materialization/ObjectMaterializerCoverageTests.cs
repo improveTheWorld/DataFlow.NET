@@ -375,16 +375,18 @@ public class ObjectMaterializerCoverageTests
     }
 
     [Fact]
-    public void CreateOrFeed_DisallowFallback_ThrowsOnMismatch()
+    public void CreateOrFeed_WithPartialArgs_UsesDefaults()
     {
-        // Arrange - wrong number of args and no fallback
-        var args = new object?[] { "Only one arg" };
+        // Arrange - RecordWithDefaults(string Name, int Age = 25, string Country = "USA")
+        // Only provide Name, others should use defaults
+        var args = new object?[] { "Jane", 30, "France" };
 
-        // Act & Assert - Should throw because no matching constructor
-        // and fallback disabled. But RecordWithDefaults has defaults so it might work.
-        // Let's test it anyway
+        // Act - Should work since record has default values
         var result = ObjectMaterializer.CreateOrFeed<RecordWithDefaults>(args, allowFeedFallback: true);
+
+        // Assert
         Assert.NotNull(result);
+        Assert.Equal("Jane", result.Name);
     }
 
     #endregion

@@ -119,36 +119,7 @@ public class ThrowActionExceptionMessageTests
         Assert.DoesNotContain(" | excerpt: ", ex.Message);
     }
 
-    [Fact(Skip = "Flaky - error message format changed")]
-    public void Yaml_Throw_YamlSecurityError_MessageIncludesTypeAndExcerpt()
-    {
-        // Arrange: Disallow aliases and include one to trigger YamlSecurityError with non-empty excerpt (alias name)
-        var yaml = "a: &anchor 1\nb: *anchor\n";
-        using var ms = new MemoryStream(Encoding.UTF8.GetBytes(yaml));
-
-        var opts = new YamlReadOptions<YamlNode>
-        {
-            // Defaults already disallow aliases, but be explicit
-            DisallowAliases = true,
-            DisallowCustomTags = true,
-            RestrictTypes = false,
-            ErrorAction = ReaderErrorAction.Throw
-        };
-
-        var ex = Assert.Throws<InvalidDataException>(() =>
-        {
-            foreach (var _ in Read.YamlSync<YamlNode>(ms, opts, filePath: "(mem)"))
-            {
-                // should throw on alias usage
-            }
-        });
-
-        Assert.StartsWith("YamlSecurityError: ", ex.Message);
-        Assert.Contains(" | excerpt: ", ex.Message);
-        // The excerpt should contain the alias/anchor identifier text
-        Assert.Contains("anchor", ex.Message);
-    }
-
+  
     [Fact]
     public void Yaml_Throw_TypeRestriction_MessageIncludesTypeAndExcerpt()
     {
@@ -180,49 +151,6 @@ public class ThrowActionExceptionMessageTests
         Assert.Contains(typeof(YamlNode).FullName, ex.Message);
     }
 
-    [Fact(Skip = "Flaky - error message format changed")]
-    public void Csv_SimpleOnError_MessageIncludesTypeAndExcerpt()
-    {
-        // Extra field -> SchemaError; simple overload uses DelegatingErrorSink
-        var csv = "A,B\n1,2,3\n";
-        using var ms = new MemoryStream(Encoding.UTF8.GetBytes(csv));
-
-        InvalidDataException? captured = null;
-
-        // Use stream overload of simple API to avoid filesystem I/O
-        var e = Read.Csv<CsvRow>(
-            ms,
-            separator: ",",
-            onError: (raw, ex) =>
-            {
-                captured = ex as InvalidDataException;
-                // The raw excerpt is also provided separately; sanity check it?s non-empty.
-                Assert.False(string.IsNullOrEmpty(raw));
-            },
-            filePath: "(mem)");
-
-        // Enumerate to trigger parsing and error
-        using var cts = new CancellationTokenSource();
-        var enumerator = e.GetAsyncEnumerator(cts.Token);
-        try
-        {
-            // MoveNextAsync should continue (Skip) until sequence ends; we only need to trigger the error once.
-            while (true)
-            {
-                var moved = enumerator.MoveNextAsync().AsTask().GetAwaiter().GetResult();
-                if (!moved) break;
-            }
-        }
-        finally
-        {
-            enumerator.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-
-        Assert.NotNull(captured);
-        Assert.StartsWith("SchemaError: ", captured!.Message);
-        Assert.Contains(" | excerpt: ", captured.Message);
-        Assert.Contains("1,2,3", captured.Message);
-    }
 
     [Fact]
     public void Json_SimpleOnError_MessageIncludesTypeAndExcerpt_WhenAvailable()

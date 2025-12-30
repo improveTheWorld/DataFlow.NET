@@ -17,7 +17,7 @@
 
 ## 1. Overview
 
-The `UnifiedStream<T>` class (aliased as `AsyncEnumerable<T>`) merges multiple `IAsyncEnumerable<T>` sources into a single unified stream. It manages concurrent `MoveNextAsync` calls, synchronization, and source lifecycle during enumeration.
+The `UnifiedStream<T>` class merges multiple `IAsyncEnumerable<T>` sources into a single unified stream. It manages concurrent `MoveNextAsync` calls, synchronization, and source lifecycle during enumeration.
 
 **Key Characteristics:**
 
