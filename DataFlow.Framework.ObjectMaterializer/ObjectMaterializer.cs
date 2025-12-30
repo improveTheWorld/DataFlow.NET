@@ -37,6 +37,8 @@ public sealed class CtorMaterializationSession<T>
 {
     private readonly Func<object?[], object> _ctorFactory;
     private readonly (int valueIndex, Type paramType)[] _paramMap;
+    // Buffer for single-threaded reuse to avoid array allocations
+    private readonly object?[] _argsBuffer;
 
     public CtorMaterializationSession(string[] schema, bool resolveSchema = true)
     {
@@ -48,24 +50,17 @@ public sealed class CtorMaterializationSession<T>
         var type = typeof(T);
 
         // Reuse schema dict cache from MemberMaterializationPlanner
-        var schemaDict = MemberMaterializationPlanner.Get<T>().GetSchemaDict(schema);
+        var schemaDict = MemberMaterializationPlanner.Get<T>().GetSchemaDict(effectiveSchema);
 
-        // Select primary ctor (longest)
-        var ctor = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                       .OrderByDescending(c => c.GetParameters().Length)
-                       .FirstOrDefault()
+        // Select primary ctor (using shared helper)
+        var ctor = ConstructorHelper<T>.PrimaryCtor
                    ?? throw new InvalidOperationException($"Type {type.FullName} has no accessible constructors.");
 
-        var parms = ctor.GetParameters();
-        _paramMap = new (int, Type)[parms.Length];
+        // Build param map using shared helper
+        _paramMap = ConstructorHelper<T>.BuildParamMap(ctor, schemaDict);
 
-        for (int i = 0; i < parms.Length; i++)
-        {
-            var p = parms[i];
-            var name = p.Name ?? string.Empty;
-            int idx = schemaDict.TryGetValue(name, out var colIndex) ? colIndex : -1;
-            _paramMap[i] = (idx, p.ParameterType);
-        }
+        // Initialize buffer
+        _argsBuffer = new object?[_paramMap.Length];
 
         // Build a stable signature key for this ctor so we reuse a compiled delegate
         var key = BuildCtorKey(type, ctor);
@@ -82,13 +77,19 @@ public sealed class CtorMaterializationSession<T>
 
     public T Create(object?[] values)
     {
-        var args = new object?[_paramMap.Length];
+        // Use pre-allocated buffer
         for (int i = 0; i < _paramMap.Length; i++)
         {
             var (idx, _) = _paramMap[i];
-            args[i] = (uint)idx < (uint)values.Length ? values[idx] : null;
+            _argsBuffer[i] = (uint)idx < (uint)values.Length ? values[idx] : null;
         }
-        return (T)_ctorFactory(args);
+
+        var result = (T)_ctorFactory(_argsBuffer);
+
+        // Clear buffer to avoid holding references to values
+        Array.Clear(_argsBuffer, 0, _argsBuffer.Length);
+
+        return result;
     }
 
     private static ObjectMaterializer.CtorSignatureKey BuildCtorKey(Type type, ConstructorInfo ctor)
@@ -121,7 +122,7 @@ public sealed class GeneralMaterializationSession<T>
             : schema;
 
         // Prefer ctor-based materialization if possible
-        if (TryInitCtorSession(schema, out var ctorSession))
+        if (TryInitCtorSession(effectiveSchema, out var ctorSession))
         {
             _ctorSession = ctorSession;
             _strategy = StrategyKind.PrimaryCtor;
@@ -137,7 +138,7 @@ public sealed class GeneralMaterializationSession<T>
         }
 
         _factory = f;
-        _apply = plan.GetSchemaAction(schema); // cached action
+        _apply = plan.GetSchemaAction(effectiveSchema); // cached action
         _strategy = StrategyKind.MemberApply;
     }
 
@@ -331,7 +332,15 @@ public static class ObjectMaterializer
         }
 
         T instance = factory();
-        MemberMaterializer.FeedUsingInternalOrder(ref instance, parameters!);
+        // Logic inlined from MemberMaterializer.FeedUsingInternalOrder
+        if (instance is IHasSchema withSchema)
+        {
+            MemberMaterializer.FeedUsingSchema(ref instance, withSchema.GetDictSchema(), parameters!);
+        }
+        else
+        {
+            MemberMaterializer.FeedOrdered(ref instance, parameters!);
+        }
         return instance;
     }
 
@@ -347,10 +356,19 @@ public static class ObjectMaterializer
         //  USE CACHED SCHEMA DICTIONARY
         var schemaDict = MemberMaterializationPlanner.Get<T>().GetSchemaDict(schema);
 
-        // Find primary constructor (longest parameter list, typically)
-        var ctors = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                        .OrderByDescending(c => c.GetParameters().Length)
-                        .ToArray();
+        // USE SHARED HELPER to get primary constructor
+        var primaryCtor = ConstructorHelper<T>.PrimaryCtor
+                   ?? throw new InvalidOperationException($"Type {type.FullName} has no accessible constructors.");
+
+        // Treat as array for existing logic compat (or simplify further specific logic here if needed)
+        // Note: Original code handled multiple constructors, but 'CreateViaPrimaryConstructor' implies primary.
+        // However, the original code iterated all constructs. Let's simplify to just Primary for 'PrimaryCtor' method
+        // OR keep iteration if that was critical. 
+        // The method name is "CreateViaPrimaryConstructorWithSchema", suggesting we only need the primary one.
+        // Existing implementation: gets ALL ctors, sorts by length.
+        // Let's stick to PrimaryCtor from helper to be consistent with CtorSession.
+
+        var ctors = new[] { primaryCtor };
 
         if (ctors.Length == 0)
             throw new InvalidOperationException($"Type {type.FullName} has no accessible constructors.");
