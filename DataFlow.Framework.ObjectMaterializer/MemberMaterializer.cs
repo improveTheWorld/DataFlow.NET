@@ -5,48 +5,26 @@ internal static class MemberMaterializer
 
 
     // In MemberMaterializer.cs - make this internal and prefer ObjectMaterializer's cached version
-    
 
 
 
-    public static void FeedUsingInternalOrder<T>(ref T objectToFill,  params object[] parameters)
-    {
-        if (objectToFill is IHasSchema withSchema)
-        {
-            FeedUsingSchema(ref objectToFill, withSchema.GetDictSchema(), parameters);
-        }
-        else //suppose FeedOredered ( definition of attribute with [order] tag
-        {
-            FeedOrdered(ref objectToFill, parameters);
-        }
 
-    }
+
 
 
     // In MemberMaterializer.cs - simplify FeedUsingSchema
-   public static void FeedUsingSchema<T>(
-    ref T obj,
-    string[] schema,
-    object?[] values)
-{
-    if (values == null) throw new ArgumentNullException(nameof(values));
-    
-    var plan = MemberMaterializationPlanner.Get<T>();
-    
-    // Direct inline mapping - no cache, no allocations
-    foreach (ref readonly var member in plan.Members.AsSpan())
+    public static void FeedUsingSchema<T>(
+     ref T obj,
+     string[] schema,
+     object?[] values)
     {
-        for (int i = 0; i < schema.Length; i++)
-        {
-            if (member.Name.Equals(schema[i]))
-            {
-                if ((uint)i < (uint)values.Length)
-                    member.Set(obj, values[i]);
-                break;
-            }
-        }
+        if (values == null) throw new ArgumentNullException(nameof(values));
+
+        // Use cached plan (O(1) access) instead of O(n*m) loop
+        var plan = MemberMaterializationPlanner.Get<T>();
+        var action = plan.GetSchemaAction(schema);
+        action(obj, values);
     }
-}
     public static void FeedUsingSchema<T>(
           ref T obj,
           Dictionary<string, int> schemaDict,
@@ -88,4 +66,4 @@ internal static class MemberMaterializer
     }
 
 }
-  
+

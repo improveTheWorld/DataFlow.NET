@@ -9,7 +9,7 @@ namespace DataFlow.Framework;
 
 public sealed class MaterializationSession<T>
 {
-    
+
     private readonly Func<T> _factory;
     private readonly Action<T, object?[]> _apply;
 
@@ -67,7 +67,7 @@ internal static class MemberMaterializationPlanner
     }
 
 
-    
+
 
     public static MemberMaterializationPlan<T> Get<T>(
         CultureInfo? culture = null,
@@ -143,7 +143,8 @@ internal sealed class MemberMaterializationPlan<T>
     private readonly ConcurrentDictionary<SchemaKey, Dictionary<string, int>> _schemaDictCache = new();
     internal Dictionary<string, int> computeSchemaDict(string[] schema)
     {
-        var dict = new Dictionary<string, int>(schema.Length);
+        // Case-insensitive to match PascalCase schema with camelCase ctor params
+        var dict = new Dictionary<string, int>(schema.Length, StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < schema.Length; i++)
             dict[schema[i]] = i;
         return dict;
@@ -152,7 +153,7 @@ internal sealed class MemberMaterializationPlan<T>
     {
 
         var key = new SchemaKey(schema);
-       
+
         return _schemaDictCache.GetOrAdd(key, _ =>
             computeSchemaDict(schema));
     }
@@ -161,11 +162,11 @@ internal sealed class MemberMaterializationPlan<T>
         Members = members;
     }
 
- 
+
     public Action<T, object?[]> GetSchemaAction(string[] schema)
     {
         var key = new SchemaKey(schema);
-       
+
         return _schemaMappingCache.GetOrAdd(key, _ => BuildSchemaAction(schema));
     }
 
@@ -227,6 +228,23 @@ internal sealed class MemberMaterializationPlan<T>
             var ord = GetOrder(f);
             members.Add(new MemberSetter(f.Name, ord, CompileSetterForField(f, actualCulture, allowThousandsSeparators, actualFormats)));
         }
+
+        // Sort: members with [Order] attribute come first (sorted by OrderIndex),
+        // then members without Order (-1) preserve original declaration order
+        members.Sort((a, b) =>
+        {
+            // Both have Order: sort by OrderIndex
+            if (a.OrderIndex >= 0 && b.OrderIndex >= 0)
+                return a.OrderIndex.CompareTo(b.OrderIndex);
+            // Only 'a' has Order: 'a' comes first
+            if (a.OrderIndex >= 0)
+                return -1;
+            // Only 'b' has Order: 'b' comes first
+            if (b.OrderIndex >= 0)
+                return 1;
+            // Neither has Order: preserve original order (stable sort)
+            return 0;
+        });
 
         return new MemberMaterializationPlan<T>(members.ToArray())
         {
@@ -411,8 +429,15 @@ internal sealed class MemberMaterializationPlan<T>
                 return ts;
 
             // Culture-insensitive types
-            if (targetType == typeof(bool) && bool.TryParse(s, out var b))
-                return b;
+            // Boolean (support true/false AND 1/0 - common CSV convention)
+            if (targetType == typeof(bool))
+            {
+                if (bool.TryParse(s, out var b))
+                    return b;
+                // Common CSV convention: "1" = true, "0" = false
+                if (s == "1") return true;
+                if (s == "0") return false;
+            }
             if (targetType == typeof(Guid) && Guid.TryParse(s, out var g))
                 return g;
             if (targetType == typeof(char) && char.TryParse(s, out var c))
@@ -434,7 +459,7 @@ internal sealed class MemberMaterializationPlan<T>
         catch (Exception ex)
         {
             // Conversion failed;  throw 
-            throw new FormatException($"Cannot convert value '{value}' (type: {value.GetType().Name}) to {targetType.Name}",ex);
+            throw new FormatException($"Cannot convert value '{value}' (type: {value.GetType().Name}) to {targetType.Name}", ex);
         }
     }
 
