@@ -356,5 +356,5 @@ await foreach (var record in Read.Csv<MyRecord>(
 
 - [DataFlow-Data-Reading-Infrastructure.md](DataFlow-Data-Reading-Infrastructure.md) — Full reading configuration options
 - [DataFlow-Data-Writing-Infrastructure.md](DataFlow-Data-Writing-Infrastructure.md) — Full writing configuration options
-- [Unified-Processing.md](Unified-Processing.md) — Cases/SelectCase pattern
+- [Cases-Pattern.md](Cases-Pattern.md) — Cases/SelectCase pattern
 - [Stream-Merging.md](Stream-Merging.md) — Multi-source streaming

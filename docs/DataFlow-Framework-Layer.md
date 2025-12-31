@@ -270,5 +270,5 @@ foreach (var token in tokens)
 ## See Also
 
 - [Stream-Merging.md](Stream-Merging.md) — Full AsyncEnumerable documentation
-- [Unified-Processing.md](Unified-Processing.md) — Cases/SelectCase pattern
+- [Cases-Pattern.md](Cases-Pattern.md) — Cases/SelectCase pattern
 - [LINQ-to-Spark.md](LINQ-to-Spark.md) — SparkQuery documentation

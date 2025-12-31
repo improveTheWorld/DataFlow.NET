@@ -240,4 +240,4 @@ Both providers share ~95% API surface area, allowing you to reuse your LINQ skil
 
 - [LINQ-to-Snowflake Capabilities & Limitations](LINQ-to-Snowflake-Capabilities.md) — Detailed feature support matrix
 - [LINQ-to-Spark](LINQ-to-Spark.md) — SparkQuery provider documentation
-- [Unified Processing](Unified-Processing.md) — Cases/SelectCase pattern
+- [Cases Pattern](Cases-Pattern.md) — Cases/SelectCase pattern

@@ -157,7 +157,7 @@ data
 ```
 
 > [!NOTE]
-> For full pattern documentation, see [Unified Processing](Unified-Processing.md).
+> For full pattern documentation, see [Cases Pattern](Cases-Pattern.md).
 
 ### 3.4 UnifiedStream
 
@@ -269,7 +269,7 @@ public async Task TestProcessingLogic()
 
 | Document | Description |
 |----------|-------------|
-| [Unified Processing](Unified-Processing.md) | Cases/SelectCase pattern, Supra Category |
+| [Cases Pattern](Cases-Pattern.md) | Cases/SelectCase pattern, Supra Category |
 | [Stream Merging](Stream-Merging.md) | UnifiedStream, multi-source streams |
 | [Data Reading Infrastructure](DataFlow-Data-Reading-Infrastructure.md) | CSV, JSON, YAML readers with full options |
 | [LINQ-to-Spark](LINQ-to-Spark.md) | Distributed processing with SparkQuery |
