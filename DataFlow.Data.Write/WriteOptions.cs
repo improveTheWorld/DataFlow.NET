@@ -75,6 +75,7 @@ public record JsonWriteOptions : WriteOptions
 {
     /// <summary>
     /// Whether to indent the JSON output. Default: true.
+    /// Ignored when JsonLinesFormat is true.
     /// </summary>
     public bool Indented { get; init; } = true;
 
@@ -82,6 +83,13 @@ public record JsonWriteOptions : WriteOptions
     /// Custom JsonSerializerOptions. If null, default options are used.
     /// </summary>
     public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+
+    /// <summary>
+    /// If true, writes JSON Lines format (one JSON object per line, no array wrapper).
+    /// Compatible with tools like Elasticsearch, BigQuery, and streaming processors.
+    /// Default: false (standard JSON array).
+    /// </summary>
+    public bool JsonLinesFormat { get; init; } = false;
 }
 
 /// <summary>

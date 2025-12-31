@@ -4,7 +4,19 @@
 
 ---
 
-## The SUPRA Pattern
+## Table of Contents
+
+1. [The SUPRA Pattern](#1-the-supra-pattern)
+2. [Why SUPRA Matters](#2-why-supra-matters)
+3. [Three Simple Rules](#3-three-simple-rules)
+4. [The SUPRA Layers](#4-the-supra-layers)
+5. [Implementation Details](#5-implementation-details)
+6. [The DataFlow Standard](#6-the-dataflow-standard)
+7. [What's Next?](#7-whats-next)
+
+---
+
+## 1. The SUPRA Pattern
 
 **SUPRA** is the philosophy behind DataFlow.NET. It's an acronym that describes the five stages of every data pipeline:
 
@@ -30,7 +42,7 @@ S.U.P.R.A
 
 ---
 
-## Why SUPRA Matters
+## 2. Why SUPRA Matters
 
 Most data processing code looks like this:
 
@@ -59,11 +71,13 @@ await Read.Csv<Order>("orders.csv")            // SINK: Stream in
 
 ---
 
-## The Three Laws of SUPRA
+## 3. Three Simple Rules
 
 > Follow these principles and your data pipelines will be composable, memory-efficient, and testable.
 
-### Law 1: Sink First (Buffer at Entry Only)
+### Rule 1: Sink First
+
+**Buffer and normalize at the edge, never in the middle.**
 
 ```
 ✅ SINK stage   →  May buffer (absorb external chaos)
@@ -76,7 +90,9 @@ await Read.Csv<Order>("orders.csv")            // SINK: Stream in
 - Backpressure propagation problems
 - Harder debugging
 
-### Law 2: Everything Becomes a Stream
+### Rule 2: Flow Lazy
+
+**Items stream one by one. Constant memory.**
 
 All data — file, API, database, Kafka — becomes `IEnumerable<T>` or `IAsyncEnumerable<T>`.
 
@@ -89,7 +105,9 @@ All data — file, API, database, Kafka — becomes `IEnumerable<T>` or `IAsyncE
 
 **One interface. Infinite interoperability.**
 
-### Law 3: Process Purely, Apply Finally
+### Rule 3: Route Declaratively
+
+**No more `if/else` spaghetti.**
 
 Write what you want, not how to do it:
 
@@ -108,7 +126,7 @@ await pipeline.WriteCsv("output.csv");
 
 ---
 
-## The SUPRA Layers
+## 4. The SUPRA Layers
 
 SUPRA maps to three implementation layers in DataFlow.NET:
 
@@ -144,15 +162,19 @@ SUPRA maps to three implementation layers in DataFlow.NET:
 
 ---
 
-## 2. Layer 1: Entry Barrier
+## 5. Implementation Details
 
-### 2.1 Core Principle
+Now let's explore how each SUPRA layer is implemented in DataFlow.NET.
+
+### Entry Layer (Sink + Unify)
+
+#### Core Principle
 
 > **All data enters as IEnumerable<T> or IAsyncEnumerable<T>**
 
 No matter the source — file, API, Kafka, database — the data becomes a **lazy stream** of items.
 
-### 2.2 Data Acquisition Patterns
+#### Data Acquisition Patterns
 
 | Pattern | Buffering Needed? | DataFlow Component |
 |---------|------------------|-------------------|
@@ -161,9 +183,11 @@ No matter the source — file, API, Kafka, database — the data becomes a **laz
 | **File Reading** | ❌ No (line-by-line) | `Read.Csv()`, `Read.Json()` |
 | **Multiple Sources** | ❌ No | `AsyncEnumerable.Merge()` |
 
-### 2.3 Polling Pattern
+#### Polling Pattern
 
 **When to use:** External system has a "get latest" API (sensors, queues, APIs).
+
+> 📖 **Full documentation:** [Polling and Buffering](Polling-Buffering.md)
 
 **File:** `AsyncPollingExtensions.cs`
 
@@ -185,9 +209,11 @@ IAsyncEnumerable<string> messages = queue.TryDequeue
 - `Poll(Func<T>, interval)` — Simple function polling
 - `Poll(TryPollAction<T>, interval, stopCondition)` — TryGet pattern
 
-### 2.4 Buffering Pattern (Subscriptions)
+#### Buffering Pattern (Subscriptions)
 
 **When to use:** Data arrives via push (events, WebSockets, Kafka).
+
+> 📖 **Full documentation:** [Polling and Buffering](Polling-Buffering.md)
 
 **File:** `EnumerableAsyncExtensions.cs`
 
@@ -209,9 +235,11 @@ IAsyncEnumerable<Item> throttled = items.Throttle(TimeSpan.FromMilliseconds(100)
 - `WithBoundedBuffer()` — Channel-based backpressure for async sources
 - `Throttle()` — Rate-limit output
 
-### 2.5 Merging Multiple Sources
+#### Merging Multiple Sources
 
 **When to use:** Same data type from multiple sources (e.g., logs from 3 servers).
+
+> 📖 **Full documentation:** [Stream Merging](Stream-Merging.md)
 
 **File:** `AsyncEnumerable.cs`
 
@@ -231,7 +259,7 @@ await foreach (var log in merged)
 }
 ```
 
-### 2.6 File Reading
+#### File Reading
 
 **Files:** `Read.Csv.cs`, `Read.Json.cs`, `Read.Yaml.cs`
 
@@ -239,8 +267,8 @@ await foreach (var log in merged)
 // CSV file → IAsyncEnumerable<Order>
 var orders = Read.Csv<Order>("orders.csv");
 
-// JSON Lines file
-var events = Read.JsonLines<Event>("events.jsonl");
+// JSON file → IAsyncEnumerable<Event>
+var events = Read.Json<Event>("events.json");
 
 // With options
 var data = Read.Csv<Record>("data.csv", new CsvReadOptions {
@@ -252,15 +280,15 @@ var data = Read.Csv<Record>("data.csv", new CsvReadOptions {
 
 ---
 
-## 3. Layer 2: Transformation
+### Transform Layer (Process + Route)
 
-### 3.1 Core Principle
+#### Core Principle
 
 > **No buffering. Lazy. One item at a time.**
 
 Every transformation method returns a new lazy stream. Items flow through only when consumed.
 
-### 3.2 Standard LINQ-like Methods
+#### Standard LINQ-like Methods
 
 ```csharp
 var result = source
@@ -270,7 +298,7 @@ var result = source
     .Until(x => x.Id == "STOP");      // Stop condition
 ```
 
-### 3.3 The Cases/SelectCase Pattern
+#### The Cases/SelectCase Pattern
 
 **Purpose:** Route items to different processing paths based on conditions.
 
@@ -298,7 +326,7 @@ var processed = orders
 
 **The "Supra" category:** Items matching no predicate go to the last (default) category.
 
-### 3.4 Parallel Processing
+#### Parallel Processing
 
 **Files:** `ParallelQueryExtensions.cs`, `ParallelAsyncQueryExtensions.cs`
 
@@ -317,9 +345,9 @@ var asyncResults = asyncSource
 
 ---
 
-## 4. Layer 3: Output
+### Output Layer (Apply)
 
-### 4.1 Writing to Files
+#### Writing to Files
 
 **File:** `Writers.cs`
 
@@ -327,8 +355,8 @@ var asyncResults = asyncSource
 // Write to CSV
 await processedData.WriteCsv("output.csv");
 
-// Write to JSON Lines
-await results.WriteJsonLines("results.jsonl");
+// Write to JSON
+await results.WriteJson("results.json");
 
 // With options
 await data.WriteCsv("data.csv", new CsvWriteOptions {
@@ -337,7 +365,7 @@ await data.WriteCsv("data.csv", new CsvWriteOptions {
 });
 ```
 
-### 4.2 Display (Debugging)
+#### Display (Debugging)
 
 **File:** `EnumerableDebuggingExtension.cs`
 
@@ -353,7 +381,7 @@ results.Select(x => x.ToString()).Display("Results");
 // -------}
 ```
 
-### 4.3 Reduce to Value
+#### Reduce to Value
 
 ```csharp
 // Standard LINQ aggregations
@@ -364,15 +392,15 @@ var list = await source.ToListAsync();
 
 ---
 
-## 5. Monitoring: The Spy Method
+### Monitoring: The Spy Method
 
-### 5.1 Purpose
+#### Purpose
 
 > Insert `Spy()` between any two transformations to observe data flow without changing it.
 
 **File:** `EnumerableDebuggingExtension.cs`
 
-### 5.2 Usage
+#### Usage
 
 ```csharp
 var result = source
@@ -383,7 +411,7 @@ var result = source
     .ToList();
 ```
 
-### 5.3 Characteristics
+#### Characteristics
 
 | Feature | Description |
 |---------|-------------|
@@ -394,7 +422,7 @@ var result = source
 
 ---
 
-## 6. Complete Example
+### Complete Example
 
 ```csharp
 // LAYER 1: Entry
@@ -426,7 +454,7 @@ await processed.WriteCsv("processed_orders.csv");
 
 ---
 
-## 7. Component Reference
+### Component Reference
 
 | Layer | Component | File | Purpose |
 |-------|-----------|------|---------|
@@ -443,9 +471,11 @@ await processed.WriteCsv("processed_orders.csv");
 
 ---
 
-## 8. The DataFlow Standard
+---
 
-### 8.1 Core Principles
+## 6. The DataFlow Standard
+
+### Core Principles
 
 | # | Principle | Description |
 |---|-----------|-------------|
@@ -457,7 +487,7 @@ await processed.WriteCsv("processed_orders.csv");
 | 6 | **Errors bubble up** | Handle at entry (skip/retry) or let them propagate |
 | 7 | **Declare what, not how** | Pipeline describes intent, execution is automatic |
 
-### 8.2 When to Use DataFlow
+### When to Use DataFlow
 
 | Use Case | Fit |
 |----------|-----|
@@ -469,7 +499,7 @@ await processed.WriteCsv("processed_orders.csv");
 | In-memory collections | ⚠️ Overkill (use LINQ) |
 | Single-item operations | ❌ Not designed for this |
 
-### 8.3 How DataFlow Compares
+### How DataFlow Compares
 
 | Framework | Model | Buffering | .NET Native |
 |-----------|-------|-----------|-------------|
@@ -479,9 +509,9 @@ await processed.WriteCsv("processed_orders.csv");
 | Apache Flink | Dataflow | State backends | ❌ Java |
 | Standard LINQ | In-memory | None | ✅ Yes |
 
-### 8.4 The DataFlow Guarantee
+### The DataFlow Guarantee
 
-If you follow the three laws:
+If you follow the three rules:
 
 1. **Memory stays constant** — regardless of data size
 2. **Pipelines are composable** — plug any source into any transform
@@ -490,7 +520,7 @@ If you follow the three laws:
 
 ---
 
-## 9. What's Next?
+## 7. What's Next?
 
 ### For Developers
 - Start with `Read.Csv()` and simple transformations

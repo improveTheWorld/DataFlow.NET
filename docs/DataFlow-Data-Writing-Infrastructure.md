@@ -71,10 +71,13 @@ public record CsvWriteOptions : WriteOptions
 ```csharp
 public record JsonWriteOptions : WriteOptions
 {
-    public bool Indented { get; init; } = true;
+    public bool Indented { get; init; } = true;  // Ignored when JsonLinesFormat = true
     public JsonSerializerOptions? SerializerOptions { get; init; }
+    public bool JsonLinesFormat { get; init; } = false;  // One object per line, no array
 }
 ```
+
+> **JSON Lines Format:** When `JsonLinesFormat = true`, outputs one JSON object per line without array wrapper. Compatible with Elasticsearch, BigQuery, and streaming processors.
 
 ### YAML Options
 

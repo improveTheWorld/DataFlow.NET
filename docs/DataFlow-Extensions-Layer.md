@@ -308,6 +308,6 @@ var backupName = "data.txt".DerivateFileName(name => name + "_backup");
 
 ## See Also
 
-- [Unified-Processing.md](Unified-Processing.md) — Full Cases pattern documentation
+- [Cases-Pattern.md](Cases-Pattern.md) — Full Cases pattern documentation
 - [Stream-Merging.md](Stream-Merging.md) — Multi-source streaming
 - [DataFlow-Data-Layer.md](DataFlow-Data-Layer.md) — Read/Write operations

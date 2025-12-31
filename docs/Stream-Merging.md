@@ -9,9 +9,8 @@
 1. [Overview](#1-overview)
 2. [Basic Usage](#2-basic-usage)
 3. [Configuration Options](#3-configuration-options)
-4. [Multi-Source Architecture](#4-multi-source-architecture)
-5. [Performance Optimization](#5-performance-optimization)
-6. [API Reference](#6-api-reference)
+4. [Multi-Source Patterns](#4-multi-source-patterns)
+5. [API Reference](#5-api-reference)
 
 ---
 
@@ -21,7 +20,7 @@ The `UnifiedStream<T>` class merges multiple `IAsyncEnumerable<T>` sources into 
 
 **Key Characteristics:**
 
-- **Zero Built-in Buffering**: Pull-based streaming (use opt-in buffering when needed)
+- **Zero Built-in Buffering**: Pull-based streaming (no internal buffering)
 - **Source Management**: Register/unregister sources before enumeration
 - **Fairness Policies**: `FirstAvailable` or `RoundRobin` scheduling
 - **Error Modes**: `FailFast` or `ContinueOnError`
@@ -115,7 +114,7 @@ var merger = new UnifiedStream<LogEntry>()
 
 ---
 
-## 4. Multi-Source Architecture
+## 4. Multi-Source Patterns
 
 ### Heterogeneous Event Processing
 
@@ -188,63 +187,9 @@ await Task.WhenAll(
 
 ---
 
-## 5. Performance Optimization
+## 5. API Reference
 
-### Channel-Based Backpressure
-
-```csharp
-var channelOptions = new BoundedChannelOptions(1000)
-{
-    FullMode = BoundedChannelFullMode.Wait,  // Apply backpressure
-    SingleReader = false,
-    SingleWriter = false,
-    AllowSynchronousContinuations = false
-};
-
-var channel = Channel.CreateBounded<DataPoint>(channelOptions);
-
-await channel.Reader.ReadAllAsync()
-    .Cases(data => data.Priority == Priority.High, data => data.Priority == Priority.Medium)
-    .SelectCase(ProcessHigh, ProcessMedium, ProcessLow)
-    .AllCases()
-    .WriteCsv("processed_data.csv");
-```
-
-### Buffering Extensions
-
-```csharp
-// Add bounded buffer to high-throughput source
-var bufferedSource = highThroughputSource.WithBoundedBuffer(
-    capacity: 500,
-    fullMode: BoundedChannelFullMode.Wait
-);
-
-// Or with custom options
-var customBuffered = source.WithBoundedBuffer(new BoundedChannelOptions(1000)
-{
-    SingleReader = true,
-    AllowSynchronousContinuations = true
-});
-```
-
-### Converting Sync to Async
-
-```csharp
-// Convert IEnumerable to IAsyncEnumerable with yielding
-var asyncData = syncData.Async(yieldThresholdMs: 15);
-
-// Or with explicit buffering
-var bufferedAsync = syncData.BufferAsync(
-    yieldThresholdMs: 15,
-    runOnBackgroundThread: true
-);
-```
-
----
-
-## 6. API Reference
-
-### UnifiedStream<T>
+### UnifiedStream\<T\>
 
 ```csharp
 public sealed class UnifiedStream<T> : IAsyncEnumerable<T>
@@ -280,25 +225,10 @@ public enum UnifyErrorMode { FailFast, ContinueOnError }
 public enum UnifyFairness { FirstAvailable, RoundRobin }
 ```
 
-### Buffering Extensions
-
-```csharp
-// Convert sync to async with optional yielding
-public static IAsyncEnumerable<T> Async<T>(
-    this IEnumerable<T> items, 
-    long yieldThresholdMs = 15);
-
-// Add bounded buffer to async stream
-public static IAsyncEnumerable<T> WithBoundedBuffer<T>(
-    this IAsyncEnumerable<T> source, 
-    int capacity, 
-    BoundedChannelFullMode fullMode = BoundedChannelFullMode.Wait);
-```
-
 ---
 
 ## See Also
 
-- [Unified Processing](Unified-Processing.md) — Cases/SelectCase pattern
-- [Data Reading](DataFlow-Data-Reading-Infrastructure.md) — CSV, JSON, YAML readers  
-- [LINQ-to-Spark](LINQ-to-Spark.md) — Distributed processing
+- [Polling and Buffering](Polling-Buffering.md) — Data acquisition patterns
+- [Cases Pattern](Cases-Pattern.md) — Cases/SelectCase pattern
+- [Data Reading](DataFlow-Data-Reading-Infrastructure.md) — CSV, JSON, YAML readers

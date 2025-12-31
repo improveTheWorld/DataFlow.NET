@@ -231,22 +231,40 @@ namespace DataFlow.Data
             var ct = options.CancellationToken;
             options.Metrics.Start();
 
-            var writerOptions = new JsonWriterOptions { Indented = options.Indented };
-            await using var jsonWriter = new Utf8JsonWriter(stream, writerOptions);
-
             var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
-            jsonWriter.WriteStartArray();
-
-            await foreach (var item in items.WithCancellation(ct))
+            if (options.JsonLinesFormat)
             {
-                ct.ThrowIfCancellationRequested();
-                JsonSerializer.Serialize(jsonWriter, item, serializerOptions);
-                options.Metrics.IncrementRecords();
+                // JSON Lines format: one JSON object per line, no array wrapper
+                await using var writer = new StreamWriter(stream, leaveOpen: true);
+                await foreach (var item in items.WithCancellation(ct))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var json = JsonSerializer.Serialize(item, serializerOptions);
+                    await writer.WriteLineAsync(json);
+                    options.Metrics.IncrementRecords();
+                }
+                await writer.FlushAsync();
+            }
+            else
+            {
+                // Standard JSON array format
+                var writerOptions = new JsonWriterOptions { Indented = options.Indented };
+                await using var jsonWriter = new Utf8JsonWriter(stream, writerOptions);
+
+                jsonWriter.WriteStartArray();
+
+                await foreach (var item in items.WithCancellation(ct))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    JsonSerializer.Serialize(jsonWriter, item, serializerOptions);
+                    options.Metrics.IncrementRecords();
+                }
+
+                jsonWriter.WriteEndArray();
+                await jsonWriter.FlushAsync(ct);
             }
 
-            jsonWriter.WriteEndArray();
-            await jsonWriter.FlushAsync(ct);
             options.Metrics.Complete();
         }
 
@@ -261,22 +279,40 @@ namespace DataFlow.Data
             var ct = options.CancellationToken;
             options.Metrics.Start();
 
-            var writerOptions = new JsonWriterOptions { Indented = options.Indented };
-            await using var jsonWriter = new Utf8JsonWriter(stream, writerOptions);
-
             var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
-            jsonWriter.WriteStartArray();
-
-            foreach (var item in items)
+            if (options.JsonLinesFormat)
             {
-                ct.ThrowIfCancellationRequested();
-                JsonSerializer.Serialize(jsonWriter, item, serializerOptions);
-                options.Metrics.IncrementRecords();
+                // JSON Lines format: one JSON object per line, no array wrapper
+                await using var writer = new StreamWriter(stream, leaveOpen: true);
+                foreach (var item in items)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var json = JsonSerializer.Serialize(item, serializerOptions);
+                    await writer.WriteLineAsync(json);
+                    options.Metrics.IncrementRecords();
+                }
+                await writer.FlushAsync();
+            }
+            else
+            {
+                // Standard JSON array format
+                var writerOptions = new JsonWriterOptions { Indented = options.Indented };
+                await using var jsonWriter = new Utf8JsonWriter(stream, writerOptions);
+
+                jsonWriter.WriteStartArray();
+
+                foreach (var item in items)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    JsonSerializer.Serialize(jsonWriter, item, serializerOptions);
+                    options.Metrics.IncrementRecords();
+                }
+
+                jsonWriter.WriteEndArray();
+                await jsonWriter.FlushAsync(ct);
             }
 
-            jsonWriter.WriteEndArray();
-            await jsonWriter.FlushAsync(ct);
             options.Metrics.Complete();
         }
 

@@ -15,7 +15,18 @@ Let IntelliSense and the compiler do the work.
 
 ---
 
-## Sound Familiar?
+## Table of Contents
+
+1. [Sound Familiar?](#1-sound-familiar)
+2. [Three Simple Rules](#2-three-simple-rules)
+3. [Everything is a Stream](#3-everything-is-a-stream)
+4. [Quick Start](#4-quick-start)
+5. [Documentation](#5-documentation)
+6. [Community & Support](#6-community--support)
+
+---
+
+## 1. Sound Familiar?
 
 .NET developers know the story — You write a clean, type-safe data processor in C# — It works perfectly on your dev machine — Then reality hits:
 
@@ -46,34 +57,40 @@ Let IntelliSense and the compiler do the work.
 
 --- 
 
-## 🧠 Three Simple Rules
+## 2. 🧠 Three Simple Rules
 
-DataFlow.NET provides ready-to-use blocks that guide you to follow these rules:
-
-1. **Sink First** — Buffer and normalize at the edge, never in the middle.
-2. **Flow Lazy** — Items stream one by one. Constant memory.
-3. **Route Declaratively** — No more `if/else` spaghetti.
+DataFlow.NET is more than a framework — it defines a pattern to process data.
 
 ```mermaid
 graph LR
-    S[Sink] --> U[Unify]
-    U --> P[Process]
-    P --> R[Route]
-    R --> A[Apply]
+    S[**S**ink] --> U[**U**nify]
+    U --> P[**P**rocess]
+    P --> R[**R**oute]
+    R --> A[**A**pply]
     
     style S fill:#f9f,stroke:#333,stroke-width:2px
     style A fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
-We call this the **SUPRA** pattern — **S**ink → **U**nify → **P**rocess → **R**oute → **A**pply.
+We call this the **SUPRA** pattern — the name comes from gathering the first letter of each stage: **S**ink, **U**nify, **P**rocess, **R**oute, **A**pply.
 
 > [!NOTE]
-> The SUPRA pattern ensures memory stays constant and items flow one at a time. [Read the Architecture Guide →](docs/DataFlow-SUPRA-Pattern.md)
+> The SUPRA pattern ensures memory stays constant and items flow one at a time. [Read the SUPRA-Pattern Guide →](docs/DataFlow-SUPRA-Pattern.md)
+
+To achieve the SUPRA pattern, just follow these rules:
+
+1. **Sink First** — Buffer and normalize at the edge, never in the middle.
+2. **Flow Lazy** — Items stream one by one. Constant memory.
+3. **Route Declaratively** — No more `if/else` spaghetti.
+
+DataFlow.NET provides all the ready-to-use blocks to natively apply these rules.
 
 ---
-## 🚀 Everything is a Stream
+## 3. 🚀 Everything is a Stream
 
-DataFlow.NET gives the tools to abstract the *source* of data from the *processing*:
+DataFlow.NET provides tools to abstract the *source* of data from the *processing*. Use these to make every data source an `IAsyncEnumerable<T>` stream — the essence of the "unified API" — same LINQ operators, same processing logic, regardless of origin.
+
+[See Integration Patterns Guide →](docs/Integration-Patterns-Guide.md)
 
 | Source Type | Pattern | Output |
 |-------------|---------|--------|
@@ -84,12 +101,11 @@ DataFlow.NET gives the tools to abstract the *source* of data from the *processi
 | **Snowflake** *(Premium)* | `Read.SnowflakeTable<T>()` | `IAsyncEnumerable<T>` |
 | **Apache Spark** *(Premium)* | `SparkQueryFactory.Create<T>()` | `IAsyncEnumerable<T>` |
 
-Every source becomes an `IAsyncEnumerable<T>` stream => same LINQ operators, same processing logic, regardless of where the data comes from.
 
 > [!IMPORTANT]
 > Any `IAsyncEnumerable<T>` source integrates natively.
 
-### Streams Integration Examples
+### Examples
 
 Already using Entity Framework Core? DataFlow.NET plugs right in:
 
@@ -103,6 +119,8 @@ await dbContext.Orders.AsAsyncEnumerable()
 *   ✅ DataFlow.NET handles processing logic
 *   ✅ Works with SQL Server, PostgreSQL, MySQL, SQLite
 
+Need to integrate REST APIs or message queues? Use polling and buffering:
+
 ```csharp
 // REST API — Poll and flatten
 var orders = (() => httpClient.GetFromJsonAsync<Order[]>("/api/orders"))
@@ -112,15 +130,15 @@ var orders = (() => httpClient.GetFromJsonAsync<Order[]>("/api/orders"))
 // Kafka/WebSocket — Wrap in async iterator + buffer
 var kafkaStream = ConsumeKafka(token).WithBoundedBuffer(1024);
 ```
-[See Integration Patterns Guide →](docs/Integration-Patterns-Guide.md)
+
 
 
 ### High-Performance Streaming File Readers
 
 DataFlow.NET provides high-performance file readers: no Reflection on the hot path; expression trees are compiled once and cached.
 
-*   **Up to 10x faster** than standard reflection-based creation ([benchmark results →](docs/Benchmarks.md))
-*   **Minimal allocations** — ~25 bytes per object on hot path
+*   **4x faster** than standard reflection-based creation ([benchmark results →](docs/Benchmarks.md))
+*   **Zero allocation overhead** — same 48 bytes as native `new()` instantiation
 *   Handles CSV, JSON, and YAML files generically.
 
 We carefully crafted an intuitive, fully-featured readers API with advanced error handling — all while streaming row-by-row.
@@ -135,9 +153,13 @@ DataFlow.NET implements additional LINQ extensions to make every data loop compo
 - **Independent implementation** — Re-implemented `IAsyncEnumerable` methods without depending on `System.Linq.Async`
 - **Clear terminal vs non-terminal separation** — Terminal methods (`Do()`, `Display()`) force execution; non-terminal methods (`ForEach()`, `Select()`, `Where()`) stay lazy
 
+[See Extension Methods API Reference →](docs/Extension-Methods-API-Reference.md)
+
 ### Cases/SelectCase/ForEachCase
 
 We've extended standard LINQ with custom operators for declarative branching. Using `Cases`, `SelectCase`, and `ForEachCase`, you can replace complex nested `if/else` blocks with an optimized, single-pass dispatch tree — while remaining fully composable.
+
+[See Cases Pattern Guide →](docs/Cases-Pattern.md)
 
 ### Multi-Source Stream Merging
 This is the "U" (Unify) step of the SUPRA pattern — "absorb many sources into one stream."
@@ -149,6 +171,8 @@ var unifiedStream = new UnifiedStream<Log>()
     .Unify(dbLogs, "backup");
 // Result: A single IAsyncEnumerable<Log> you can query
 ```
+
+[See Stream Merging Guide →](docs/Stream-Merging.md)
 ### Debug with Spy()
 Insert observation points anywhere in your pipeline without changing data flow. Because `Spy()` is fully composable, you can add or remove traces by simply commenting a line — no code rewriting required.
 
@@ -172,10 +196,12 @@ Your C# lambda expressions are decompiled at runtime and translated into **nativ
 *   ✅ Execution happens on the cluster
 *   ✅ Full type safety
 
+[LINQ-to-Spark Guide →](docs/LINQ-to-Spark.md) | [LINQ-to-Snowflake Guide →](docs/LINQ-to-Snowflake.md)
+
 
 ---
 
-## ⚡ Quick Start
+## 4. ⚡ Quick Start
 
 ### Prerequisites
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
@@ -256,15 +282,16 @@ SparkQueryFactory.Create<Order>(spark, ordersDf)
 
 ---
 
-## 📚 Documentation
+## 5. 📚 Documentation
 
 | Topic | Description |
 |-------|-------------|
-| 🏰 **[Architecture](docs/DataFlow-SUPRA-Pattern.md)** | The SUPRA Pattern deep dive |
-| 🔀 **[Unified Processing](docs/Unified-Processing.md)** | The Cases/SelectCase/ForEachCase Engine |
-| 📖 **[Data Reading](docs/DataFlow-Data-Reading-Infrastructure.md)** | Reading CSV, JSON, YAML |
+| 🏰 **[SUPRA Pattern](docs/DataFlow-SUPRA-Pattern.md)** | The SUPRA Pattern deep dive |
+| 🔀 **[Cases Pattern](docs/Cases-Pattern.md)** | The Cases/SelectCase/ForEachCase Engine |
+| 📖 **[Data Reading](docs/DataFlow-Data-Reading-Infrastructure.md)** | Reading CSV, JSON, YAML, Text |
 | ✍️ **[Data Writing](docs/DataFlow-Data-Writing-Infrastructure.md)** | Writing CSV, JSON, YAML, Text |
 | 🌊 **[Stream Merging](docs/Stream-Merging.md)** | UnifiedStream & Multi-Source Streams |
+| 🔄 **[Polling & Buffering](docs/Polling-Buffering.md)** | Data acquisition patterns |
 | 🔥 **[Big Data](docs/LINQ-to-Spark.md)** | Running C# on Apache Spark |
 | ❄️ **[Snowflake](docs/LINQ-to-Snowflake.md)** | LINQ-to-Snowflake Provider |
 | 🚀 **[Performance](docs/ObjectMaterializer.md)** | The Zero-Allocation Engine |
@@ -277,7 +304,7 @@ SparkQueryFactory.Create<Order>(spark, ordersDf)
 
 ---
 
-## Community & Support
+## 6. Community & Support
 
 *   **Issues**: [GitHub Issues](https://github.com/improveTheWorld/DataFlow.NET/issues)
 *   **Discord**: [Join the Community](https://discord.gg/placeholder)
