@@ -244,7 +244,144 @@ namespace DataFlow.Extensions
 
         #endregion
 
+        #region SelectMany with Result Selector
+
+        /// <summary>
+        /// Projects each source element to an inner asynchronous sequence and then
+        /// combines source and inner elements into a flattened projection.
+        /// </summary>
+        /// <typeparam name="T">The type of the source elements.</typeparam>
+        /// <typeparam name="TCollection">The type of the elements in the inner sequences.</typeparam>
+        /// <typeparam name="TResult">The type of the result elements.</typeparam>
+        /// <param name="source">The source asynchronous sequence.</param>
+        /// <param name="collectionSelector">Function producing an inner asynchronous sequence for each source element.</param>
+        /// <param name="resultSelector">Function combining the outer element and an inner element into a result.</param>
+        /// <returns>A flattened asynchronous sequence of combined results.</returns>
+        public static async IAsyncEnumerable<TResult> SelectMany<T, TCollection, TResult>(
+            this IAsyncEnumerable<T> source,
+            Func<T, IAsyncEnumerable<TCollection>> collectionSelector,
+            Func<T, TCollection, TResult> resultSelector)
+        {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+            if (collectionSelector == null)
+                throw new ArgumentNullException(nameof(collectionSelector));
+            if (resultSelector == null)
+                throw new ArgumentNullException(nameof(resultSelector));
+
+            await foreach (var item in source)
+            {
+                var inner = collectionSelector(item);
+                if (inner == null) continue;
+                await foreach (var subItem in inner)
+                {
+                    yield return resultSelector(item, subItem);
+                }
+            }
+        }
+
+        #endregion
+
+        #region Distinct
+
+        /// <summary>
+        /// Returns distinct elements from an asynchronous sequence.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="source">The source asynchronous sequence.</param>
+        /// <param name="comparer">An optional equality comparer, or null for default.</param>
+        /// <returns>A sequence of distinct elements.</returns>
+        public static async IAsyncEnumerable<T> Distinct<T>(
+            this IAsyncEnumerable<T> source,
+            IEqualityComparer<T>? comparer = null)
+        {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+
+            var seen = new HashSet<T>(comparer ?? EqualityComparer<T>.Default);
+
+            await foreach (var item in source)
+            {
+                if (seen.Add(item))
+                    yield return item;
+            }
+        }
+
+        #endregion
+
+        #region Concat
+
+        /// <summary>
+        /// Concatenates two asynchronous sequences.
+        /// </summary>
+        /// <typeparam name="T">The element type.</typeparam>
+        /// <param name="first">The first source sequence.</param>
+        /// <param name="second">The second sequence appended after the first.</param>
+        /// <returns>A concatenated asynchronous sequence.</returns>
+        public static async IAsyncEnumerable<T> Concat<T>(
+            this IAsyncEnumerable<T> first,
+            IAsyncEnumerable<T> second)
+        {
+            if (first == null)
+                throw new ArgumentNullException(nameof(first));
+            if (second == null)
+                throw new ArgumentNullException(nameof(second));
+
+            await foreach (var item in first)
+            {
+                yield return item;
+            }
+
+            await foreach (var item in second)
+            {
+                yield return item;
+            }
+        }
+
+        #endregion
+
+        #region Append / Prepend
+
+        /// <summary>
+        /// Appends a single element to the end of an asynchronous sequence.
+        /// </summary>
+        public static async IAsyncEnumerable<T> Append<T>(
+            this IAsyncEnumerable<T> source,
+            T element)
+        {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+
+            await foreach (var item in source)
+            {
+                yield return item;
+            }
+
+            yield return element;
+        }
+
+        /// <summary>
+        /// Prepends a single element to the beginning of an asynchronous sequence.
+        /// </summary>
+        public static async IAsyncEnumerable<T> Prepend<T>(
+            this IAsyncEnumerable<T> source,
+            T element)
+        {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+
+            yield return element;
+
+            await foreach (var item in source)
+            {
+                yield return item;
+            }
+        }
+
+        #endregion
+
         #region Where
+
 
         /// <summary>
         /// Filters an asynchronous sequence based on a synchronous predicate.
@@ -834,35 +971,7 @@ namespace DataFlow.Extensions
             return dictionary;
         }
 
-        /// <summary>
-        /// Reconstructs logical lines from a sequence of string slices separated by a sentinel value.
-        /// </summary>
-        /// <param name="slices">The source slices.</param>
-        /// <param name="separator">Separator token indicating line boundaries.</param>
-        /// <returns>
-        /// A lazy sequence where each element is the concatenation of slices up to (but excluding) the separator.
-        /// </returns>
-        public static async IAsyncEnumerable<string> ToLines(this IAsyncEnumerable<string> slices, string separator)
-        {
-            if (slices == null)
-                throw new ArgumentNullException(nameof(slices));
-            if (separator == null)
-                throw new ArgumentNullException(nameof(separator));
 
-            string buffer = "";
-            await foreach (var slice in slices)
-            {
-                if (slice != separator)
-                {
-                    buffer += slice;
-                }
-                else
-                {
-                    yield return buffer;
-                    buffer = "";
-                }
-            }
-        }
 
         #endregion
 

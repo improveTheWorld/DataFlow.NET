@@ -74,7 +74,37 @@ public class ParallelQueryExtensionsTests
         Assert.Equal(3, count);
     }
 
+    [Fact]
+    public void Do_WithAction_DirectCall_ExecutesPerElement()
+    {
+        // Arrange
+        var sum = 0;
+        var items = new[] { 1, 2, 3, 4, 5 }.AsParallel();
+
+        // Act - using the new Do(Action<T>) overload
+        items.Do(n => Interlocked.Add(ref sum, n));
+
+        // Assert
+        Assert.Equal(15, sum);
+    }
+
+    [Fact]
+    public void Do_WithIndexedAction_ExecutesWithIndices()
+    {
+        // Arrange
+        var logged = new ConcurrentBag<string>();
+        var items = new[] { "a", "b", "c" }.AsParallel();
+
+        // Act - using the new Do(Action<T,int>) overload
+        items.Do((s, idx) => logged.Add($"{s}:{idx}"));
+
+        // Assert
+        Assert.Equal(3, logged.Count);
+        // Note: indices may not be in order due to parallel execution
+    }
+
     #endregion
+
 
     #region Take with start/count
 

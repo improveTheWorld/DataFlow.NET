@@ -85,22 +85,6 @@ public static class AsyncEnumerableCasesExtensions
     public static IAsyncEnumerable<R> AllCases<T, R>(this IAsyncEnumerable<(int category, T item, R newItem)> items, bool filter = true)
     => filter ? items.Select(x => x.newItem).Where(x => x is not null && !x.Equals(default)) : items.Select(x => x.newItem);
 
-
-    public static async IAsyncEnumerable<string> AllCases(this IAsyncEnumerable<(int category, string item)> items, string separator)
-    {
-        string sum = "";
-        await foreach (var (_, item) in items)
-        {
-            if (item != separator)
-                sum += item;
-            else
-            {
-                yield return sum;
-                sum = "";
-            }
-
-        }
-    }
 }
 
 

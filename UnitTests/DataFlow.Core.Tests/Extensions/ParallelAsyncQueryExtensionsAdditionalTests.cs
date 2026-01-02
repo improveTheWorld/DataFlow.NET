@@ -50,7 +50,7 @@ public class ParallelAsyncQueryExtensionsAdditionalTests
         var query = source.AsParallel();
 
         // Act
-        var result = await query.BuildString();
+        var result = await query.BuildString(null, ", ", "{", "}");
 
         // Assert
         // May not be ordered, but should contain all chars

@@ -57,7 +57,7 @@ Let IntelliSense and the compiler do the work.
 
 --- 
 
-## 2. 🧠 Three Simple Rules
+## 2. Three Simple Rules
 
 DataFlow.NET is more than a framework — it defines a pattern to process data.
 
@@ -77,7 +77,7 @@ We call this the **SUPRA** pattern — the name comes from gathering the first l
 > [!NOTE]
 > The SUPRA pattern ensures memory stays constant and items flow one at a time. [Read the SUPRA-Pattern Guide →](docs/DataFlow-SUPRA-Pattern.md)
 
-To achieve the SUPRA pattern, just follow these rules:
+To achieve the SUPRA pattern, you'll have to follow these rules:
 
 1. **Sink First** — Buffer and normalize at the edge, never in the middle.
 2. **Flow Lazy** — Items stream one by one. Constant memory.
@@ -86,9 +86,9 @@ To achieve the SUPRA pattern, just follow these rules:
 DataFlow.NET provides all the ready-to-use blocks to natively apply these rules.
 
 ---
-## 3. 🚀 Everything is a Stream
+## 3. Everything is a Stream
 
-DataFlow.NET provides tools to abstract the *source* of data from the *processing*. Use these to make every data source an `IAsyncEnumerable<T>` stream — the essence of the "unified API" — same LINQ operators, same processing logic, regardless of origin.
+DataFlow.NET provides tools to abstract the *source* of data from the *processing*. Use these to make every data source an `IAsyncEnumerable<T>` stream — the essence of the "Unified API" — same LINQ operators, same processing logic, regardless of origin.
 
 [See Integration Patterns Guide →](docs/Integration-Patterns-Guide.md)
 
@@ -173,7 +173,9 @@ var unifiedStream = new UnifiedStream<Log>()
 ```
 
 [See Stream Merging Guide →](docs/Stream-Merging.md)
+
 ### Debug with Spy()
+
 Insert observation points anywhere in your pipeline without changing data flow. Because `Spy()` is fully composable, you can add or remove traces by simply commenting a line — no code rewriting required.
 
 ```csharp
@@ -189,6 +191,26 @@ await data
 > ⚠️ **Note:** Due to lazy execution, output from multiple `Spy()` calls appears interleaved 
 > (item-by-item), not grouped by stage. This preserves the streaming nature of the pipeline.
 
+### Go Parallel When You Need To
+
+Need to parallelize CPU-intensive or I/O-bound work? DataFlow.NET provides parallel counterparts that work just like their sequential equivalents — still lazy, still composable:
+
+```csharp
+// Parallel sync processing
+await data.AsParallel()
+    .Select(item => ExpensiveCompute(item))
+    .ForEach(item => WriteToDb(item))
+    .Do();
+
+// Parallel async processing
+await asyncStream.AsParallel()
+    .WithMaxConcurrency(8)
+    .Select(async item => await FetchAsync(item))
+    .Do();
+```
+
+[See ParallelAsyncQuery API Reference →](docs/ParallelAsyncQuery-API-Reference.md) | [Parallel Processing Guide →](docs/Parallel-Processing.md) | [Extension Methods →](docs/Extension-Methods-API-Reference.md)
+
 ### Scale to the cloud *(Premium)*
 If you hit the limit of local computing power, DataFlow.NET lets you **seamlessly** scale to the cloud with **LINQ-to-Spark & Snowflake**.
 Your C# lambda expressions are decompiled at runtime and translated into **native Spark/SQL execution plans**.
@@ -201,7 +223,7 @@ Your C# lambda expressions are decompiled at runtime and translated into **nativ
 
 ---
 
-## 4. ⚡ Quick Start
+## 4. Quick Start
 
 ### Prerequisites
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
@@ -282,7 +304,7 @@ SparkQueryFactory.Create<Order>(spark, ordersDf)
 
 ---
 
-## 5. 📚 Documentation
+## 5. Documentation
 
 | Topic | Description |
 |-------|-------------|
@@ -298,6 +320,7 @@ SparkQueryFactory.Create<Order>(spark, ordersDf)
 | 📋 **[API Reference](docs/API-Reference.md)** | Complete API Documentation |
 | 🧩 **[Extension Methods](docs/Extension-Methods-API-Reference.md)** | IEnumerable/IAsyncEnumerable/Parallel API Matrix |
 | 🔌 **[Integration Patterns](docs/Integration-Patterns-Guide.md)** | HTTP, Kafka, EF Core, WebSocket examples |
+| ⚡ **[Parallel Processing](docs/Parallel-Processing.md)** | ParallelQuery & ParallelAsyncQuery |
 | ⚡ **[ParallelAsyncQuery](docs/ParallelAsyncQuery-API-Reference.md)** | Parallel async processing API |
 | 🧪 **[Test Coverage](docs/COVERAGE.md)** | Coverage Reports (~77% Core) |
 | 🗺️ **[Roadmap](docs/Roadmap.md)** | Future Enterprise Connectors |

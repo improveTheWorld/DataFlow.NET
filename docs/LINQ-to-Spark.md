@@ -179,6 +179,7 @@ public class ConventionColumnMapper<T> : IColumnMapper<T>
 - ✅ Bridges C# naming conventions (PascalCase) ↔ Spark conventions (snake_case)
 - ✅ Supports custom mappings via `[Column("custom_name")]` attribute
 - ✅ Handles records, classes, anonymous types
+- ✅ **Optimized Materialization**: Uses compiled expression trees (via `ObjectMaterializer`) for high-performance object creation (~4x faster than reflection).
 - ✅ Bidirectional mapping (C# → Spark, Spark → C#)
 - ✅ **Supports nested property access** (see below)
 

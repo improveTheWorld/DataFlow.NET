@@ -61,10 +61,8 @@ namespace DataFlow.Extensions
         /// </summary>
         public const string AFTER = "\n-------}";
 
-        /// <summary>
-        /// Default item separator used between displayed elements.
-        /// </summary>
         public const string SEPARATOR = "\n";
+
 
         /// <summary>
         /// Writes each string item to the console for diagnostic purposes while

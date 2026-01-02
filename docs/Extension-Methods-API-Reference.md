@@ -1,10 +1,9 @@
 # DataFlow.NET Extension Methods API Reference
 
 > **Version:** 1.0  
-> **Last Updated:** December 20, 2025  
-> **Documentation Status:** ✅ Complete
+> **Last Updated:** January 1, 2026
 
-This document provides a comprehensive comparison of all extension methods available across the four DataFlow extension libraries. All methods are 100% API-consistent across paradigms unless otherwise noted.
+This document provides a reference for all extension methods available across the DataFlow extension libraries, organized by functionality and target type.
 
 ---
 
@@ -12,22 +11,22 @@ This document provides a comprehensive comparison of all extension methods avail
 
 | Library | Target Type | Paradigm | Namespace |
 |---------|-------------|----------|-----------|
-| **DataFlow.Extensions.EnumerableExtensions** | `IEnumerable<T>` | Sync Sequential | `DataFlow.Extensions` |
-| **DataFlow.Extensions.AsyncEnumerableExtensions** | `IAsyncEnumerable<T>` | Async Sequential | `DataFlow.Extensions` |
-| **DataFlow.Extensions.ParallelQueryExtensions** | `ParallelQuery<T>` | Sync Parallel (PLINQ) | `DataFlow.Extensions` |
-| **DataFlow.Extensions.ParallelAsyncQueryExtensions** | `ParallelAsyncQuery<T>` | Async Parallel | `DataFlow.Extensions` |
+| `DataFlow.Extensions.EnumerableExtensions` | `IEnumerable<T>` | Synchronous Sequential | `DataFlow.Extensions` |
+| `DataFlow.Extensions.AsyncEnumerableExtensions` | `IAsyncEnumerable<T>` | Asynchronous Sequential | `DataFlow.Extensions` |
+| `DataFlow.Extensions.ParallelQueryExtensions` | `ParallelQuery<T>` | Synchronous Parallel (PLINQ) | `DataFlow.Extensions` |
+| `DataFlow.Extensions.ParallelAsyncQueryExtensions` | `ParallelAsyncQuery<T>` | Asynchronous Parallel | `DataFlow.Extensions` |
 
 ---
 
-## 1. Cases Pattern — ✅ 100% Consistent
+## 1. Cases Pattern
 
-The core categorization pattern for conditional branching in streaming pipelines.
+The categorization pattern for conditional branching in streaming pipelines.
 
 ### Cases Methods
 
 | Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery |
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|
-| `Cases<C,T>(categories[])` | ✅ | ✅ | ✅ | ✅ |
+| `Cases<C,T>((C,T) items, categories[])` | ✅ | ✅ | ✅ | ✅ |
 | `Cases<T>(predicates[])` | ✅ | ✅ | ✅ | ✅ |
 
 ### SelectCase Methods
@@ -46,20 +45,18 @@ The core categorization pattern for conditional branching in streaming pipelines
 | `ForEachCase(Action[])` | ✅ | ✅ | ✅ | ✅ |
 | `ForEachCase(Action<T>[])` | ✅ | ✅ | ✅ | ✅ |
 | `ForEachCase(Action<T,int>[])` | ✅ | ✅ | ✅ | ✅ |
-| `ForEachCase<T,R>(Action[])` with newItem | ✅ | ✅ | ✅ | ✅ |
-| `ForEachCase<T,R>(Action<R>[])` with newItem | ✅ | ✅ | ✅ | ✅ |
-| `ForEachCase<T,R>(Action<R,int>[])` with newItem | ✅ | ✅ | ✅ | ✅ |
+| `ForEachCase<T,R>(Action[])` | ✅ | ✅ | ✅ | ✅ |
+| `ForEachCase<T,R>(Action<R>[])` | ✅ | ✅ | ✅ | ✅ |
+| `ForEachCase<T,R>(Action<R,int>[])` | ✅ | ✅ | ✅ | ✅ |
 
-### UnCase/AllCases Methods
+### UnCase / AllCases Methods
 
 | Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery |
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|
 | `UnCase<T>` | ✅ | ✅ | ✅ | ✅ |
 | `UnCase<T,Y>` | ✅ | ✅ | ✅ | ✅ |
 | `AllCases<T,R>` | ✅ | ✅ | ✅ | ✅ |
-| `AllCases(string separator)` | ❌ | ✅ | ❌ | ❌ |
 
-> **Note:** The string separator overload of `AllCases` is async-only (advanced string aggregation use case).
 
 ---
 
@@ -69,7 +66,7 @@ The core categorization pattern for conditional branching in streaming pipelines
 
 | Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery | Notes |
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|-------|
-| `MergeOrdered<T>` | ✅ | ✅ | ❌ | ❌ | Sequential merge - use `.AsEnumerable().MergeOrdered()` for parallel |
+| `MergeOrdered<T>` | ✅ | ✅ | ❌ | ❌ | Sequential merge only |
 | `Take(start, count)` | ✅ | ✅ | ✅ | ❌ | Convenience wrapper for Skip+Take |
 
 ### Conditional Termination
@@ -81,43 +78,42 @@ The core categorization pattern for conditional branching in streaming pipelines
 | `Until(Func<T,int,bool>)` | ✅ | ✅ | ❌ | ❌ | Conflicts with parallel semantics |
 | `Until(int lastIdx)` | ✅ | ✅ | ❌ | ❌ | Conflicts with parallel semantics |
 
-> **Design Decision:** `Until` methods are intentionally omitted from parallel variants because early termination conflicts with parallel execution semantics. Use `.AsEnumerable()` / `.AsAsyncEnumerable()` first if needed.
-
-### Side-Effect Pipeline (ForEach/Do)
+### Side-Effect Pipeline
 
 | Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery | Notes |
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|-------|
 | `ForEach(Action<T>)` | ✅ | ✅ | ✅ | ✅ | Lazy, pass-through |
 | `ForEach(Action<T,int>)` | ✅ | ✅ | ✅ | ✅ | Lazy, with index |
-| `ForEach(Func<T,Task>)` | N/A | N/A | N/A | ✅ | Async action |
-| `ForEach(Func<T,int,Task>)` | N/A | N/A | N/A | ✅ | Async with index |
+| `ForEach(Func<T,Task>)` | ❌ | ❌ | ❌ | ✅ | Async action |
+| `ForEach(Func<T,int,Task>)` | ❌ | ❌ | ❌ | ✅ | Async with index |
 | `Do()` | ✅ | ✅ | ✅ | ✅ | Terminal, no action |
-| `Do(Action<T>)` | ✅ | ✅ | N/A | ✅ | Terminal + action |
-| `Do(Action<T,int>)` | ✅ | ✅ | N/A | ✅ | Terminal + indexed action |
+| `Do(Action<T>)` | ✅ | ✅ | ✅ | ✅ | Terminal with action |
+| `Do(Action<T,int>)` | ✅ | ✅ | ✅ | ✅ | Terminal with indexed action |
 
-> **Pattern:** Use `ForEach(action)` for lazy side-effects in the middle of a pipeline. Use `Do()` or `Do(action)` to force execution at the end.
 
 ### String Building
 
 | Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery |
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|
 | `BuildString(StringBuilder?, separator, before, after)` | ✅ | ✅ | ✅ | ✅ |
-| `BuildString(separator, before, after)` | ✅ | ✅ | ✅ | N/A |
+| `BuildString(separator, before, after)` | ✅ | ✅ | ✅ | ✅ |
+
 
 ### Utility Methods
 
-| Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery | Notes |
-|--------|:-----------:|:----------------:|:-------------:|:------------------:|-------|
-| `IsNullOrEmpty<T>` | ✅ | ✅ | ✅ | ❌ | Terminal check |
+| Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery |
+|--------|:-----------:|:----------------:|:-------------:|:------------------:|
+| `IsNullOrEmpty<T>` | ✅ | ✅ | ✅ | ✅ |
+
 
 ### Aggregation (Parallel-Specific)
 
 | Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery | Notes |
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|-------|
-| `Sum(int)` | N/A | N/A | ✅ | ✅ | Thread-safe via Interlocked |
-| `Sum(long)` | N/A | N/A | ✅ | ✅ | Thread-safe via Interlocked |
-| `Sum(float)` | N/A | N/A | ✅ | N/A | Uses lock for thread-safety |
-| `Sum(decimal)` | N/A | N/A | ✅ | N/A | Uses lock for thread-safety |
+| `Sum(int)` | ❌ | ❌ | ✅ | ✅ | Thread-safe via Interlocked |
+| `Sum(long)` | ❌ | ❌ | ✅ | ✅ | Thread-safe via Interlocked |
+| `Sum(float)` | ❌ | ❌ | ✅ | ❌ | Uses lock for thread-safety |
+| `Sum(decimal)` | ❌ | ❌ | ✅ | ❌ | Uses lock for thread-safety |
 
 ---
 
@@ -127,17 +123,17 @@ The core categorization pattern for conditional branching in streaming pipelines
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|
 | `Spy(tag)` | ✅ | ✅ | ✅ | ✅ |
 | `Spy(tag, customFormatter)` | ✅ | ✅ | ✅ | ✅ |
-| `Display(tag)` | ✅ | ✅ | ✅ | ❌ |
+| `Display(tag)` | ✅ | ✅ | ✅ | ✅ |
 | `ToLines(separator)` | ✅ | ✅ | ❌ | ❌ |
 
 ---
 
 ## 4. Flattening Extensions
 
-| Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery | Notes |
-|--------|:-----------:|:----------------:|:-------------:|:------------------:|-------|
-| `Flatten<T>()` | ✅ | ✅ (3 variants) | ❌ | ❌ | Already flat |
-| `Flatten<T>(separator)` | ✅ | ✅ (3 variants) | ❌ | ❌ | Already flat |
+| Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery |
+|--------|:-----------:|:----------------:|:-------------:|:------------------:|
+| `Flatten<T>()` | ✅ | ✅ (3 variants) | ❌ | ❌ |
+| `Flatten<T>(separator)` | ✅ | ✅ (3 variants) | ❌ | ❌ |
 
 ### IAsyncEnumerable Flatten Variants
 
@@ -153,7 +149,7 @@ The core categorization pattern for conditional branching in streaming pipelines
 
 | Method | IEnumerator | IAsyncEnumerator | Notes |
 |--------|:-----------:|:----------------:|-------|
-| `TryGetNext(out T)` | ✅ `bool` | ✅ `Task<(bool,T?)>` | Advance + get |
+| `TryGetNext(out T)` | ✅ `bool` | ✅ `Task<(bool,T?)>` | Advance and retrieve |
 | `GetNext()` | ✅ `T?` | ✅ `Task<T?>` | Nullable result |
 
 ---
@@ -167,23 +163,56 @@ The core categorization pattern for conditional branching in streaming pipelines
 | `WithBoundedBuffer(options)` | Backpressure for IAsyncEnumerable via bounded channel |
 | `WithBoundedBuffer(capacity, fullMode)` | Convenience overload |
 | `Throttle(TimeSpan)` | Rate-limited async emission |
-| `Throttle(intervalMs)` | Rate-limited async emission (ms overload) |
+| `Throttle(intervalMs)` | Rate-limited async emission (milliseconds overload) |
 
 ---
 
-## 7. Async-Only LINQ Extensions
+## 7. Async LINQ Operators
 
-These methods exist only in `AsyncEnumerableDebuggingExtensions`:
+DataFlow.NET includes lightweight reimplementations of common `System.Linq.Async` operators in `AsyncLinqOperators.cs` to reduce external dependencies.
+
+### Query Operators
+
+| Method | Overloads | Description |
+|--------|-----------|-------------|
+| `Select<T,R>` | 2 | Project elements (with/without index) |
+| `SelectMany<T,R>` | 4 | Flatten nested sequences |
+| `Where<T>` | 3 | Filter elements |
+| `Distinct<T>` | 1 | Remove duplicates |
+| `Concat<T>` | 1 | Concatenate two sequences |
+| `Append<T>` | 1 | Add element at end |
+| `Prepend<T>` | 1 | Add element at beginning |
+
+### Slicing Operators
+
+| Method | Overloads | Description |
+|--------|-----------|-------------|
+| `Take<T>` | 5 | Take count, range, slice, or while predicate is true |
+| `Skip<T>` | 2 | Skip count or while predicate is true |
+| `SkipWhile<T>` | 2 | Skip while predicate is true |
+
+### Terminal Operators
+
+| Method | Overloads | Description |
+|--------|-----------|-------------|
+| `First<T>` | 3 | First element (throws if empty) |
+| `FirstOrDefault<T>` | 3 | First element or default |
+| `Any<T>` | 3 | Check if any element exists |
+| `Aggregate<T>` | 2 | Reduce sequence to single value |
+
+### Materialization Operators
 
 | Method | Description |
 |--------|-------------|
-| `SelectMany<T,R>(selector)` | Async flattening projection |
-| `SelectMany<T,C,R>(collectionSelector, resultSelector)` | Async flattening with result selector |
-| `Distinct<T>(comparer?)` | Distinct elements with optional comparer |
-| `Concat<T>(second)` | Concatenate two async sequences |
-| `Append<T>(element)` | Append single element |
-| `Prepend<T>(element)` | Prepend single element |
-| `Aggregate<T>(func)` | Reduce to single value |
+| `ToList<T>` | Materialize to `List<T>` |
+| `ToArray<T>` | Materialize to `T[]` |
+| `ToDictionary<T,K,V>` | Materialize to `Dictionary<K,V>` |
+
+### Batching
+
+| Method | Description |
+|--------|-------------|
+| `Buffer<T>(size)` | Split into fixed-size batches |
 
 ---
 
@@ -191,12 +220,13 @@ These methods exist only in `AsyncEnumerableDebuggingExtensions`:
 
 | Category | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery |
 |----------|:-----------:|:----------------:|:-------------:|:------------------:|
-| **Cases Pattern** | ✅ 100% | ✅ 100% | ✅ 100% | ✅ 100% |
-| **Core Extensions** | ✅ Full | ✅ Full | ⚠️ No Until | ⚠️ No Until/Take |
-| **Debugging** | ✅ Full | ✅ Full | ⚠️ Limited | ⚠️ Limited |
-| **Flattening** | ✅ 2 | ✅ 6 | N/A | N/A |
-| **Enumerator** | ✅ 2 | ✅ 2 | N/A | N/A |
-| **Aggregation** | N/A | N/A | ✅ 4 | ✅ 2 |
+| Cases Pattern | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
+| Core Extensions | ✅ Full | ✅ Full | ⚠️ Partial | ⚠️ Partial |
+| Debugging | ✅ Full | ✅ Full | ⚠️ Partial | ⚠️ Partial |
+| Flattening | ✅ 2 methods | ✅ 6 methods | ❌ | ❌ |
+| Enumerator | ✅ 2 methods | ✅ 2 methods | ❌ | ❌ |
+| Aggregation | ❌ | ❌ | ✅ 4 methods | ✅ 2 methods |
+
 
 ---
 
@@ -204,15 +234,35 @@ These methods exist only in `AsyncEnumerableDebuggingExtensions`:
 
 ### Thread Safety
 - All parallel extension delegates may execute concurrently
-- **Must ensure captured state is thread-safe**
+- Captured state must be thread-safe
 - Console output in `Spy` is serialized via internal locks
 
 ### Lazy Execution
-- All methods returning `IEnumerable<T>`, `IAsyncEnumerable<T>`, `ParallelQuery<T>`, or `ParallelAsyncQuery<T>` are **lazy**
-- Methods returning `void` or `Task` are **terminal** (eager)
-- `Display()` is eager (forces enumeration)
-- `Do()` and `Do(action)` are eager (forces enumeration + optional action)
+- Methods returning `IEnumerable<T>`, `IAsyncEnumerable<T>`, `ParallelQuery<T>`, or `ParallelAsyncQuery<T>` are lazy
+- Methods returning `void` or `Task` are terminal (eager)
+- `Display()` and `Do()` force enumeration
 
 ### Ordering
 - `ParallelQuery` and `ParallelAsyncQuery` do not preserve order by default
-- Use `.AsOrdered()` or `.WithOptions(preserveOrder: true)` if ordering matters
+- Use `.AsOrdered()` or `.WithOptions(preserveOrder: true)` if ordering is required
+
+---
+
+## Appendix A: Async Side-Effects in Parallel Pipelines
+
+A common question is why `ForEach(Func<T, Task>)` is available for **ParallelAsyncQuery** but ❌ **NOT** for standard **ParallelQuery**.
+
+### The Limitation of PLINQ (ParallelQuery)
+Standard PLINQ is designed for **synchronous** CPU-bound parallelism. It expects delegates to return `void` or a result immediately.
+- If you pass an `async` lambda to `ForEach(Action<T>)`, it becomes an `async void` delegate.
+- **Consequence:** The pipeline will **not wait** for the asynchronous operation to complete. It will fire the task and immediately move to the next item.
+- **Risk:** Exceptions in `async void` methods can crash the entire process, and valid tasks may be cancelled prematurely when the main thread exits.
+
+### The Solution (ParallelAsyncQuery)
+`ParallelAsyncQuery` was specifically architected to handle **asynchronous** I/O-bound parallelism.
+- It accepts `Func<T, Task>`, properly `awaits` each concurrent task, and manages concurrency limits (degree of parallelism).
+- This ensures that the pipeline **waits** for all side-effects (e.g., database writes, API calls) to complete before finishing.
+
+**Rule of Thumb:**
+- Use `ParallelQuery` for CPU-intensive work (computations).
+- Use `ParallelAsyncQuery` for I/O-intensive work (network/disk operations).
