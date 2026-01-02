@@ -575,6 +575,31 @@ var data = ObjectMaterializer.Create<Data>(
 
 ---
 
+### Conversion Errors
+
+When type conversion fails during materialization, the library provides contextual exception information:
+
+| Scenario | Exception Type | Message Pattern |
+|----------|----------------|-----------------|
+| String can't parse to target type | `FormatException` | `"Cannot convert value '{value}' (type: {sourceType}) to {targetType}"` |
+| No accessible constructor | `InvalidOperationException` | `"Type {type.FullName} has no accessible constructors."` |
+| No parameterless constructor for feed session | `InvalidOperationException` | `"{type.FullName} requires a parameterless constructor for feed sessions."` |
+| Schema doesn't match any constructor | `InvalidOperationException` | `"Cannot materialize {type}:\n Schema columns: [...]\n Attempted constructors: [...]"` |
+
+**Example handling:**
+```csharp
+try
+{
+    var person = session.Create(new object[] { "Alice", "not-a-number" });
+}
+catch (FormatException ex)
+{
+    // ex.Message: "Cannot convert value 'not-a-number' (type: String) to Int32"
+    Console.WriteLine($"Parse error: {ex.Message}");
+}
+
+---
+
 ## ⚡ Performance
 
 ### Benchmark Results

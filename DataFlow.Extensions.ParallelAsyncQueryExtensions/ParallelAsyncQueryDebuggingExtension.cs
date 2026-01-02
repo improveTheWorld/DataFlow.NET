@@ -57,5 +57,41 @@ public static class ParallelAsyncQueryDebuggingExtension
     {
         return items.Spy<string>(tag, x => x, timeStamp, separator, before, after);
     }
+
+    /// <summary>
+    /// Eagerly materializes a parallel async string query and writes all elements to the console.
+    /// </summary>
+    /// <param name="items">The source parallel async string query.</param>
+    /// <param name="tag">An optional label written before the formatted block. Defaults to "Displaying".</param>
+    /// <param name="separator">Separator inserted between items. Defaults to newline.</param>
+    /// <param name="before">Opening delimiter written before the first item. Defaults to "---------{\n".</param>
+    /// <param name="after">Closing delimiter written after the final item. Defaults to "\n-------}".</param>
+    /// <remarks>
+    /// <para>
+    /// This is an <b>eager</b> terminal operation: it forces the parallel query to execute.
+    /// All results are buffered before being written.
+    /// </para>
+    /// </remarks>
+    public static async Task Display(
+        this ParallelAsyncQuery<string> items,
+        string tag = "Displaying",
+        string separator = "\n",
+        string before = "---------{\n",
+        string after = "\n-------}")
+    {
+        Console.WriteLine();
+        if (!string.IsNullOrEmpty(tag))
+            Console.Write($"{tag} :");
+
+        Console.Write(before);
+        var itemsList = await items.ToList().ConfigureAwait(false);
+        for (int i = 0; i < itemsList.Count; i++)
+        {
+            if (i > 0) Console.Write(separator);
+            Console.Write(itemsList[i]);
+        }
+        Console.Write(after);
+    }
 }
+
 

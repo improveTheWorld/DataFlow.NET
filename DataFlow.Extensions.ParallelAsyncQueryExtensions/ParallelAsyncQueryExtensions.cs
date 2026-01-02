@@ -250,7 +250,32 @@ namespace DataFlow.Extensions
             return str;
         }
 
+        /// <summary>
+        /// Materializes a parallel string query to a new <see cref="StringBuilder"/>, joining items
+        /// with a separator and optional surrounding delimiters.
+        /// </summary>
+        /// <param name="items">The source parallel string query.</param>
+        /// <param name="separator">The separator inserted between items (default: ", ").</param>
+        /// <param name="before">A prefix string appended before the joined content (default: "{").</param>
+        /// <param name="after">A suffix string appended after the joined content (default: "}").</param>
+        /// <returns>
+        /// A task producing a new <see cref="StringBuilder"/> with the concatenated text.
+        /// </returns>
+        /// <remarks>
+        /// See <see cref="BuildString(ParallelAsyncQuery{string}, StringBuilder?, string, string, string)"/> for details.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> is <c>null</c>.</exception>
+        public static Task<StringBuilder> BuildString(
+            this ParallelAsyncQuery<string> items,
+            string separator = ", ",
+            string before = "{",
+            string after = "}")
+        {
+            return items.BuildString(null, separator, before, after);
+        }
+
         #endregion
+
 
         #region Sum Overloads
 
@@ -438,5 +463,26 @@ namespace DataFlow.Extensions
         }
 
         #endregion
+
+        #region Utility Methods
+
+        /// <summary>
+        /// Determines whether a parallel async query is <c>null</c> or contains no elements.
+        /// </summary>
+        /// <typeparam name="T">Element type.</typeparam>
+        /// <param name="query">The source query. May be <c>null</c>.</param>
+        /// <returns><c>true</c> if <paramref name="query"/> is <c>null</c> or empty; otherwise <c>false</c>.</returns>
+        /// <remarks>
+        /// If non-null, this method enumerates at most one element to determine emptiness.
+        /// </remarks>
+        public static async Task<bool> IsNullOrEmpty<T>(this ParallelAsyncQuery<T>? query)
+        {
+            if (query == null) return true;
+            await using var enumerator = query.GetAsyncEnumerator();
+            return !await enumerator.MoveNextAsync().ConfigureAwait(false);
+        }
+
+        #endregion
     }
 }
+

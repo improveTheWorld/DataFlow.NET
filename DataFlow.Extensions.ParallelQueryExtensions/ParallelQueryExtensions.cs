@@ -112,6 +112,44 @@ namespace DataFlow.Extensions
         }
 
         /// <summary>
+        /// Forces enumeration of the parallel sequence, executing an action for each element.
+        /// </summary>
+        /// <typeparam name="T">Element type.</typeparam>
+        /// <param name="items">The source sequence.</param>
+        /// <param name="action">Action to execute per element (may run concurrently).</param>
+        /// <remarks>
+        /// Terminal operation. Delegates to <see cref="ParallelEnumerable.ForAll{TSource}"/>.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> or <paramref name="action"/> is <c>null</c>.</exception>
+        public static void Do<T>(this ParallelQuery<T> items, Action<T> action)
+        {
+            if (items is null) throw new ArgumentNullException(nameof(items));
+            if (action is null) throw new ArgumentNullException(nameof(action));
+            items.ForAll(action);
+        }
+
+        /// <summary>
+        /// Forces enumeration of the parallel sequence, executing an indexed action for each element.
+        /// </summary>
+        /// <typeparam name="T">Element type.</typeparam>
+        /// <param name="items">The source sequence.</param>
+        /// <param name="action">
+        /// Action receiving the element and its index. Index values are assigned in the natural
+        /// PLINQ partitioned enumeration order (not guaranteed to be sequential across threads).
+        /// </param>
+        /// <remarks>
+        /// Terminal operation. The index passed to <paramref name="action"/> reflects the projection
+        /// order from local partition processing, not a deterministic global order.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="items"/> or <paramref name="action"/> is <c>null</c>.</exception>
+        public static void Do<T>(this ParallelQuery<T> items, Action<T, int> action)
+        {
+            if (items is null) throw new ArgumentNullException(nameof(items));
+            if (action is null) throw new ArgumentNullException(nameof(action));
+            items.Select((x, idx) => { action(x, idx); return x; }).ForAll(_ => { });
+        }
+
+        /// <summary>
         /// Builds a composite string from a parallel sequence of strings using a <see cref="StringBuilder"/>.
         /// </summary>
         /// <param name="items">The source parallel sequence of strings.</param>

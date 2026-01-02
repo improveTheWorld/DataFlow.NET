@@ -8,15 +8,6 @@
 
 Features that enhance **already implemented** functionality. These are polish, DX improvements, and production-readiness features.
 
-### ✅ Already Implemented
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Cases/SelectCase/ForEachCase pattern | ✅ Done | Core functionality |
-| AsyncEnumerable stream merging | ✅ Done | Multi-source unification |
-| CSV/JSON/YAML/Text readers | ✅ Done | With error sinks, metrics, progress |
-| LINQ-to-Spark (SparkQuery) | ✅ Done | Nested property access included |
-| Production-grade error handling (readers) | ✅ Done | ErrorAction, ErrorSink, Metrics |
 
 ### 🔧 V1.0 Enhancements (Polish & DX)
 
@@ -49,16 +40,14 @@ logs.Cases(
 
 | # | Item | Description | Effort | Status |
 |---|------|-------------|--------|--------|
-| 5 | **Publish NuGet Packages** | Package and publish to nuget.org | Medium | Planned |
-| 6 | **CI/CD Pipeline** | GitHub Actions: build, test, publish on tag | Medium | Planned |
-| 7 | **Unit Test Coverage** | Increase coverage, especially edge cases | Medium | Planned |
-| 8 | **Fix Nullability Warnings** | Resolve all `CS8600`/`CS8603` nullable warnings | Low | Planned |
-| 9 | **Benchmarks Suite** | Prove performance claims with BenchmarkDotNet | Low | Planned |
-| 10 | **Real-World Demo Project** | End-to-end ETL example with multiple formats | Medium | Planned |
-| 11 | **CONTRIBUTING.md** | Contribution guidelines for open-source | Low | Planned |
-| 12 | **Community Discord** | Set up Discord server for user support | Low | Planned |
-| 13 | **README Polish** | Add NuGet badges, demo GIF, quick start | Low | Planned |
-| 14 | **GitHub Sponsors Setup** | Enable funding for project sustainability | Low | Planned |
+| 1 | **Publish NuGet Packages** | Package and publish to nuget.org | Medium | 🔜 Planned |
+| 2 | **CI/CD Pipeline** | GitHub Actions: build, test, publish on tag | Medium | 🔜 Planned |
+| 3 | **Fix Nullability Warnings** | Resolve remaining `CS8600`/`CS8603` nullable warnings | Low | 🔜 Planned |
+| 4 | **Real-World Demo Project** | End-to-end ETL example with multiple formats | Medium | 🔜 Planned |
+| 5 | **CONTRIBUTING.md** | Contribution guidelines for open-source | Low | 🔜 Planned |
+| 6 | **Community Discord** | Set up Discord server for user support | Low | 🔜 Planned |
+| 7 | **README Polish** | Add NuGet badges, demo GIF, quick start | Low | 🔜 Planned |
+| 8 | **GitHub Sponsors Setup** | Enable funding for project sustainability | Low | 🔜 Planned |
 
 ---
 
@@ -138,10 +127,9 @@ Focus on **throughput** and **large-scale processing**.
 
 | # | Feature | Description | Effort |
 |---|---------|-------------|--------|
-| 12 | **ObjectMaterializer Optimization** | Optimize type creation strategies, cache reflection, improve performance for hot paths | Medium |
-| 13 | **Refine Type Strategy Selection** | Smarter auto-detection of record vs class vs struct; user-configurable strategy hints | Medium |
-| 14 | **CSV Reader Lightening** | Externalize all type conversion attempts from CSV reader to ObjectMaterializer (single responsibility) | High |
-| 15 | **Error Externalization** | Delegate all error management/reporting from readers to ErrorManager | Medium |
+| 1 | **Refine Type Strategy Selection** | Smarter auto-detection of record vs class vs struct; user-configurable strategy hints | Medium |
+| 2 | **CSV Reader Lightening** | Externalize all type conversion attempts from CSV reader to ObjectMaterializer (single responsibility). [Plan](ObjectMaterializer-String-Based-Materialization-Plan.md) | High |
+| 3 | **Error Externalization** | Delegate all error management/reporting from readers to ErrorManager | Medium |
 
 #### Micro-Batching API
 
@@ -288,20 +276,18 @@ var tracedPipeline = source
 
 | Version | Feature | Impact | Effort | Priority |
 |---------|---------|--------|--------|----------|
-| **V1.0** | NuGet Packages | Critical | Medium | **P0** |
-| **V1.0** | CI/CD Pipeline | Critical | Medium | **P0** |
-| **V1.0** | Unit Test Coverage | High | Medium | **P0** |
-| **V1.0** | Fix Nullability Warnings | Medium | Low | **P0** |
-| **V1.0** | Integration Patterns Guide | High | Low | **P0** ✅ Done |
-| **V1.0** | Benchmarks Suite | Medium | Low | P0 |
-| **V1.0** | Real-World Demo | High | Medium | P0 |
-| **V1.0** | XML Documentation | Medium | Low | P0 |
-| **V1.0** | Typed Categories | Medium | Low | P0 |
-| **V1.0** | Security Hardening | Medium | Low | P0 |
+| **V1.0** | NuGet Packages | Critical | Medium | **P0** 🔜 |
+| **V1.0** | CI/CD Pipeline | Critical | Medium | **P0** 🔜 |
+| **V1.0** | Fix Nullability Warnings | Medium | Low | **P0** 🔜 |
+| **V1.0** | Integration Patterns Guide | High | Low | ✅ Done |
+| **V1.0** | Benchmarks Suite | Medium | Low | ✅ Done |
+| **V1.0** | Test Coverage Report | High | Medium | ✅ Done |
+| **V1.0** | ObjectMaterializer Optimization | High | Medium | ✅ Done |
+| **V1.0** | Real-World Demo | High | Medium | P0 🔜 |
 | **V1.1** | Resilience Policies | High | Medium | P1 |
 | **V1.1** | OpenTelemetry Metrics | Medium | Medium | P1 |
 | **V1.2** | Micro-Batching | High | Medium | P1 |
-| **V1.2** | Object Pooling | Medium | Medium | P2 |
+| **V1.2** | CSV Reader Lightening | High | High | P2 |
 | **V2.0** | Tumbling Windows | High | High | P2 |
 | **V2.0** | Stateful Processing | High | Very High | P2 |
 | **V3.0** | Configuration-as-YAML | High | High | P3 |
@@ -474,5 +460,24 @@ var results = source
 
 ---
 
-*Last Updated: December 2024*
+## Appendix: Completed Features (V1.0)
+
+For reference, these features are already implemented and documented:
+
+| Feature | Documentation |
+|---------|---------------|
+| Cases/SelectCase/ForEachCase pattern | [Cases-Pattern.md](Cases-Pattern.md) |
+| AsyncEnumerable stream merging | [Stream-Merging.md](Stream-Merging.md) |
+| CSV/JSON/YAML/Text readers | [DataFlow-Data-Reading-Infrastructure.md](DataFlow-Data-Reading-Infrastructure.md) |
+| LINQ-to-Spark (SparkQuery) | [LINQ-to-Spark.md](LINQ-to-Spark.md) |
+| LINQ-to-Snowflake (SnowflakeQuery) | [LINQ-to-Snowflake.md](LINQ-to-Snowflake.md) |
+| Production-grade error handling | ErrorAction, ErrorSink, Metrics |
+| ObjectMaterializer optimization | [ObjectMaterializer.md](ObjectMaterializer.md) |
+| Integration Patterns Guide | [Integration-Patterns-Guide.md](Integration-Patterns-Guide.md) |
+| Benchmarks Suite | [Benchmarks.md](Benchmarks.md) |
+| Test Coverage Report | [COVERAGE.md](COVERAGE.md) |
+
+---
+
+*Last Updated: January 2026*
 
