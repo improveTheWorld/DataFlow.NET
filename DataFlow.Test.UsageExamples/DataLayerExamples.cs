@@ -1,7 +1,5 @@
-using DataFlow.Data;
-using DataFlow.Extensions;
-
-namespace DataFlow.App.UsageExamples;
+using DataFlow;
+namespace App.UsageExamples;
 
 /// <summary>
 /// Examples from Architecture-APIs.md and DataFlow-Data-Layer.md

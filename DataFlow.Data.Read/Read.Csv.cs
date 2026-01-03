@@ -4,7 +4,7 @@ using System.Text;
 using DataFlow.Framework;
 
 
-namespace DataFlow.Data;
+namespace DataFlow;
 
 /// <summary>
 /// Provides static methods for lazily reading data from various file formats,

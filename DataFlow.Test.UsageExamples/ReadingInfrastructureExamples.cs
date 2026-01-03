@@ -1,7 +1,6 @@
-using DataFlow.Data;
-using DataFlow.Extensions;
+using DataFlow;
 
-namespace DataFlow.App.UsageExamples;
+namespace App.UsageExamples;
 
 /// <summary>
 /// Examples from DataFlow-Data-Reading-Infrastructure.md

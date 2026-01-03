@@ -1,6 +1,6 @@
-﻿using DataFlow.App.UsageExamples.legacyExamples;
+﻿using App.UsageExamples.legacyExamples;
 
-namespace DataFlow.App.UsageExamples;
+namespace App.UsageExamples;
 
 /// <summary>
 /// Interactive examples from DataFlow.NET documentation

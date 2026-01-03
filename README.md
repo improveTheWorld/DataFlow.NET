@@ -246,8 +246,7 @@ DataFlow.Net.sln
 
 ### Your First Pipeline
 ```csharp
-using DataFlow.Data;
-using DataFlow.Extensions;
+using DataFlow;
 
 // A complete, memory-efficient pipeline in 10 lines
 await Read.Csv<Order>("orders.csv")

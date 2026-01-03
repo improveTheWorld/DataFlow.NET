@@ -2,7 +2,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace DataFlow.Data;
+namespace DataFlow;
 
 
 public sealed record CsvReadOptions : ReadOptions

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 
-namespace DataFlow.Data;
+namespace DataFlow;
 
 /// <summary>
 /// Streaming security wrapper enforcing YAML guard rails without full buffering.

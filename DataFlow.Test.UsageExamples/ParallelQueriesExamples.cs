@@ -1,10 +1,8 @@
 using DataFlow;
-using DataFlow.Extensions;
-using DataFlow.Framework;
 using DataFlow.Parallel;
 using System.Diagnostics;
 
-namespace DataFlow.App.UsageExamples;
+namespace App.UsageExamples;
 
 /// <summary>
 /// Demonstrates parallel query execution across different execution models:

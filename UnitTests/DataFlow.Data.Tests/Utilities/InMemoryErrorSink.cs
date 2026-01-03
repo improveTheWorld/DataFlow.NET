@@ -1,4 +1,4 @@
-using DataFlow.Data;
+using DataFlow;
 using System.Collections.Concurrent;
 
 namespace DataFlow.Data.Tests.Utilities;

@@ -1,10 +1,8 @@
 using DataFlow;
 using DataFlow.Extensions;
-using DataFlow.Framework;
-using DataFlow.Data;
 using static DataFlow.Framework.RegexWrap;
 
-namespace DataFlow.App.UsageExamples.legacyExamples;
+namespace App.UsageExamples.legacyExamples;
 
 /// <summary>
 /// Legacy examples from the original Program.cs - preserved for backwards compatibility

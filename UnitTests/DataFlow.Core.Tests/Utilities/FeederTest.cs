@@ -1,5 +1,5 @@
 using DataFlow.Framework;
-using DataFlow.Data;
+using DataFlow;
 using Xunit;
 
 namespace DataFlow.Core.Tests.Utilities.Framework.Tests;

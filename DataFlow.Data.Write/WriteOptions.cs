@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DataFlow.Data;
+namespace DataFlow;
 
 /// <summary>
 /// Base options for all write operations.

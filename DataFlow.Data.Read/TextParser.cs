@@ -1,9 +1,9 @@
 ﻿using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using static DataFlow.Data.Read;
+using static DataFlow.Read;
 
-namespace DataFlow.Data;
+namespace DataFlow;
 
 public sealed record TextParsingOptions
 {

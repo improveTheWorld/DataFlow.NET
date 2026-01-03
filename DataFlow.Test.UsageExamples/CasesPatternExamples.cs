@@ -1,8 +1,6 @@
 using DataFlow;
-using DataFlow.Framework;
-using DataFlow.Extensions;
 using DataFlow.Parallel;
-namespace DataFlow.App.UsageExamples;
+namespace App.UsageExamples;
 
 /// <summary>
 /// Examples from Unified-Processing.md - Cases/SelectCase/ForEachCase pattern

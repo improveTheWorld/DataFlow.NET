@@ -1,6 +1,6 @@
 ﻿
 
-namespace DataFlow.Data;
+namespace DataFlow;
 
 public static class CsvWriter
 {
