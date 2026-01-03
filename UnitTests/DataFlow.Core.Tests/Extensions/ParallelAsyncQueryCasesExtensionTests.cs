@@ -1,4 +1,5 @@
 using DataFlow.Extensions;
+using DataFlow.Parallel;
 using DataFlow.Framework;
 
 namespace DataFlow.Core.Tests.Extensions;

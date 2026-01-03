@@ -1,35 +1,32 @@
 using DataFlow.Framework;
 
-namespace DataFlow.Extensions;
+namespace DataFlow.Parallel;
 
 /// <summary>
-/// Multi-type SelectCase extensions for ParallelAsyncQuery.
+/// Multi-type SelectCases extensions for ParallelAsyncQuery.
 /// Supports different return types per branch (R1, R2, ... up to R7).
+/// Uses FLAT tuple return types to distinguish from single-type versions.
 /// </summary>
 public static class ParallelAsyncQueryMultiTypeCasesExtensions
 {
-    #region SelectCase Multi-Type (2-7 types)
+    #region SelectCases Multi-Type (2-7 types)
 
     // ===================== 2 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?) result)>
-        SelectCase<T, R1, R2>(
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2)>
+        SelectCases<T, R1, R2>(
             this ParallelAsyncQuery<(int category, T item)> items,
             Func<T, R1> selector1,
             Func<T, R2> selector2)
         => items.Select(x => (
             x.category,
             x.item,
-            x.category switch
-            {
-                0 => (selector1(x.item), default(R2)),
-                1 => (default(R1), selector2(x.item)),
-                _ => (default(R1), default(R2))
-            }
+            x.category == 0 ? selector1(x.item) : default(R1),
+            x.category == 1 ? selector2(x.item) : default(R2)
         ));
 
     // ===================== 3 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?) result)>
-        SelectCase<T, R1, R2, R3>(
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3)>
+        SelectCases<T, R1, R2, R3>(
             this ParallelAsyncQuery<(int category, T item)> items,
             Func<T, R1> selector1,
             Func<T, R2> selector2,
@@ -37,18 +34,14 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         => items.Select(x => (
             x.category,
             x.item,
-            x.category switch
-            {
-                0 => (selector1(x.item), default(R2), default(R3)),
-                1 => (default(R1), selector2(x.item), default(R3)),
-                2 => (default(R1), default(R2), selector3(x.item)),
-                _ => (default(R1), default(R2), default(R3))
-            }
+            x.category == 0 ? selector1(x.item) : default(R1),
+            x.category == 1 ? selector2(x.item) : default(R2),
+            x.category == 2 ? selector3(x.item) : default(R3)
         ));
 
     // ===================== 4 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?) result)>
-        SelectCase<T, R1, R2, R3, R4>(
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4)>
+        SelectCases<T, R1, R2, R3, R4>(
             this ParallelAsyncQuery<(int category, T item)> items,
             Func<T, R1> selector1,
             Func<T, R2> selector2,
@@ -57,19 +50,15 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         => items.Select(x => (
             x.category,
             x.item,
-            x.category switch
-            {
-                0 => (selector1(x.item), default(R2), default(R3), default(R4)),
-                1 => (default(R1), selector2(x.item), default(R3), default(R4)),
-                2 => (default(R1), default(R2), selector3(x.item), default(R4)),
-                3 => (default(R1), default(R2), default(R3), selector4(x.item)),
-                _ => (default(R1), default(R2), default(R3), default(R4))
-            }
+            x.category == 0 ? selector1(x.item) : default(R1),
+            x.category == 1 ? selector2(x.item) : default(R2),
+            x.category == 2 ? selector3(x.item) : default(R3),
+            x.category == 3 ? selector4(x.item) : default(R4)
         ));
 
     // ===================== 5 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?) result)>
-        SelectCase<T, R1, R2, R3, R4, R5>(
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5)>
+        SelectCases<T, R1, R2, R3, R4, R5>(
             this ParallelAsyncQuery<(int category, T item)> items,
             Func<T, R1> selector1,
             Func<T, R2> selector2,
@@ -79,20 +68,16 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         => items.Select(x => (
             x.category,
             x.item,
-            x.category switch
-            {
-                0 => (selector1(x.item), default(R2), default(R3), default(R4), default(R5)),
-                1 => (default(R1), selector2(x.item), default(R3), default(R4), default(R5)),
-                2 => (default(R1), default(R2), selector3(x.item), default(R4), default(R5)),
-                3 => (default(R1), default(R2), default(R3), selector4(x.item), default(R5)),
-                4 => (default(R1), default(R2), default(R3), default(R4), selector5(x.item)),
-                _ => (default(R1), default(R2), default(R3), default(R4), default(R5))
-            }
+            x.category == 0 ? selector1(x.item) : default(R1),
+            x.category == 1 ? selector2(x.item) : default(R2),
+            x.category == 2 ? selector3(x.item) : default(R3),
+            x.category == 3 ? selector4(x.item) : default(R4),
+            x.category == 4 ? selector5(x.item) : default(R5)
         ));
 
     // ===================== 6 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?) result)>
-        SelectCase<T, R1, R2, R3, R4, R5, R6>(
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6)>
+        SelectCases<T, R1, R2, R3, R4, R5, R6>(
             this ParallelAsyncQuery<(int category, T item)> items,
             Func<T, R1> selector1,
             Func<T, R2> selector2,
@@ -103,21 +88,17 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         => items.Select(x => (
             x.category,
             x.item,
-            x.category switch
-            {
-                0 => (selector1(x.item), default(R2), default(R3), default(R4), default(R5), default(R6)),
-                1 => (default(R1), selector2(x.item), default(R3), default(R4), default(R5), default(R6)),
-                2 => (default(R1), default(R2), selector3(x.item), default(R4), default(R5), default(R6)),
-                3 => (default(R1), default(R2), default(R3), selector4(x.item), default(R5), default(R6)),
-                4 => (default(R1), default(R2), default(R3), default(R4), selector5(x.item), default(R6)),
-                5 => (default(R1), default(R2), default(R3), default(R4), default(R5), selector6(x.item)),
-                _ => (default(R1), default(R2), default(R3), default(R4), default(R5), default(R6))
-            }
+            x.category == 0 ? selector1(x.item) : default(R1),
+            x.category == 1 ? selector2(x.item) : default(R2),
+            x.category == 2 ? selector3(x.item) : default(R3),
+            x.category == 3 ? selector4(x.item) : default(R4),
+            x.category == 4 ? selector5(x.item) : default(R5),
+            x.category == 5 ? selector6(x.item) : default(R6)
         ));
 
     // ===================== 7 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?, R7?) result)>
-        SelectCase<T, R1, R2, R3, R4, R5, R6, R7>(
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6, R7? result7)>
+        SelectCases<T, R1, R2, R3, R4, R5, R6, R7>(
             this ParallelAsyncQuery<(int category, T item)> items,
             Func<T, R1> selector1,
             Func<T, R2> selector2,
@@ -129,43 +110,39 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         => items.Select(x => (
             x.category,
             x.item,
-            x.category switch
-            {
-                0 => (selector1(x.item), default(R2), default(R3), default(R4), default(R5), default(R6), default(R7)),
-                1 => (default(R1), selector2(x.item), default(R3), default(R4), default(R5), default(R6), default(R7)),
-                2 => (default(R1), default(R2), selector3(x.item), default(R4), default(R5), default(R6), default(R7)),
-                3 => (default(R1), default(R2), default(R3), selector4(x.item), default(R5), default(R6), default(R7)),
-                4 => (default(R1), default(R2), default(R3), default(R4), selector5(x.item), default(R6), default(R7)),
-                5 => (default(R1), default(R2), default(R3), default(R4), default(R5), selector6(x.item), default(R7)),
-                6 => (default(R1), default(R2), default(R3), default(R4), default(R5), default(R6), selector7(x.item)),
-                _ => (default(R1), default(R2), default(R3), default(R4), default(R5), default(R6), default(R7))
-            }
+            x.category == 0 ? selector1(x.item) : default(R1),
+            x.category == 1 ? selector2(x.item) : default(R2),
+            x.category == 2 ? selector3(x.item) : default(R3),
+            x.category == 3 ? selector4(x.item) : default(R4),
+            x.category == 4 ? selector5(x.item) : default(R5),
+            x.category == 5 ? selector6(x.item) : default(R6),
+            x.category == 6 ? selector7(x.item) : default(R7)
         ));
 
     #endregion
 
-    #region ForEachCase Multi-Type (2-7 types)
+    #region ForEachCases Multi-Type (2-7 types)
 
     // ===================== 2 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?) result)>
-        ForEachCase<T, R1, R2>(
-            this ParallelAsyncQuery<(int category, T item, (R1?, R2?) result)> items,
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2)>
+        ForEachCases<T, R1, R2>(
+            this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2)> items,
             Action<R1> action1,
             Action<R2> action2)
         => items.Select(x =>
         {
             switch (x.category)
             {
-                case 0: if (x.result.Item1 is not null) action1(x.result.Item1); break;
-                case 1: if (x.result.Item2 is not null) action2(x.result.Item2); break;
+                case 0: if (x.result1 is not null) action1(x.result1); break;
+                case 1: if (x.result2 is not null) action2(x.result2); break;
             }
             return x;
         });
 
     // ===================== 3 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?) result)>
-        ForEachCase<T, R1, R2, R3>(
-            this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?) result)> items,
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3)>
+        ForEachCases<T, R1, R2, R3>(
+            this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3)> items,
             Action<R1> action1,
             Action<R2> action2,
             Action<R3> action3)
@@ -173,17 +150,17 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         {
             switch (x.category)
             {
-                case 0: if (x.result.Item1 is not null) action1(x.result.Item1); break;
-                case 1: if (x.result.Item2 is not null) action2(x.result.Item2); break;
-                case 2: if (x.result.Item3 is not null) action3(x.result.Item3); break;
+                case 0: if (x.result1 is not null) action1(x.result1); break;
+                case 1: if (x.result2 is not null) action2(x.result2); break;
+                case 2: if (x.result3 is not null) action3(x.result3); break;
             }
             return x;
         });
 
     // ===================== 4 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?) result)>
-        ForEachCase<T, R1, R2, R3, R4>(
-            this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?) result)> items,
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4)>
+        ForEachCases<T, R1, R2, R3, R4>(
+            this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4)> items,
             Action<R1> action1,
             Action<R2> action2,
             Action<R3> action3,
@@ -192,18 +169,18 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         {
             switch (x.category)
             {
-                case 0: if (x.result.Item1 is not null) action1(x.result.Item1); break;
-                case 1: if (x.result.Item2 is not null) action2(x.result.Item2); break;
-                case 2: if (x.result.Item3 is not null) action3(x.result.Item3); break;
-                case 3: if (x.result.Item4 is not null) action4(x.result.Item4); break;
+                case 0: if (x.result1 is not null) action1(x.result1); break;
+                case 1: if (x.result2 is not null) action2(x.result2); break;
+                case 2: if (x.result3 is not null) action3(x.result3); break;
+                case 3: if (x.result4 is not null) action4(x.result4); break;
             }
             return x;
         });
 
     // ===================== 5 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?) result)>
-        ForEachCase<T, R1, R2, R3, R4, R5>(
-            this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?) result)> items,
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5)>
+        ForEachCases<T, R1, R2, R3, R4, R5>(
+            this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5)> items,
             Action<R1> action1,
             Action<R2> action2,
             Action<R3> action3,
@@ -213,19 +190,19 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         {
             switch (x.category)
             {
-                case 0: if (x.result.Item1 is not null) action1(x.result.Item1); break;
-                case 1: if (x.result.Item2 is not null) action2(x.result.Item2); break;
-                case 2: if (x.result.Item3 is not null) action3(x.result.Item3); break;
-                case 3: if (x.result.Item4 is not null) action4(x.result.Item4); break;
-                case 4: if (x.result.Item5 is not null) action5(x.result.Item5); break;
+                case 0: if (x.result1 is not null) action1(x.result1); break;
+                case 1: if (x.result2 is not null) action2(x.result2); break;
+                case 2: if (x.result3 is not null) action3(x.result3); break;
+                case 3: if (x.result4 is not null) action4(x.result4); break;
+                case 4: if (x.result5 is not null) action5(x.result5); break;
             }
             return x;
         });
 
     // ===================== 6 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?) result)>
-        ForEachCase<T, R1, R2, R3, R4, R5, R6>(
-            this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?) result)> items,
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6)>
+        ForEachCases<T, R1, R2, R3, R4, R5, R6>(
+            this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6)> items,
             Action<R1> action1,
             Action<R2> action2,
             Action<R3> action3,
@@ -236,20 +213,20 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         {
             switch (x.category)
             {
-                case 0: if (x.result.Item1 is not null) action1(x.result.Item1); break;
-                case 1: if (x.result.Item2 is not null) action2(x.result.Item2); break;
-                case 2: if (x.result.Item3 is not null) action3(x.result.Item3); break;
-                case 3: if (x.result.Item4 is not null) action4(x.result.Item4); break;
-                case 4: if (x.result.Item5 is not null) action5(x.result.Item5); break;
-                case 5: if (x.result.Item6 is not null) action6(x.result.Item6); break;
+                case 0: if (x.result1 is not null) action1(x.result1); break;
+                case 1: if (x.result2 is not null) action2(x.result2); break;
+                case 2: if (x.result3 is not null) action3(x.result3); break;
+                case 3: if (x.result4 is not null) action4(x.result4); break;
+                case 4: if (x.result5 is not null) action5(x.result5); break;
+                case 5: if (x.result6 is not null) action6(x.result6); break;
             }
             return x;
         });
 
     // ===================== 7 Types =====================
-    public static ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?, R7?) result)>
-        ForEachCase<T, R1, R2, R3, R4, R5, R6, R7>(
-            this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?, R7?) result)> items,
+    public static ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6, R7? result7)>
+        ForEachCases<T, R1, R2, R3, R4, R5, R6, R7>(
+            this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6, R7? result7)> items,
             Action<R1> action1,
             Action<R2> action2,
             Action<R3> action3,
@@ -261,13 +238,13 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
         {
             switch (x.category)
             {
-                case 0: if (x.result.Item1 is not null) action1(x.result.Item1); break;
-                case 1: if (x.result.Item2 is not null) action2(x.result.Item2); break;
-                case 2: if (x.result.Item3 is not null) action3(x.result.Item3); break;
-                case 3: if (x.result.Item4 is not null) action4(x.result.Item4); break;
-                case 4: if (x.result.Item5 is not null) action5(x.result.Item5); break;
-                case 5: if (x.result.Item6 is not null) action6(x.result.Item6); break;
-                case 6: if (x.result.Item7 is not null) action7(x.result.Item7); break;
+                case 0: if (x.result1 is not null) action1(x.result1); break;
+                case 1: if (x.result2 is not null) action2(x.result2); break;
+                case 2: if (x.result3 is not null) action3(x.result3); break;
+                case 3: if (x.result4 is not null) action4(x.result4); break;
+                case 4: if (x.result5 is not null) action5(x.result5); break;
+                case 5: if (x.result6 is not null) action6(x.result6); break;
+                case 6: if (x.result7 is not null) action7(x.result7); break;
             }
             return x;
         });
@@ -277,27 +254,27 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
     #region UnCase Multi-Type (2-7 types)
 
     public static ParallelAsyncQuery<T> UnCase<T, R1, R2>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2)> items)
         => items.Select(x => x.item);
 
     public static ParallelAsyncQuery<T> UnCase<T, R1, R2, R3>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3)> items)
         => items.Select(x => x.item);
 
     public static ParallelAsyncQuery<T> UnCase<T, R1, R2, R3, R4>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4)> items)
         => items.Select(x => x.item);
 
     public static ParallelAsyncQuery<T> UnCase<T, R1, R2, R3, R4, R5>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5)> items)
         => items.Select(x => x.item);
 
     public static ParallelAsyncQuery<T> UnCase<T, R1, R2, R3, R4, R5, R6>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6)> items)
         => items.Select(x => x.item);
 
     public static ParallelAsyncQuery<T> UnCase<T, R1, R2, R3, R4, R5, R6, R7>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?, R7?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6, R7? result7)> items)
         => items.Select(x => x.item);
 
     #endregion
@@ -305,71 +282,71 @@ public static class ParallelAsyncQueryMultiTypeCasesExtensions
     #region AllCases Multi-Type (2-7 types)
 
     public static ParallelAsyncQuery<object?> AllCases<T, R1, R2>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2)> items)
         => items.Select(x => x.category switch
         {
-            0 => (object?)x.result.Item1,
-            1 => (object?)x.result.Item2,
+            0 => (object?)x.result1,
+            1 => (object?)x.result2,
             _ => null
         }).Where(x => x is not null);
 
     public static ParallelAsyncQuery<object?> AllCases<T, R1, R2, R3>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3)> items)
         => items.Select(x => x.category switch
         {
-            0 => (object?)x.result.Item1,
-            1 => (object?)x.result.Item2,
-            2 => (object?)x.result.Item3,
+            0 => (object?)x.result1,
+            1 => (object?)x.result2,
+            2 => (object?)x.result3,
             _ => null
         }).Where(x => x is not null);
 
     public static ParallelAsyncQuery<object?> AllCases<T, R1, R2, R3, R4>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4)> items)
         => items.Select(x => x.category switch
         {
-            0 => (object?)x.result.Item1,
-            1 => (object?)x.result.Item2,
-            2 => (object?)x.result.Item3,
-            3 => (object?)x.result.Item4,
+            0 => (object?)x.result1,
+            1 => (object?)x.result2,
+            2 => (object?)x.result3,
+            3 => (object?)x.result4,
             _ => null
         }).Where(x => x is not null);
 
     public static ParallelAsyncQuery<object?> AllCases<T, R1, R2, R3, R4, R5>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5)> items)
         => items.Select(x => x.category switch
         {
-            0 => (object?)x.result.Item1,
-            1 => (object?)x.result.Item2,
-            2 => (object?)x.result.Item3,
-            3 => (object?)x.result.Item4,
-            4 => (object?)x.result.Item5,
+            0 => (object?)x.result1,
+            1 => (object?)x.result2,
+            2 => (object?)x.result3,
+            3 => (object?)x.result4,
+            4 => (object?)x.result5,
             _ => null
         }).Where(x => x is not null);
 
     public static ParallelAsyncQuery<object?> AllCases<T, R1, R2, R3, R4, R5, R6>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6)> items)
         => items.Select(x => x.category switch
         {
-            0 => (object?)x.result.Item1,
-            1 => (object?)x.result.Item2,
-            2 => (object?)x.result.Item3,
-            3 => (object?)x.result.Item4,
-            4 => (object?)x.result.Item5,
-            5 => (object?)x.result.Item6,
+            0 => (object?)x.result1,
+            1 => (object?)x.result2,
+            2 => (object?)x.result3,
+            3 => (object?)x.result4,
+            4 => (object?)x.result5,
+            5 => (object?)x.result6,
             _ => null
         }).Where(x => x is not null);
 
     public static ParallelAsyncQuery<object?> AllCases<T, R1, R2, R3, R4, R5, R6, R7>(
-        this ParallelAsyncQuery<(int category, T item, (R1?, R2?, R3?, R4?, R5?, R6?, R7?) result)> items)
+        this ParallelAsyncQuery<(int category, T item, R1? result1, R2? result2, R3? result3, R4? result4, R5? result5, R6? result6, R7? result7)> items)
         => items.Select(x => x.category switch
         {
-            0 => (object?)x.result.Item1,
-            1 => (object?)x.result.Item2,
-            2 => (object?)x.result.Item3,
-            3 => (object?)x.result.Item4,
-            4 => (object?)x.result.Item5,
-            5 => (object?)x.result.Item6,
-            6 => (object?)x.result.Item7,
+            0 => (object?)x.result1,
+            1 => (object?)x.result2,
+            2 => (object?)x.result3,
+            3 => (object?)x.result4,
+            4 => (object?)x.result5,
+            5 => (object?)x.result6,
+            6 => (object?)x.result7,
             _ => null
         }).Where(x => x is not null);
 

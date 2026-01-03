@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace DataFlow.Extensions;
+namespace DataFlow;
 
 /// <summary>
 /// Provides extension methods for working with <see cref="IEnumerable{T}"/> sequences,

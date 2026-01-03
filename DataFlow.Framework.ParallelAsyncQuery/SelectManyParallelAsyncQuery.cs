@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
-namespace DataFlow.Framework;
+namespace DataFlow.Parallel;
 
 // SelectMany operation implementation
 internal class SelectManyParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<TResult>

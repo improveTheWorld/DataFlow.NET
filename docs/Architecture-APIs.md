@@ -74,21 +74,21 @@ DataFlow.Net.sln
 
 The DataFlow.NET framework follows a **four-layer architecture**:
 
-### 2.1 DataFlow.Data
+### 2.1 DataFlow (Core Namespace)
 
-**Unified Data Access Layer**
+**Unified Data Access & Core Extensions**
 
 - File I/O operations (Read, Write) with async support
 - Data format handling (CSV, Text, JSON, YAML)
-- Stream-aware readers that work with both files and live data sources
+- **Cases/SelectCase/ForEachCase pattern** for both sync and async
+- Dual `IEnumerable`/`IAsyncEnumerable` extensions
 
 ### 2.2 DataFlow.Extensions
 
-**Unified Extension Methods Layer**
+**Internal Utilities**
 
-- Dual `IEnumerable`/`IAsyncEnumerable` extensions
-- **Cases/SelectCase/ForEachCase pattern** for both sync and async
 - String processing and file system utilities
+- Helper extensions not meant for the global scope
 
 ### 2.3 DataFlow.Framework
 

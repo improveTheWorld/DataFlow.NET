@@ -1,4 +1,4 @@
-using DataFlow.Extensions;
+using DataFlow.Parallel;
 using DataFlow.Framework;
 using System.Collections.Concurrent;
 

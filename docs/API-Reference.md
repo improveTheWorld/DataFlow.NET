@@ -4,13 +4,15 @@ This document provides a comprehensive reference for all public APIs in the Data
 
 ## Table of Contents
 
-1. [DataFlow.Data Namespace](#DataFlow-data-namespace)
-2. [DataFlow.Extensions Namespace](#DataFlow-extensions-namespace)
-3. [DataFlow.Framework Namespace](#DataFlow-framework-namespace)
+1. [DataFlow Namespace](#dataflow-namespace)
+2. [DataFlow Namespace (Core Extensions)](#dataflow-namespace-core-extensions)
+3. [DataFlow Extensions (Utilities)](#dataflowextensions-namespace-utilities)
+4. [DataFlow.Framework Namespace](#dataflow-framework-namespace)
 4. [Type Definitions](#type-definitions)
 5. [Extension Method Quick Reference](#extension-method-quick-reference)
 
-## DataFlow.Data Namespace
+## DataFlow Namespace
+
 
 ### Read Class
 
@@ -122,7 +124,8 @@ public static void WriteCSV<T>(this IEnumerable<T> records, string path, bool wi
 products.WriteCSV("products.csv", withTitle: true, separator: ",");
 ```
 
-## DataFlow.Extensions Namespace
+## DataFlow Namespace (Core Extensions)
+
 
 ### IEnumerableExtensions Class
 
@@ -306,6 +309,8 @@ public static string BuildString(this IEnumerable<string> items, StringBuilder s
 - `before`: Prefix string (default: "{")
 - `after`: Suffix string (default: "}")  
 **Returns:** `string` - Formatted string  
+
+## DataFlow.Extensions Namespace (Utilities)
 
 ### StringExtensions Class
 

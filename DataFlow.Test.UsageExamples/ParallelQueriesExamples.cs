@@ -1,5 +1,7 @@
+using DataFlow;
 using DataFlow.Extensions;
 using DataFlow.Framework;
+using DataFlow.Parallel;
 using System.Diagnostics;
 
 namespace DataFlow.App.UsageExamples;

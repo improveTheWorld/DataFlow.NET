@@ -1,4 +1,6 @@
-﻿using DataFlow.Extensions;
+﻿using DataFlow;
+using DataFlow.Extensions;
+using DataFlow.Framework;
 using System.Text;
 using System.Text.RegularExpressions;
 

@@ -1,6 +1,6 @@
 ﻿using System.Text;
-
-namespace DataFlow.Extensions;
+using DataFlow.Extensions;
+namespace DataFlow;
 
 /// <summary>
 /// Provides fundamental extension methods for <see cref="IAsyncEnumerable{T}"/> to support

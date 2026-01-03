@@ -11,10 +11,10 @@ This document provides a reference for all extension methods available across th
 
 | Library | Target Type | Paradigm | Namespace |
 |---------|-------------|----------|-----------|
-| `DataFlow.Extensions.EnumerableExtensions` | `IEnumerable<T>` | Synchronous Sequential | `DataFlow.Extensions` |
-| `DataFlow.Extensions.AsyncEnumerableExtensions` | `IAsyncEnumerable<T>` | Asynchronous Sequential | `DataFlow.Extensions` |
-| `DataFlow.Extensions.ParallelQueryExtensions` | `ParallelQuery<T>` | Synchronous Parallel (PLINQ) | `DataFlow.Extensions` |
-| `DataFlow.Extensions.ParallelAsyncQueryExtensions` | `ParallelAsyncQuery<T>` | Asynchronous Parallel | `DataFlow.Extensions` |
+| `DataFlow.Extensions.EnumerableExtensions` | `IEnumerable<T>` | Synchronous Sequential | `DataFlow` |
+| `DataFlow.Extensions.AsyncEnumerableExtensions` | `IAsyncEnumerable<T>` | Asynchronous Sequential | `DataFlow` |
+| `DataFlow.Extensions.ParallelQueryExtensions` | `ParallelQuery<T>` | Synchronous Parallel (PLINQ) | `DataFlow.Parallel` |
+| `DataFlow.Extensions.ParallelAsyncQueryExtensions` | `ParallelAsyncQuery<T>` | Asynchronous Parallel | `DataFlow.Parallel` |
 
 ---
 

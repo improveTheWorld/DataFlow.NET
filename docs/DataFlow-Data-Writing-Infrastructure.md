@@ -9,7 +9,7 @@
 ## Quick Start
 
 ```csharp
-using DataFlow.Data;
+using DataFlow;
 
 // CSV - simple
 await records.WriteCsv("output.csv");

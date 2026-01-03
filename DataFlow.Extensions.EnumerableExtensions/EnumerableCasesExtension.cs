@@ -1,4 +1,4 @@
-﻿namespace DataFlow.Extensions;
+﻿namespace DataFlow;
 
 public static class EnumerableCasesExtension
 {

@@ -1,4 +1,4 @@
-﻿namespace DataFlow.Extensions;
+﻿namespace DataFlow;
 
 /// <summary>
 /// Contains the "Cases" pattern extensions for IAsyncEnumerable<T>.

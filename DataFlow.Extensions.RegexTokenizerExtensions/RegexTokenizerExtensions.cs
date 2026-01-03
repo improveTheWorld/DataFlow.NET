@@ -1,11 +1,7 @@
-﻿using DataFlow.Framework;
+﻿using DataFlow;
+using DataFlow.Framework;
 
-using System.Text;
-using System.Text.RegularExpressions;
-
-
-using DataFlow.Extensions;
-
+namespace DataFlow.Extensions;
 /// <summary>
 /// Provides a set of extension methods for processing sequences of strings (both IEnumerable and IAsyncEnumerable)
 /// with advanced, regex-based tokenization and transformation capabilities.

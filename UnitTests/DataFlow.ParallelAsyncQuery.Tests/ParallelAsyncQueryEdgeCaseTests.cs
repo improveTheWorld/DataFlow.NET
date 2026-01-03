@@ -1,9 +1,7 @@
-using DataFlow.Framework;
-using DataFlow.Extensions;
-using DataFlow.Framework;
+using DataFlow.Parallel;
 using Xunit;
 
-namespace DataFlow.ParallelAsyncQuery.Tests;
+namespace ParallelAsyncQuery.Tests;
 
 /// <summary>
 /// Edge case tests for ParallelAsyncQuery to improve coverage from 44% to 70%+
@@ -93,7 +91,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         // Act
         var query = source
             .AsParallel()
-            .WithMergeOptions(DataFlow.Framework.ParallelMergeOptions.FullyBuffered)
+            .WithMergeOptions(DataFlow.Parallel.ParallelMergeOptions.FullyBuffered)
             .Select(async x =>
             {
                 await Task.Delay(1);
@@ -566,7 +564,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         var processed = new List<int>();
         var settings = new ParallelExecutionSettings
         {
-            ExecutionMode = DataFlow.Framework.ParallelExecutionMode.Sequential
+            ExecutionMode = DataFlow.Parallel.ParallelExecutionMode.Sequential
         };
 
         // Act
@@ -718,7 +716,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         var concurrencyTracker = new ConcurrencyTracker();
         var settings = new ParallelExecutionSettings
         {
-            ExecutionMode = DataFlow.Framework.ParallelExecutionMode.ForceParallel,
+            ExecutionMode = DataFlow.Parallel.ParallelExecutionMode.ForceParallel,
             MaxConcurrency = 4
         };
 
@@ -771,7 +769,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         var source = GenerateNumbers(5);
         var settings = new ParallelExecutionSettings
         {
-            ExecutionMode = DataFlow.Framework.ParallelExecutionMode.Sequential
+            ExecutionMode = DataFlow.Parallel.ParallelExecutionMode.Sequential
         };
 
         // Act
@@ -798,7 +796,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         var source = GenerateNumbers(10);
         var settings = new ParallelExecutionSettings
         {
-            ExecutionMode = DataFlow.Framework.ParallelExecutionMode.Sequential
+            ExecutionMode = DataFlow.Parallel.ParallelExecutionMode.Sequential
         };
 
         // Act
@@ -827,7 +825,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         var source = GenerateNumbers(10);
         var settings = new ParallelExecutionSettings
         {
-            ExecutionMode = DataFlow.Framework.ParallelExecutionMode.Sequential
+            ExecutionMode = DataFlow.Parallel.ParallelExecutionMode.Sequential
         };
 
         // Act
@@ -928,7 +926,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         // Act
         var query = source
             .AsParallel()
-            .WithMergeOptions(DataFlow.Framework.ParallelMergeOptions.NotBuffered)
+            .WithMergeOptions(DataFlow.Parallel.ParallelMergeOptions.NotBuffered)
             .Select(async x =>
             {
                 await Task.Yield();
@@ -950,7 +948,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         // Act
         var query = source
             .AsParallel()
-            .WithMergeOptions(DataFlow.Framework.ParallelMergeOptions.AutoBuffered)
+            .WithMergeOptions(DataFlow.Parallel.ParallelMergeOptions.AutoBuffered)
             .Select(async x =>
             {
                 await Task.Yield();

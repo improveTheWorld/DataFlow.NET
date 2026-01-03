@@ -253,7 +253,7 @@ var transactionAlerts = await liveTransactionStream
 
 ## 5. Multi-Type Branching
 
-When different branches require **different return types**, DataFlow.NET provides multi-type `SelectCase` overloads that maintain full type safety without requiring a common base type.
+When different branches require **different return types**, DataFlow.NET provides dedicated `SelectCases` and `ForEachCases` methods (note the **plural form**) that maintain full type safety without requiring a common base type.
 
 ### The Challenge
 
@@ -268,25 +268,26 @@ In standard C#, all branches of a switch expression must return the same type. B
 )
 ```
 
-### The Solution: Tuple of Nullables
+### The Solution: Dedicated Multi-Type Methods
 
-DataFlow.NET solves this with multi-type `SelectCase` overloads that return a **tuple of nullable types**. Only the slot matching the executed branch contains a value:
+DataFlow.NET solves this with `SelectCases` (plural) which returns a **flat tuple with nullable types**. Only the slot matching the executed branch contains a value:
 
 ```csharp
+
 await logs
     .Cases(
         log => log.Level == "ERROR",
         log => log.Level == "WARNING",
         log => log.Level == "INFO"
     )
-    // Each branch returns a DIFFERENT type
-    .SelectCase<Log, ErrorReport, WarningLog, InfoMetric>(
+    // Each branch returns a DIFFERENT type - use SelectCases (with 's')
+    .SelectCases<Log, ErrorReport, WarningLog, InfoMetric>(
         error => new ErrorReport { Severity = 1, Message = error.Text },
         warning => new WarningLog { Category = warning.Source },
         info => new InfoMetric { MetricName = info.Key, Value = info.Count }
     )
-    // ForEachCase receives the correct type for each branch
-    .ForEachCase<Log, ErrorReport, WarningLog, InfoMetric>(
+    // ForEachCases receives the correct type for each branch
+    .ForEachCases<Log, ErrorReport, WarningLog, InfoMetric>(
         error => await errorDb.SaveAsync(error),
         warning => await logDb.SaveAsync(warning),
         info => await metricsDb.SaveAsync(info)
@@ -302,19 +303,22 @@ await logs
 | Category 1 (WARNING) | `(null, WarningLog, null)` |
 | Category 2 (INFO) | `(null, null, InfoMetric)` |
 
-### Supported Overloads
+### API Variants
 
 Multi-type branching supports **2 to 7 different types**:
 
 ```csharp
-// 2 types
-.SelectCase<T, R1, R2>(selector1, selector2)
+// Single-type: all selectors return the same type R
+.SelectCase(selector1, selector2, selector3)  // Uses params Func<T,R>[]
+
+// Multi-type: each selector returns a DIFFERENT type
+.SelectCases<T, R1, R2>(selector1, selector2)  // Returns flat tuple (R1?, R2?)
 
 // 3 types
-.SelectCase<T, R1, R2, R3>(selector1, selector2, selector3)
+.SelectCases<T, R1, R2, R3>(selector1, selector2, selector3)
 
 // Up to 7 types
-.SelectCase<T, R1, R2, R3, R4, R5, R6, R7>(...)
+.SelectCases<T, R1, R2, R3, R4, R5, R6, R7>(...)
 ```
 
 ### Available Collections

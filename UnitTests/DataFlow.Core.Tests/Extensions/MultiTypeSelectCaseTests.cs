@@ -29,7 +29,7 @@ public class MultiTypeSelectCaseTests
             .Cases(s => s == "error");
 
         // Act
-        var result = items.SelectCase<string, ErrorReport, InfoMetric>(
+        var result = items.SelectCases(
             s => new ErrorReport(s, 1),
             s => new InfoMetric(s, 0.5)
         ).ToList();
@@ -38,15 +38,15 @@ public class MultiTypeSelectCaseTests
         Assert.Equal(3, result.Count);
 
         // Category 0 (error) - first slot populated
-        Assert.NotNull(result[0].result.Item1);
-        Assert.Equal("error", result[0].result.Item1!.Message);
+        Assert.NotNull(result[0].result1);
+        Assert.Equal("error", result[0].result1!.Message);
 
         // Category 1 (info) - second slot populated
-        Assert.NotNull(result[1].result.Item2);
-        Assert.Equal("info", result[1].result.Item2!.Name);
+        Assert.NotNull(result[1].result2);
+        Assert.Equal("info", result[1].result2!.Name);
 
         // Category 0 (error) again
-        Assert.NotNull(result[2].result.Item1);
+        Assert.NotNull(result[2].result1);
     }
 
     [Fact]
@@ -57,17 +57,17 @@ public class MultiTypeSelectCaseTests
             .Cases(s => s == "A");
 
         // Act
-        var result = items.SelectCase<string, int, string>(
+        var result = items.SelectCases(
             s => 100,
             s => $"not-A:{s}"
         ).ToList();
 
         // Assert
         Assert.Equal(0, result[0].category); // A -> category 0
-        Assert.Equal(100, result[0].result.Item1);
+        Assert.Equal(100, result[0].result1);
 
         Assert.Equal(1, result[1].category); // B -> category 1
-        Assert.Equal("not-A:B", result[1].result.Item2);
+        Assert.Equal("not-A:B", result[1].result2);
     }
 
     #endregion
@@ -85,7 +85,7 @@ public class MultiTypeSelectCaseTests
         }.Cases(x => x.Type == "error", x => x.Type == "warning");
 
         // Act
-        var result = items.SelectCase<TestItem, ErrorReport, WarningLog, InfoMetric>(
+        var result = items.SelectCases(
             x => new ErrorReport(x.Content, 1),
             x => new WarningLog(x.Content, DateTime.Now),
             x => new InfoMetric(x.Content, 0.0)
@@ -93,9 +93,9 @@ public class MultiTypeSelectCaseTests
 
         // Assert
         Assert.Equal(3, result.Count);
-        Assert.IsType<ErrorReport>(result[0].result.Item1);
-        Assert.IsType<WarningLog>(result[1].result.Item2);
-        Assert.IsType<InfoMetric>(result[2].result.Item3);
+        Assert.IsType<ErrorReport>(result[0].result1);
+        Assert.IsType<WarningLog>(result[1].result2);
+        Assert.IsType<InfoMetric>(result[2].result3);
     }
 
     #endregion
@@ -111,13 +111,13 @@ public class MultiTypeSelectCaseTests
 
         var items = new[] { "error", "info", "error" }
             .Cases(s => s == "error")
-            .SelectCase<string, ErrorReport, InfoMetric>(
+            .SelectCases(
                 s => new ErrorReport(s, 1),
                 s => new InfoMetric(s, 0.5)
             );
 
         // Act
-        items.ForEachCase<string, ErrorReport, InfoMetric>(
+        items.ForEachCases(
             e => errorList.Add(e),
             i => infoList.Add(i)
         ).ToList();
@@ -137,14 +137,14 @@ public class MultiTypeSelectCaseTests
 
         var items = new[] { "error", "warning", "info", "error" }
             .Cases(s => s == "error", s => s == "warning")
-            .SelectCase<string, ErrorReport, WarningLog, InfoMetric>(
+            .SelectCases(
                 s => new ErrorReport(s, 1),
                 s => new WarningLog(s, DateTime.Now),
                 s => new InfoMetric(s, 0.0)
             );
 
         // Act
-        items.ForEachCase<string, ErrorReport, WarningLog, InfoMetric>(
+        items.ForEachCases(
             _ => errorCount++,
             _ => warningCount++,
             _ => otherCount++
@@ -167,13 +167,13 @@ public class MultiTypeSelectCaseTests
         var originalItems = new[] { "a", "b", "c" };
         var pipeline = originalItems
             .Cases(s => s == "a")
-            .SelectCase<string, int, int>(
+            .SelectCases(
                 s => 1,
                 s => 2
             );
 
         // Act
-        var result = pipeline.UnCase<string, int, int>().ToList();
+        var result = pipeline.UnCase().ToList();
 
         // Assert
         Assert.Equal(originalItems, result);
@@ -186,7 +186,7 @@ public class MultiTypeSelectCaseTests
         var originalItems = new[] { "x", "y", "z", "x" };
         var pipeline = originalItems
             .Cases(s => s == "x", s => s == "y")
-            .SelectCase<string, int, string, double>(
+            .SelectCases(
                 s => 1,
                 s => "two",
                 s => 3.0
@@ -209,7 +209,7 @@ public class MultiTypeSelectCaseTests
         // Arrange
         var items = new[] { "a", "b" }
             .Cases(s => s == "a")
-            .SelectCase<string, int, string>(
+            .SelectCases(
                 s => 100,
                 s => "bee"
             );

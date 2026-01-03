@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using DataFlow.Framework;
 
-namespace DataFlow.Extensions;
+namespace DataFlow.Parallel;
 
 public static class ParallelAsyncQueryDebuggingExtension
 {

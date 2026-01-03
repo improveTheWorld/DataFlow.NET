@@ -1,6 +1,6 @@
 using DataFlow.Data;
-using DataFlow.Extensions;
-using DataFlow.Framework;
+using DataFlow;
+using DataFlow.Parallel;
 using System.Diagnostics;
 
 /*

@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using DataFlow.Extensions;
+using DataFlow;
+using DataFlow.Parallel;
 using Xunit;
 
 namespace DataFlow.Core.Tests.Extensions;
@@ -25,7 +26,7 @@ public class ExtensionApiConsistencyTests
         var source = CreateAsyncEnumerable(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
 
         // Act
-        var result = await ToListAsync(AsyncLinqOperators.Take(source, 2, 3));
+        var result = await ToListAsync(source.Take(2, 3));
 
         // Assert - Should skip 2 and take 3: [2, 3, 4]
         Assert.Equal(3, result.Count);
@@ -39,7 +40,7 @@ public class ExtensionApiConsistencyTests
         var source = CreateAsyncEnumerable(10, 20, 30, 40, 50);
 
         // Act
-        var result = await ToListAsync(AsyncLinqOperators.Take(source, 0, 3));
+        var result = await ToListAsync(source.Take( 0, 3));
 
         // Assert
         Assert.Equal(new[] { 10, 20, 30 }, result);
@@ -52,7 +53,7 @@ public class ExtensionApiConsistencyTests
         var source = CreateAsyncEnumerable(1, 2, 3);
 
         // Act
-        var result = await ToListAsync(AsyncLinqOperators.Take(source, 1, 100));
+        var result = await ToListAsync(source.Take(1, 100));
 
         // Assert - Skip 1, take up to 100 but only 2 remain
         Assert.Equal(new[] { 2, 3 }, result);
@@ -65,7 +66,7 @@ public class ExtensionApiConsistencyTests
         var source = CreateAsyncEnumerable(1, 2, 3);
 
         // Act
-        var result = await ToListAsync(AsyncLinqOperators.Take(source, 10, 5));
+        var result = await ToListAsync(source.Take(10, 5));
 
         // Assert
         Assert.Empty(result);
@@ -78,7 +79,7 @@ public class ExtensionApiConsistencyTests
         var source = CreateAsyncEnumerable(1, 2, 3);
 
         // Act
-        var result = await ToListAsync(AsyncLinqOperators.Take(source, 0, 0));
+        var result = await ToListAsync(source.Take(0, 0));
 
         // Assert
         Assert.Empty(result);
@@ -95,7 +96,7 @@ public class ExtensionApiConsistencyTests
         var slices = CreateAsyncEnumerable("Hello", " ", "World", "|", "Foo", "Bar", "|");
 
         // Act
-        var result = await ToListAsync(AsyncLinqOperators.ToLines(slices, "|"));
+        var result = await ToListAsync(slices.ToLines( "|"));
 
         // Assert
         Assert.Equal(2, result.Count);
@@ -110,7 +111,7 @@ public class ExtensionApiConsistencyTests
         var slices = CreateAsyncEnumerable("Hello", " ", "World");
 
         // Act
-        var result = await ToListAsync(AsyncLinqOperators.ToLines(slices, "|"));
+        var result = await ToListAsync(slices.ToLines( "|"));
 
         // Assert - No separator means no complete lines
         Assert.Empty(result);
@@ -123,7 +124,7 @@ public class ExtensionApiConsistencyTests
         var slices = CreateAsyncEnumerable<string>();
 
         // Act
-        var result = await ToListAsync(AsyncLinqOperators.ToLines(slices, "|"));
+        var result = await ToListAsync(slices.ToLines("|"));    
 
         // Assert
         Assert.Empty(result);
@@ -136,7 +137,7 @@ public class ExtensionApiConsistencyTests
         var slices = CreateAsyncEnumerable("A", "|", "|", "B", "|");
 
         // Act
-        var result = await ToListAsync(AsyncLinqOperators.ToLines(slices, "|"));
+        var result = await ToListAsync(slices.ToLines("|"));
 
         // Assert
         Assert.Equal(3, result.Count);
