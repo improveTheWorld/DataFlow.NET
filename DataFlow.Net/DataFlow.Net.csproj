@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Package Identity -->
+    <PackageId>DataFlow.Net</PackageId>
+    <Description>DataFlow.NET — Complete framework for high-performance data streaming and processing. Includes Read/Write (CSV, JSON, YAML), LINQ extensions, Cases pattern, and parallel processing.</Description>
+    
+    <!-- Include all referenced DLLs in the package -->
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <!-- Core dependencies - all DLLs bundled into this package -->
+  <ItemGroup>
+    <!-- Data Layer -->
+    <ProjectReference Include="..\DataFlow.Data.Read\DataFlow.Data.Read.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DataFlow.Data.Write\DataFlow.Data.Write.csproj" PrivateAssets="all" />
+    
+    <!-- Extension Methods -->
+    <ProjectReference Include="..\DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DataFlow.Extensions.AsyncEnumerableExtensions\DataFlow.Extensions.AsyncEnumerableExtensions.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DataFlow.Extensions.ParallelQueryExtensions\DataFlow.Extensions.ParallelQueryExtensions.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DataFlow.Extensions.ParallelAsyncQueryExtensions\DataFlow.Extensions.ParallelAsyncQueryExtensions.csproj" PrivateAssets="all" />
+    
+    <!-- Framework Infrastructure -->
+    <ProjectReference Include="..\DataFlow.Framework.ParallelAsyncQuery\DataFlow.Framework.ParallelAsyncQuery.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DataFlow.Framework.Guard\DataFlow.Framework.Guard.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DataFlow.Framework.AsyncEnumerable\DataFlow.Framework.AsyncEnumerable.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Ensure all referenced DLLs are packed into lib folder -->
+  <PropertyGroup>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage</TargetsForTfmSpecificBuildOutput>
+  </PropertyGroup>
+
+  <Target Name="CopyProjectReferencesToPackage" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths-&gt;WithMetadataValue('ReferenceSourceTarget', 'ProjectReference'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

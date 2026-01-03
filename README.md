@@ -10,8 +10,15 @@ Let IntelliSense and the compiler do the work.
 + .Where(o => o.Amount > 1000)          // Typo? Won't compile. ✓
 ```
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE) 
+[![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE)
 [![Coverage](https://img.shields.io/badge/Core%20Coverage-77%25-brightgreen)](docs/COVERAGE.md)
+[![NuGet](https://img.shields.io/nuget/v/DataFlow.Net.svg?label=DataFlow.Net)](https://www.nuget.org/packages/DataFlow.Net/)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/DataFlow.Net.svg)](https://www.nuget.org/packages/DataFlow.Net/)
+
+```bash
+# Install via NuGet
+dotnet add package DataFlow.Net
+```
 
 ---
 
@@ -99,7 +106,7 @@ DataFlow.NET provides tools to abstract the *source* of data from the *processin
 | **REST APIs** | `.Poll()` + `.SelectMany()` | `IAsyncEnumerable<T>` |
 | **Kafka / RabbitMQ / WebSocket** | Wrap + `.WithBoundedBuffer()` | `IAsyncEnumerable<T>` |
 | **Snowflake** *(Premium)* | `Read.SnowflakeTable<T>()` | `IAsyncEnumerable<T>` |
-| **Apache Spark** *(Premium)* | `SparkQueryFactory.Create<T>()` | `IAsyncEnumerable<T>` |
+| **Apache Spark** *(Premium)* | `Read.SparkDataFrame<T>()` | `SparkQuery<T>` |
 
 
 > [!IMPORTANT]
@@ -229,6 +236,13 @@ Your C# lambda expressions are decompiled at runtime and translated into **nativ
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
 
 ### Installation
+
+**Via NuGet (Recommended):**
+```bash
+dotnet add package DataFlow.Net
+```
+
+**Or clone the repository:**
 ```bash
 git clone https://github.com/improveTheWorld/DataFlow.NET
 cd DataFlow.NET
@@ -293,7 +307,7 @@ await Read.SnowflakeTable<Order>(options, "orders")
 
 // 4. SCALE: Run on Apache Spark (Petabyte Scale)
 // Translates your C# Expression Tree to native Spark orchestration
-SparkQueryFactory.Create<Order>(spark, ordersDf)
+Read.SparkDataFrame<Order>(spark, ordersDf)
     .Where(o => o.Amount > 10000)
     .Cases(o => o.Amount > 50000, o => o.IsInternational) // 👈 SAME Logic
     .SelectCase(...)
