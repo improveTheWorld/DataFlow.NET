@@ -1,5 +1,5 @@
 ﻿
-namespace DataFlow.Framework;
+namespace DataFlow;
 public enum UnifyErrorMode
 {
     FailFast,          // Any source error ends the merged stream (default)

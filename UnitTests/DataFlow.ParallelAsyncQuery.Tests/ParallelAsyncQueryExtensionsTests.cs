@@ -1,9 +1,8 @@
-using DataFlow.Framework;
-using DataFlow.Extensions;
+using DataFlow.Parallel;
 using System.Text;
 using Xunit;
 
-namespace DataFlow.ParallelAsyncQuery.Tests;
+namespace ParallelAsyncQuery.Tests;
 
 /// <summary>
 /// Tests for the ParallelAsyncQuery extension methods added for API consistency.

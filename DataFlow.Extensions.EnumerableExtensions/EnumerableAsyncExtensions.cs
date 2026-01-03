@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
-namespace DataFlow.Extensions;
+namespace DataFlow;
 
 public static class EnumerableAsyncExtensions
 {

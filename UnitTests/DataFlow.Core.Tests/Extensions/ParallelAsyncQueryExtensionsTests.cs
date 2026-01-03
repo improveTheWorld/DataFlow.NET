@@ -1,5 +1,5 @@
-using DataFlow.Extensions;
-using DataFlow.Framework;
+using DataFlow;
+using DataFlow.Parallel;
 using System.Collections.Concurrent;
 
 namespace DataFlow.Core.Tests.Extensions;

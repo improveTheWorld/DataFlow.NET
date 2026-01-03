@@ -1,4 +1,4 @@
-﻿namespace DataFlow.Extensions;
+﻿namespace DataFlow.Parallel;
 
 public static class ParallelQueryCasesExtension
 {

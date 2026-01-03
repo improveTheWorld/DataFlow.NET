@@ -1,8 +1,9 @@
-using DataFlow.Framework;
+using DataFlow.Parallel;
+
 using Xunit;
 using Xunit.Abstractions;
 
-namespace DataFlow.ParallelAsyncQuery.Tests;
+namespace ParallelAsyncQuery.Tests;
 
 /// <summary>
 /// Stress tests and edge cases for ParallelAsyncQuery.

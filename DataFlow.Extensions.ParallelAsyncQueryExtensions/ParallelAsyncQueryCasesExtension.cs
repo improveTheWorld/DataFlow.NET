@@ -1,6 +1,6 @@
 ﻿using DataFlow.Framework;
 
-namespace DataFlow.Extensions;
+namespace DataFlow.Parallel;
 
 public static class ParallelAsyncQueryCasesExtension
 {

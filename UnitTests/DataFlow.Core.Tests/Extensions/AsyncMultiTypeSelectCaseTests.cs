@@ -47,7 +47,7 @@ public class AsyncMultiTypeSelectCaseTests
 
         // Act
         var result = await CollectAsync(
-            items.SelectCase<string, ErrorReport, InfoMetric>(
+            items.SelectCases(
                 s => new ErrorReport(s, 1),
                 s => new InfoMetric(s, 0.5)
             )
@@ -57,12 +57,12 @@ public class AsyncMultiTypeSelectCaseTests
         Assert.Equal(3, result.Count);
 
         // Category 0 (error) - first slot populated
-        Assert.NotNull(result[0].result.Item1);
-        Assert.Equal("error", result[0].result.Item1!.Message);
+        Assert.NotNull(result[0].result1);
+        Assert.Equal("error", result[0].result1!.Message);
 
-        // Category 1 (info) - second slot populated  
-        Assert.NotNull(result[1].result.Item2);
-        Assert.Equal("info", result[1].result.Item2!.Name);
+        // Category 1 (info) - second slot populated
+        Assert.NotNull(result[1].result2);
+        Assert.Equal("info", result[1].result2!.Name);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class AsyncMultiTypeSelectCaseTests
 
         // Act
         var result = await CollectAsync(
-            items.SelectCase<string, int, string, double>(
+            items.SelectCases(
                 s => 1,
                 s => "two",
                 s => 3.0
@@ -100,14 +100,14 @@ public class AsyncMultiTypeSelectCaseTests
 
         var items = ToAsync(new[] { "error", "info", "error" })
             .Cases(s => s == "error")
-            .SelectCase<string, ErrorReport, InfoMetric>(
+            .SelectCases(
                 s => new ErrorReport(s, 1),
                 s => new InfoMetric(s, 0.5)
             );
 
         // Act
         await CollectAsync(
-            items.ForEachCase<string, ErrorReport, InfoMetric>(
+            items.ForEachCases(
                 e => errorList.Add(e),
                 i => infoList.Add(i)
             )
@@ -129,7 +129,7 @@ public class AsyncMultiTypeSelectCaseTests
         var originalItems = new[] { "a", "b", "c" };
         var pipeline = ToAsync(originalItems)
             .Cases(s => s == "a")
-            .SelectCase<string, int, int>(
+            .SelectCases(
                 s => 1,
                 s => 2
             );
@@ -151,7 +151,7 @@ public class AsyncMultiTypeSelectCaseTests
         // Arrange
         var items = ToAsync(new[] { "a", "b" })
             .Cases(s => s == "a")
-            .SelectCase<string, int, string>(
+            .SelectCases(
                 s => 100,
                 s => "bee"
             );

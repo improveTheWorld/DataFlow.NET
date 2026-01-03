@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using DataFlow.Framework;
+using DataFlow.Parallel;
 using Xunit;
 
-namespace DataFlow.ParallelAsyncQuery.Tests;
+namespace ParallelAsyncQuery.Tests;
 
 /// <summary>
 /// Tests for CancellationToken handling and SelectMany operations.

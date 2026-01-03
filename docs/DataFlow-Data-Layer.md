@@ -1,6 +1,6 @@
-# DataFlow.Data Layer Documentation
-
-The DataFlow.Data layer provides the foundation for **reading and writing data** in the DataFlow.NET framework, with full support for both synchronous (`IEnumerable`) and asynchronous (`IAsyncEnumerable`) streaming.
+# DataFlow Data Layer
+ 
+The DataFlow Data aspect (namespace `DataFlow`) provides the foundation for **reading and writing data** in the DataFlow.NET framework, with full support for both synchronous (`IEnumerable`) and asynchronous (`IAsyncEnumerable`) streaming.
 
 ## Table of Contents
 

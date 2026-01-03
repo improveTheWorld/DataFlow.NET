@@ -1,9 +1,10 @@
 using System.Collections.Concurrent;
-using DataFlow.Framework;
+using DataFlow;
+using DataFlow.Parallel;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace DataFlow.ParallelAsyncQuery.Tests;
+namespace ParallelAsyncQuery.Tests;
 
 /// <summary>
 /// Concurrency and thread-safety tests for ParallelAsyncQuery.

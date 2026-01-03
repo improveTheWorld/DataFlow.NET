@@ -2,7 +2,7 @@
 using System.Threading.Channels;
 
 
-namespace DataFlow.Framework;
+namespace DataFlow.Parallel;
 
 // Configuration settings
 public record ParallelExecutionSettings

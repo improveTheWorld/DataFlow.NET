@@ -2,7 +2,7 @@
 using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 
-namespace DataFlow.Extensions;
+namespace DataFlow;
 
 /// <summary>
 /// Provides polling helpers that expose periodic, pull-based data acquisition
