@@ -1,7 +1,5 @@
-using DataFlow.Extensions;
-using DataFlow.Framework;
-
-namespace DataFlow.App.UsageExamples;
+using DataFlow;
+namespace App.UsageExamples;
 
 /// <summary>
 /// Examples from Stream-Merging.md - AsyncEnumerableMerger for multi-source streams

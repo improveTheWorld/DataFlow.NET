@@ -1,6 +1,6 @@
 using DataFlow.Framework;
 
-namespace DataFlow.App.UsageExamples;
+namespace App.UsageExamples;
 
 /// <summary>
 /// Examples from ObjectMaterializer.md

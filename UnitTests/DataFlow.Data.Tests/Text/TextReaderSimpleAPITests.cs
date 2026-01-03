@@ -1,4 +1,4 @@
-using DataFlow.Data;
+using DataFlow;
 using DataFlow.Data.Tests.Generators;
 using Xunit;
 using DataFlow.Data.Tests.Utilities;

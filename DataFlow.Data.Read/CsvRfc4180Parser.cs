@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DataFlow.Data;
+namespace DataFlow;
 
 internal static class CsvRfc4180Parser
 {

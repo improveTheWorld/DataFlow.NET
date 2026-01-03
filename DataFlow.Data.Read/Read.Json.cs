@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
-namespace DataFlow.Data;
+namespace DataFlow;
 
 public static partial class Read
 {

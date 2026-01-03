@@ -1,6 +1,6 @@
 
 using System.Linq;
-using DataFlow.Data;
+using DataFlow;
 using DataFlow.Data.Tests.Utilities;
 using DataFlow.Data.Tests.Generators;
 using Xunit;

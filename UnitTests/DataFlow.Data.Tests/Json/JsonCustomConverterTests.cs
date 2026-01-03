@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DataFlow.Data;
+using DataFlow;
 using Xunit;
 
 namespace DataFlow.Data.Tests.Json;

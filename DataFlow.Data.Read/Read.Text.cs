@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace DataFlow.Data;
+namespace DataFlow;
 
 public static partial class Read
 {

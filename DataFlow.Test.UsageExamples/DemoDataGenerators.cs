@@ -1,4 +1,4 @@
-namespace DataFlow.App.UsageExamples;
+namespace App.UsageExamples;
 
 /// <summary>
 /// Data models and generators for demonstration purposes.
