@@ -17,7 +17,7 @@ Let IntelliSense and the compiler do the work.
 
 ```bash
 # Install via NuGet
-dotnet add package DataFlow.Net
+dotnet add package DataFlow.Net --version 1.0.1
 ```
 
 ---
@@ -239,7 +239,7 @@ Your C# lambda expressions are decompiled at runtime and translated into **nativ
 
 **Via NuGet (Recommended):**
 ```bash
-dotnet add package DataFlow.Net
+dotnet add package DataFlow.Net --version 1.0.1
 ```
 
 **Or clone the repository:**
