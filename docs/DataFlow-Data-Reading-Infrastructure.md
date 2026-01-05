@@ -45,7 +45,7 @@ IEnumerable<T> rows2 = csvText.AsCsv<T>(separator: ",", onError: (raw, ex) => { 
 
 // JSON
 IEnumerable<T> items = jsonText.AsJson<T>(jsonOptions, ct);
-IEnumerable<T> items2 = jsonText.AsJsonSync<T>(serializerOptions: null, onError: ex => { }, ct);
+IEnumerable<T> items2 = jsonText.AsJson<T>(serializerOptions: null, onError: ex => { }, ct);
 
 // YAML
 IEnumerable<T> docs = yamlText.AsYaml<T>(yamlOptions, ct);
@@ -56,7 +56,7 @@ IEnumerable<T> docs2 = yamlText.AsYaml<T>(onError: ex => { }, ct);
 | Format | From-string sync overload (string extensions) |
 | ------ | --------------------------------------------- |
 | CSV    | `string.AsCsv<T>(CsvReadOptions, CancellationToken)`; `string.AsCsv<T>(string separator=",", Action<string,Exception>? onError=null, CancellationToken ct=default, params string[] schema)` |
-| JSON   | `string.AsJson<T>(JsonReadOptions<T>, CancellationToken)`; `string.AsJsonSync<T>(JsonSerializerOptions? serializerOptions=null, Action<Exception>? onError=null, CancellationToken ct=default)` |
+| JSON   | `string.AsJson<T>(JsonReadOptions<T>, CancellationToken)`; `string.AsJson<T>(JsonSerializerOptions? serializerOptions=null, Action<Exception>? onError=null, CancellationToken ct=default)` |
 | YAML   | `string.AsYaml<T>(YamlReadOptions<T>, CancellationToken)`; `string.AsYaml<T>(Action<Exception>? onError=null, CancellationToken ct=default)` |
 
 Diagnostics use `file="(string)"`. Error handling, guard rails, and metrics mirror the stream/file sync paths.

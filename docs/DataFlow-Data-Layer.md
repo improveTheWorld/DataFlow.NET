@@ -162,14 +162,14 @@ Parse data directly from in-memory strings:
 ```csharp
 // CSV from string
 string csvText = "Name,Age\nJohn,30\nJane,25";
-foreach (var record in csvText.AsCsvSync<Person>())
+foreach (var record in csvText.AsCsv<Person>())
 {
     Console.WriteLine(record.Name);
 }
 
 // JSON from string
 string jsonText = "[{\"id\":1},{\"id\":2}]";
-foreach (var item in jsonText.AsJsonSync<MyItem>())
+foreach (var item in jsonText.AsJson<MyItem>())
 {
     Console.WriteLine(item.Id);
 }

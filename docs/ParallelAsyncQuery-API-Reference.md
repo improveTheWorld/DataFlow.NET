@@ -9,7 +9,7 @@ ParallelAsyncQuery provides a fluent, LINQ-like API for parallel processing of a
 var results = await source
     .AsParallel()
     .Select(async item => await ProcessAsync(item))
-    .ToListAsync();
+    .ToList();
 
 // Advanced usage with configuration
 var results = await source
@@ -19,7 +19,7 @@ var results = await source
     .ContinueOnError()
     .Select(async item => await ProcessAsync(item))
     .Where(async item => await ValidateAsync(item))
-    .ToListAsync();
+    .ToList();
 ```
 
 ---
@@ -133,12 +133,12 @@ Transforms each item asynchronously in parallel.
 ```csharp
 var results = await source.AsParallel()
     .Select(async item => await TransformAsync(item))
-    .ToListAsync();
+    .ToList();
 
 // With index
 var results = await source.AsParallel()
     .Select(async (item, index) => $"{index}: {await ProcessAsync(item)}")
-    .ToListAsync();
+    .ToList();
 ```
 
 ---
@@ -149,7 +149,7 @@ Filters items asynchronously in parallel.
 ```csharp
 var valid = await source.AsParallel()
     .Where(async item => await IsValidAsync(item))
-    .ToListAsync();
+    .ToList();
 ```
 
 ---
@@ -160,7 +160,7 @@ Flattens nested sequences.
 ```csharp
 var allItems = await source.AsParallel()
     .SelectMany(parent => GetChildrenAsync(parent))
-    .ToListAsync();
+    .ToList();
 ```
 
 ---
@@ -172,7 +172,7 @@ Limits output to first N items.
 var firstTen = await source.AsParallel()
     .WithOrderPreservation(true)
     .Take(10)
-    .ToListAsync();
+    .ToList();
 ```
 
 ---
@@ -231,7 +231,7 @@ public async Task<List<ProcessedOrder>> ProcessOrdersAsync(
             return new ProcessedOrder(enriched, result);
         })
         
-        .ToListAsync(cancellationToken);
+        .ToList(cancellationToken);
 }
 ```
 
