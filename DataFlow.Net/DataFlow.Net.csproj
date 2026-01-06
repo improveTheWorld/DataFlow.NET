@@ -33,9 +33,17 @@
     <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
 
+  <!-- Direct reference to YamlDotNet for embedding -->
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" GeneratePathProperty="true" PrivateAssets="all" />
+  </ItemGroup>
+
   <Target Name="CopyProjectReferencesToPackage" DependsOnTargets="ResolveReferences">
     <ItemGroup>
+      <!-- Include project references (DataFlow DLLs) -->
       <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths-&gt;WithMetadataValue('ReferenceSourceTarget', 'ProjectReference'))" />
+      <!-- Include YamlDotNet DLL -->
+      <BuildOutputInPackage Include="$(PkgYamlDotNet)\lib\net8.0\YamlDotNet.dll" />
     </ItemGroup>
   </Target>
 
