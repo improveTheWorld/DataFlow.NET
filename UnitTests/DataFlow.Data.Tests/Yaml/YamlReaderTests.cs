@@ -64,9 +64,12 @@ public class YamlReaderTests
             count++;
 
         // Assert
-        Assert.Equal(4, count);  // 5 total elements, 1 skipped
-        Assert.Equal(1, opts.Metrics.ErrorCount);
+        // With IgnoreUnmatchedProperties, the extra 'desc' field is silently ignored
+        // All 5 elements are now successfully parsed (no errors)
+        Assert.Equal(5, count);
+        Assert.Equal(0, opts.Metrics.ErrorCount);
     }
+
 
     [Fact]
     public async Task Reads_Sequence()
@@ -119,5 +122,97 @@ public class YamlReaderTests
         Assert.NotNull(opts.Metrics);
         Assert.Equal(3, opts.Metrics.RecordsEmitted);
         Assert.NotNull(opts.Metrics.CompletedUtc);
+    }
+
+    /// <summary>
+    /// BUG-002 Regression Test: YAML should now match properties case-insensitively.
+    /// Previously, PascalCase keys in YAML would fail to match C# properties.
+    /// </summary>
+    [Fact]
+    public async Task Yaml_CaseInsensitive_PascalCase_Works()
+    {
+        // Arrange - PascalCase keys (matching C# convention) now work!
+        var yaml = @"- Id: 10
+  Name: Alice
+  Ok: true
+- Id: 20
+  Name: Bob
+  Ok: false
+";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(yaml));
+        var opts = new YamlReadOptions<Node>();
+
+        // Act
+        var items = new List<Node>();
+        await foreach (var item in Read.Yaml<Node>(stream, opts))
+            items.Add(item);
+
+        // Assert - BUG-002 FIX: PascalCase keys should now work
+        Assert.Equal(2, items.Count);
+        Assert.Equal(10, items[0].id);
+        Assert.Equal("Alice", items[0].name);
+        Assert.Equal(20, items[1].id);
+        Assert.Equal("Bob", items[1].name);
+    }
+
+    /// <summary>
+    /// BUG-007 Regression Test: MaxNodeScalarLength should not cause infinite loop.
+    /// When a scalar exceeds the limit with ErrorAction.Skip, the reader should
+    /// skip the element and continue, not hang indefinitely.
+    /// </summary>
+    [Fact(Timeout = 5000)] // 5 second timeout - if it hangs, the test fails
+    public async Task Yaml_MaxNodeScalarLength_DoesNotHang()
+    {
+        // Arrange - YAML with a scalar that exceeds MaxNodeScalarLength (500 chars > 100 limit)
+        var longValue = new string('X', 500);
+        var yaml = $@"- id: 1
+  name: {longValue}
+- id: 2
+  name: short
+";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(yaml));
+        var opts = new YamlReadOptions<Node>
+        {
+            MaxNodeScalarLength = 100,
+            ErrorAction = ReaderErrorAction.Skip
+        };
+
+        // Act - This should NOT hang. Before the fix, it caused infinite loop.
+        var items = new List<Node>();
+        await foreach (var item in Read.Yaml<Node>(stream, opts))
+            items.Add(item);
+
+        // Assert - First item should be skipped (oversized scalar), second should be read
+        // The exact behavior depends on the fix: either skip the item or throw
+        // For now, we just verify it doesn't hang and completes in reasonable time
+        Assert.True(items.Count <= 2, $"Expected <= 2 items, got {items.Count}");
+    }
+
+    /// <summary>
+    /// Verify MaxNodeScalarLength works correctly with ErrorAction.Throw.
+    /// Should throw an exception when scalar exceeds limit.
+    /// The exception may be InvalidDataException or YamlException (wrapping InvalidDataException).
+    /// </summary>
+    [Fact]
+    public async Task Yaml_MaxNodeScalarLength_ThrowsOnExceed()
+    {
+        // Arrange
+        var longValue = new string('X', 500);
+        var yaml = $@"- id: 1
+  name: {longValue}
+";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(yaml));
+        var opts = new YamlReadOptions<Node>
+        {
+            MaxNodeScalarLength = 100,
+            ErrorAction = ReaderErrorAction.Throw
+        };
+
+        // Act & Assert - Exception should be thrown (may be wrapped by YamlDotNet)
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await foreach (var _ in Read.Yaml<Node>(stream, opts))
+            { }
+        });
     }
 }

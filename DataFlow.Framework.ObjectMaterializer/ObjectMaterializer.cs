@@ -92,6 +92,12 @@ public sealed class CtorMaterializationSession<T>
         return result;
     }
 
+    /// <summary>
+    /// Number of constructor parameters that are mapped to schema columns.
+    /// If 0, this session uses a parameterless constructor.
+    /// </summary>
+    public int ParamCount => _paramMap.Length;
+
     private static ObjectMaterializer.CtorSignatureKey BuildCtorKey(Type type, ConstructorInfo ctor)
     {
         // Build signature from parameter types
@@ -167,6 +173,18 @@ public sealed class GeneralMaterializationSession<T>
         {
             // This will throw only if no accessible ctors exist; otherwise it builds the map and reuses caches
             session = new CtorMaterializationSession<T>(schema);
+
+            // BUG-001 FIX: If the ctor is parameterless but schema has columns,
+            // we should use MemberApply strategy instead to set properties.
+            // Only use ctor strategy when the constructor actually takes parameters.
+            if (session.ParamCount == 0 && schema.Length > 0)
+            {
+                // Parameterless ctor won't set any properties from schema values.
+                // Fall back to MemberApply which will set properties.
+                session = null;
+                return false;
+            }
+
             return true;
         }
         catch (InvalidOperationException)

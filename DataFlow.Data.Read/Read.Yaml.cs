@@ -86,9 +86,12 @@ public static partial class Read
 
         var secureParser = new SecurityFilteringParser<T>(baseParser, options);
 
+        // BUG-002 FIX: Use case-insensitive property matching to align with JSON behavior
         var deserializerBuilder = new YamlDotNet.Serialization.DeserializerBuilder()
-            .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.CamelCaseNamingConvention.Instance);
+            .WithCaseInsensitivePropertyMatching()
+            .IgnoreUnmatchedProperties();
         var deserializer = deserializerBuilder.Build();
+
 
         long record = 0;
         bool sequenceRootChecked = false;
@@ -163,8 +166,12 @@ public static partial class Read
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch (YamlDotNet.Core.YamlException ex)
+            catch (Exception ex) when (ex is YamlDotNet.Core.YamlException || ex is InvalidDataException)
             {
+                // If ErrorAction is Throw, propagate the exception to the caller
+                if (options.ErrorAction == ReaderErrorAction.Throw)
+                    throw;
+
                 if (options.Metrics.TerminatedEarly)
                     yield break;
                 if (!options.HandleError("YAML", -1, record, options.FilePath!,
@@ -221,6 +228,28 @@ public static partial class Read
             yield return item;
     }
 
+    /// <summary>
+    /// Reads YAML content from a stream using default options (async).
+    /// </summary>
+    /// <typeparam name="T">The type to deserialize each YAML document/element into.</typeparam>
+    /// <param name="stream">The input stream to read from (not disposed by this method).</param>
+    /// <param name="onError">Optional error handler. If provided, errors are skipped; otherwise thrown.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>An async enumerable of deserialized items.</returns>
+    public static async IAsyncEnumerable<T> Yaml<T>(
+        Stream stream,
+        Action<Exception>? onError = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var opts = new YamlReadOptions<T>
+        {
+            ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+            ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(e => onError(e), StreamPseudoPath)
+        };
+        await foreach (var item in Yaml<T>(stream, opts, filePath: null, cancellationToken))
+            yield return item;
+    }
+
     private static bool IsAllowed<T>(YamlReadOptions<T> options, T item)
     {
         if (!options.RestrictTypes) return true;
@@ -250,9 +279,12 @@ public static partial class Read
 
         var secureParser = new SecurityFilteringParser<T>(baseParser, options);
 
+        // BUG-002 FIX: Use case-insensitive property matching to align with JSON behavior
         var deserializerBuilder = new YamlDotNet.Serialization.DeserializerBuilder()
-            .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.CamelCaseNamingConvention.Instance);
+            .WithCaseInsensitivePropertyMatching()
+            .IgnoreUnmatchedProperties();
         var deserializer = deserializerBuilder.Build();
+
 
         long record = 0;
         bool sequenceRootChecked = false;

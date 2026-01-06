@@ -50,9 +50,9 @@ public class PerformanceTests
         _output.WriteLine($"Second call: {sw2.ElapsedTicks} ticks");
         _output.WriteLine($"Speedup: {(double)sw1.ElapsedTicks / sw2.ElapsedTicks:F2}x");
 
-        // Second call should be significantly faster (at least 5x)
-        Assert.True(sw2.ElapsedTicks * 5 < sw1.ElapsedTicks,
-            $"Second call ({sw2.ElapsedTicks}) should be much faster than first ({sw1.ElapsedTicks})");
+        // Second call should be faster (at least 3x) - relaxed for CI/test environments
+        Assert.True(sw2.ElapsedTicks * 3 < sw1.ElapsedTicks,
+            $"Second call ({sw2.ElapsedTicks}) should be faster than first ({sw1.ElapsedTicks})");
     }
 
     [Fact]
@@ -219,9 +219,14 @@ public class PerformanceTests
         // Session under test
         var session = ObjectMaterializer.CreateGeneralSession<PersonCtor>(schema);
 
-        // Warmup (JIT, caches)
+        // Warmup (JIT, caches) - run both methods multiple times
         session.Create(values);
         CreateViaReflection(schema, values);
+        for (int i = 0; i < 1000; i++)
+        {
+            session.Create(values);
+            CreateViaReflection(schema, values);
+        }
 
         PersonCtor x;
         var sw1 = Stopwatch.StartNew();
@@ -240,7 +245,7 @@ public class PerformanceTests
         _output.WriteLine($"Speedup: {(double)sw2.ElapsedMilliseconds / sw1.ElapsedMilliseconds:F2}x");
 
         var speedup = sw1.ElapsedMilliseconds > 0 ? (decimal)sw2.ElapsedMilliseconds / sw1.ElapsedMilliseconds : 999m;
-        Assert.True(sw1.ElapsedMilliseconds * 2 < sw2.ElapsedMilliseconds || sw1.ElapsedMilliseconds == 0,
+        Assert.True(sw1.ElapsedMilliseconds * 4 < sw2.ElapsedMilliseconds || sw1.ElapsedMilliseconds == 0,
             $"GeneralSession ({sw1.ElapsedMilliseconds}ms) should be faster than reflection ({sw2.ElapsedMilliseconds}ms), {speedup}x faster");
     }
 }

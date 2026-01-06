@@ -246,7 +246,15 @@ internal sealed class SecurityFilteringParser<T> : IParser
                         _advanced = true;
                         return;
                     }
-                    continue; // skip this scalar
+                    // BUG-007 FIX: Throw InvalidDataException instead of continue.
+                    // The previous 'continue' caused an infinite loop because:
+                    // 1. The scalar is part of a mapping (e.g., "name: XXXX...")
+                    // 2. Just skipping the scalar leaves the mapping incomplete
+                    // 3. The parser stays stuck trying to read the incomplete mapping
+                    // By throwing, the outer Read.Yaml catch-resync logic properly
+                    // skips the entire element and continues with the next one.
+                    throw new System.IO.InvalidDataException(
+                        $"YAML scalar exceeds MaxNodeScalarLength: Len={sc.Value.Length} Max={_options.MaxNodeScalarLength}");
                 }
             }
 

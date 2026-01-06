@@ -6,12 +6,15 @@ namespace DataFlow.Data.Tests.Csv;
 
 public class CsvCustomConverterTests
 {
-  
-    record MyRow    {
-          public int Id { get; set; }
-          public string Upper { get; set; } 
-          public decimal Amount { get; set; }
+
+    record MyRow
+    {
+        public int Id { get; set; }
+        public string Upper { get; set; } = "";
+        public decimal Amount { get; set; }
     }
+
+
 
     [Fact]
     public async Task FieldValueConverter_Applies()

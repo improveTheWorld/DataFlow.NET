@@ -68,6 +68,33 @@ public static partial class Read
             yield return item;
     }
 
+    /// <summary>
+    /// Reads JSON content from a stream using default options (async).
+    /// </summary>
+    /// <typeparam name="T">The type to deserialize each JSON element into.</typeparam>
+    /// <param name="stream">The input stream to read from (not disposed by this method).</param>
+    /// <param name="options">Optional JsonSerializerOptions. Defaults to case-insensitive.</param>
+    /// <param name="onError">Optional error handler. If provided, errors are skipped; otherwise thrown.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>An async enumerable of deserialized items.</returns>
+    public static async IAsyncEnumerable<T> Json<T>(
+        Stream stream,
+        JsonSerializerOptions? options = null,
+        Action<Exception>? onError = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var readOptions = new JsonReadOptions<T>
+        {
+            SerializerOptions = options ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+            ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+            ErrorSink = onError == null
+                ? NullErrorSink.Instance
+                : new DelegatingErrorSink(e => onError(e), StreamPseudoPath)
+        };
+        await foreach (var item in Json(stream, readOptions, filePath: null, cancellationToken).ConfigureAwait(false))
+            yield return item;
+    }
+
     // ---------------------------
     // PUBLIC SYNC (OPTIONS) API
     // ---------------------------
@@ -132,6 +159,33 @@ public static partial class Read
                 : new DelegatingErrorSink(e => onError(e), path)
         };
         foreach (var item in JsonSync<T>(path, readOptions, cancellationToken))
+            yield return item;
+    }
+
+    /// <summary>
+    /// Reads JSON content from a stream using default options (sync).
+    /// </summary>
+    /// <typeparam name="T">The type to deserialize each JSON element into.</typeparam>
+    /// <param name="stream">The input stream to read from (not disposed by this method).</param>
+    /// <param name="options">Optional JsonSerializerOptions. Defaults to case-insensitive.</param>
+    /// <param name="onError">Optional error handler. If provided, errors are skipped; otherwise thrown.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>An enumerable of deserialized items.</returns>
+    public static IEnumerable<T> JsonSync<T>(
+        Stream stream,
+        JsonSerializerOptions? options = null,
+        Action<Exception>? onError = null,
+        CancellationToken cancellationToken = default)
+    {
+        var readOptions = new JsonReadOptions<T>
+        {
+            SerializerOptions = options ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+            ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
+            ErrorSink = onError == null
+                ? NullErrorSink.Instance
+                : new DelegatingErrorSink(e => onError(e), StreamPseudoPath)
+        };
+        foreach (var item in JsonSync<T>(stream, readOptions, filePath: null, cancellationToken))
             yield return item;
     }
     // ===========================

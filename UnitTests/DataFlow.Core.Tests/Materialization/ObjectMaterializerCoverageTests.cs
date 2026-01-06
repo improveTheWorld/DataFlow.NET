@@ -8,6 +8,128 @@ namespace DataFlow.Core.Tests.Materialization;
 /// </summary>
 public class ObjectMaterializerCoverageTests
 {
+    #region Nested Class Test Models (BUG-001 Investigation)
+
+    /// <summary>
+    /// Nested mutable class - suspected to fail with GeneralMaterializationSession
+    /// </summary>
+    public class NestedMutablePerson
+    {
+        public string Name { get; set; } = "";
+        public int Age { get; set; }
+    }
+
+    /// <summary>
+    /// Nested record with primary constructor - expected to work
+    /// </summary>
+    public record NestedRecordPerson(string Name, int Age);
+
+    #endregion
+
+    #region BUG-001: Nested Class Materialization Tests
+
+    /// <summary>
+    /// Tests that ObjectMaterializer.Create works with nested mutable classes.
+    /// This is the direct API path.
+    /// </summary>
+    [Fact]
+    public void Create_WithNestedMutableClass_ShouldMaterializeCorrectly()
+    {
+        // Arrange
+        var schema = new[] { "Name", "Age" };
+        var values = new object[] { "Alice", 30 };
+
+        // Act
+        var result = ObjectMaterializer.Create<NestedMutablePerson>(schema, values);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Alice", result.Name);
+        Assert.Equal(30, result.Age);
+    }
+
+    /// <summary>
+    /// Tests that GeneralMaterializationSession works with nested mutable classes.
+    /// This is the path used by CSV reader.
+    /// </summary>
+    [Fact]
+    public void CreateGeneralSession_WithNestedMutableClass_ShouldMaterializeCorrectly()
+    {
+        // Arrange
+        var schema = new[] { "Name", "Age" };
+        var session = ObjectMaterializer.CreateGeneralSession<NestedMutablePerson>(schema);
+
+        // Act
+        var result = session.Create(new object[] { "Bob", 25 });
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Bob", result.Name);
+        Assert.Equal(25, result.Age);
+    }
+
+    /// <summary>
+    /// Tests that GeneralMaterializationSession correctly uses member feeding
+    /// (not constructor) for nested mutable classes.
+    /// </summary>
+    [Fact]
+    public void CreateGeneralSession_WithNestedMutableClass_UsesMemberApply()
+    {
+        // Arrange
+        var schema = new[] { "Name", "Age" };
+        var session = ObjectMaterializer.CreateGeneralSession<NestedMutablePerson>(schema);
+
+        // Assert - Should use member apply strategy since there's no matching ctor
+        Assert.True(session.UsesMemberApply,
+            "Expected session to use MemberApply strategy for mutable class without matching constructor");
+    }
+
+    /// <summary>
+    /// Tests that nested record with primary constructor works correctly.
+    /// </summary>
+    [Fact]
+    public void CreateGeneralSession_WithNestedRecord_ShouldMaterializeCorrectly()
+    {
+        // Arrange
+        var schema = new[] { "Name", "Age" };
+        var session = ObjectMaterializer.CreateGeneralSession<NestedRecordPerson>(schema);
+
+        // Act
+        var result = session.Create(new object[] { "Charlie", 35 });
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Charlie", result.Name);
+        Assert.Equal(35, result.Age);
+    }
+
+    /// <summary>
+    /// Tests multiple row materialization with nested mutable class.
+    /// This simulates CSV reader behavior.
+    /// </summary>
+    [Fact]
+    public void CreateGeneralSession_WithNestedMutableClass_MultipleRows()
+    {
+        // Arrange
+        var schema = new[] { "Name", "Age" };
+        var session = ObjectMaterializer.CreateGeneralSession<NestedMutablePerson>(schema);
+
+        // Act - Simulate reading multiple CSV rows
+        var row1 = session.Create(new object[] { "Alice", 25 });
+        var row2 = session.Create(new object[] { "Bob", 30 });
+        var row3 = session.Create(new object[] { "Charlie", 35 });
+
+        // Assert
+        Assert.Equal("Alice", row1.Name);
+        Assert.Equal(25, row1.Age);
+        Assert.Equal("Bob", row2.Name);
+        Assert.Equal(30, row2.Age);
+        Assert.Equal("Charlie", row3.Name);
+        Assert.Equal(35, row3.Age);
+    }
+
+    #endregion
+
     #region Test Models
 
     public class PersonWithMultipleConstructors

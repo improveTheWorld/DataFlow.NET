@@ -71,10 +71,12 @@ Note:
 Every file-based reader now has a stream-based counterpart that the file overload delegates to.  
 Use these when you already have an open `Stream` (e.g., memory streams, network streams, zip entries) to avoid temporary files and to keep ownership / lifetime under your control.
 
-General pattern (options-based):
+#### Options-Based Stream API (Full Control)
+
+Use these when you need fine-grained control over parsing behavior and error reporting:
 
 ```csharp
-// CSV
+// CSV - filePath improves error diagnostics
 await foreach (var row in Read.Csv<MyRow>(myStream, csvOptions, filePath: "orders.csv"))
 { /* ... */ }
 
@@ -87,24 +89,39 @@ await foreach (var doc in Read.Yaml<MyType>(myStream, yamlOptions, filePath: "co
 { /* ... */ }
 
 // Text lines
-await foreach (var line in Read.Text(myStream)) { /* ... */ }
+await foreach (var line in Read.Text(myStream, textOptions, filePath: "log.txt"))
+{ /* ... */ }
+```
+
+#### Simple Stream API (Minimal)
+
+Use these for quick parsing with sensible defaults. The simple API is symmetric with the file API - just swap `path` for `stream`:
+
+```csharp
+// CSV - matches Csv<T>(path, separator, onError, token, schema)
+await foreach (var row in Read.Csv<MyRow>(myStream, ",", onError: (raw, ex) => Log(ex)))
+{ /* ... */ }
+
+// JSON - matches Json<T>(path, options, onError, token)
+await foreach (var item in Read.Json<MyDoc>(myStream))
+{ /* ... */ }
+
+// YAML - matches Yaml<T>(path, onError, token)
+await foreach (var doc in Read.Yaml<MyType>(myStream))
+{ /* ... */ }
+
+// Text - matches Text(path, token)
+await foreach (var line in Read.Text(myStream))
+{ /* ... */ }
 ```
 
 Notes:
-* `filePath` is optional; supplying it improves error diagnostics (`file` field in error records). If omitted, an internal placeholder `"(stream)"` is used.
+* **Options-based API**: `filePath` is optional; supplying it improves error diagnostics (`file` field in error records). If omitted, an internal placeholder `"(stream)"` is used.
+* **Simple API**: Does not expose `filePath` - use the options-based API if you need custom error context.
 * The passed `Stream` is NOT disposed by the reader; the caller retains lifecycle responsibility.
-* String-based sync overloads internally create a UTF‑8 `MemoryStream` and set `file="(string)"`. They honor both the per-call CancellationToken and options.CancellationToken downstream. For large inputs prefer stream/file APIs.
-* CSV string simple overload takes `separator` as string; only the first character is used.
 * Cancellation: both the per-call token and the options-level token are honored.
 * Progress percentage for JSON is only computed when the stream is seekable (`CanSeek == true`). Otherwise `Percentage` is `null`.
 * Guard rails, inference, error handling, and cancellation semantics are identical to file-based usage.
-* Simple (delegate-based) also has overloads that accept a `CancellationToken` and stream:
-
-```csharp
-// Example: Simple CSV from stream with cancellation
-await foreach (var r in Read.Csv<MyRow>(myStream, ",", onError: (raw, ex) => Console.WriteLine(ex.Message), cancellationToken: ct))
-{ }
-```
 
 ### 0.4 Read Raw Text Lines
 

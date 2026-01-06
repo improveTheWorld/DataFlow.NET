@@ -101,23 +101,26 @@ namespace DataFlow.Tests
         [Fact]
         void Parse_IFeedable()
         {
+            // Use IHasSchema to get the proper schema, then pass values separately
+            string[] schema = { "intField", "StringProperty", "FieldBool" };
+            object[] values = { 2, "yes", true };
 
-            Mix_Field_Property parsed = ObjectMaterializer.Create<Mix_Field_Property>("2;yes;True".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+            Mix_Field_Property parsed = ObjectMaterializer.Create<Mix_Field_Property>(schema, values);
             Mix_Field_Property expected = new Mix_Field_Property { FieldBool = true, intField = 2, StringProperty = "yes" };
             Assert.Equal(expected.FieldBool, parsed.FieldBool);
             Assert.Equal(expected.intField, parsed.intField);
             Assert.Equal(expected.StringProperty, parsed.StringProperty);
-
-
-
         }
 
         [Fact]
         void Parse_WithFeedingOrder()
         {
+            // Use explicit schema with typed values
+            string[] schema = { "StringProperty", "intField", "FieldBool" };
+            object[] values = { "yes", 2, true };
 
             Mix_Field_Property expected = new Mix_Field_Property { FieldBool = true, intField = 2, StringProperty = "yes" };
-            var parsed = ObjectMaterializer.Create<Mix_Field_Property>(" yes;2 ;True  ".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries), "StringProperty", "intField", "FieldBool");
+            var parsed = ObjectMaterializer.Create<Mix_Field_Property>(schema, values);
             Assert.Equal(expected.FieldBool, parsed.FieldBool);
             Assert.Equal(expected.intField, parsed.intField);
             Assert.Equal(expected.StringProperty, parsed.StringProperty);
@@ -126,9 +129,12 @@ namespace DataFlow.Tests
         [Fact]
         void Parse_OrderObject()
         {
+            // Use explicit schema with typed values matching [Order] attribute order
+            string[] schema = { "intField", "StringProperty", "FieldBool" };
+            object[] values = { 2, "yes", true };
 
             Mix_Field_Oredered expected = new Mix_Field_Oredered { FieldBool = true, intField = 2, StringProperty = "yes" };
-            var parsed = ObjectMaterializer.Create<Mix_Field_Oredered>(" 2 ;yes; True  ".Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+            var parsed = ObjectMaterializer.Create<Mix_Field_Oredered>(schema, values);
             Assert.Equal(expected.FieldBool, parsed.FieldBool);
             Assert.Equal(expected.intField, parsed.intField);
             Assert.Equal(expected.StringProperty, parsed.StringProperty);

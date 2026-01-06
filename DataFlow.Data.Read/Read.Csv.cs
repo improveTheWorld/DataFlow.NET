@@ -32,7 +32,7 @@ namespace DataFlow;
 /// </summary>
 public static partial class Read
 {
-   
+
     // ==========================================
     // CSV from string (SYNC - with Sync suffix)
     // ==========================================
@@ -186,7 +186,7 @@ public static partial class Read
     // ---------------------------------------------------------
     // SIMPLE CSV (STREAM) async/sync
     // ---------------------------------------------------------
-    public static IAsyncEnumerable<T> Csv<T>(Stream stream, string separator = ",", Action<string, Exception>? onError = null, string? filePath = null, CancellationToken cancellationToken = default, params string[] schema)
+    public static IAsyncEnumerable<T> Csv<T>(Stream stream, string separator = ",", Action<string, Exception>? onError = null, CancellationToken cancellationToken = default, params string[] schema)
         => Csv<T>(
             stream,
             new CsvReadOptions
@@ -194,12 +194,12 @@ public static partial class Read
                 Separator = separator.FirstOrDefault(','),
                 Schema = schema == null || schema.Length == 0 ? null : schema,
                 ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
-                ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, filePath ?? StreamPseudoPath)
+                ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, StreamPseudoPath)
             },
-            filePath,
+            filePath: null,
             cancellationToken);
 
-    public static IEnumerable<T> CsvSync<T>(Stream stream, string separator = ",", Action<string, Exception>? onError = null, string? filePath = null, CancellationToken cancellationToken = default, params string[] schema)
+    public static IEnumerable<T> CsvSync<T>(Stream stream, string separator = ",", Action<string, Exception>? onError = null, CancellationToken cancellationToken = default, params string[] schema)
         => CsvSync<T>(
             stream,
             new CsvReadOptions
@@ -207,9 +207,9 @@ public static partial class Read
                 Separator = separator.FirstOrDefault(','),
                 Schema = schema == null || schema.Length == 0 ? null : schema,
                 ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
-                ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, filePath ?? StreamPseudoPath)
+                ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, StreamPseudoPath)
             },
-            filePath,
+            filePath: null,
             cancellationToken);
 
     // =========================================================
@@ -233,12 +233,17 @@ public static partial class Read
             ct.ThrowIfCancellationRequested();
             options.CancellationToken.ThrowIfCancellationRequested();
 
-            if (schema == null && options.HasHeader && !headerConsumed)
+            // BUG-003 FIX: Skip header row when HasHeader=true, regardless of whether Schema is provided
+            // If schema is null, also use header to populate schema
+            if (options.HasHeader && !headerConsumed)
             {
-                schema = ProcessHeader(rawFields);
+                if (schema == null)
+                    schema = ProcessHeader(rawFields);
+                // else: just skip the header row (user provided schema)
                 headerConsumed = true;
                 continue;
             }
+
 
             if (schema == null && options.InferSchema && !headerConsumed && !options.HasHeader)
             {
@@ -377,7 +382,7 @@ public static partial class Read
                     for (int k = candidateLists[c].Count - 1; k >= 0; k--)
                     {
                         var type = candidateLists[c][k];
-                        if (!val.TryParseAs( type, out _))
+                        if (!val.TryParseAs(type, out _))
                         {
                             if (!failureCounts[c].TryGetValue(type, out var f))
                                 f = 0;
@@ -403,11 +408,14 @@ public static partial class Read
             var schemaLocal = options.Schema;
             if (rawFields.Length > schemaLocal.Length && !options.AllowExtraFields)
             {
-                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                // BUG-003 FIX: Always return false after reporting schema error for extra fields
+                // (HandleError will throw if ErrorAction = Throw, return false for Stop, or true for Skip)
+                options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
                         "SchemaError", $"Row has {rawFields.Length} fields but schema has {schemaLocal.Length}.",
-                        string.Join(",", rawFields.Take(8))))
-                    return false;
+                        string.Join(",", rawFields.Take(8)));
+                return false;
             }
+
             var values = new object?[schemaLocal.Length];
             int upTo = Math.Min(schemaLocal.Length, rawFields.Length);
             for (int i = 0; i < upTo; i++)
@@ -468,12 +476,17 @@ public static partial class Read
             ct.ThrowIfCancellationRequested();
             options.CancellationToken.ThrowIfCancellationRequested();
 
-            if (schema == null && options.HasHeader && !headerConsumed)
+            // BUG-003 FIX: Skip header row when HasHeader=true, regardless of whether Schema is provided
+            // If schema is null, also use header to populate schema
+            if (options.HasHeader && !headerConsumed)
             {
-                schema = ProcessHeader(rawFields);
+                if (schema == null)
+                    schema = ProcessHeader(rawFields);
+                // else: just skip the header row (user provided schema)
                 headerConsumed = true;
                 continue;
             }
+
 
             if (schema == null && options.InferSchema && !headerConsumed && !options.HasHeader)
             {
@@ -634,11 +647,14 @@ public static partial class Read
             var schemaLocal = options.Schema;
             if (rawFields.Length > schemaLocal.Length && !options.AllowExtraFields)
             {
-                if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
+                // BUG-003 FIX: Always return false after reporting schema error for extra fields
+                // (HandleError will throw if ErrorAction = Throw, return false for Stop, or true for Skip)
+                options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
                         "SchemaError", $"Row has {rawFields.Length} fields but schema has {schemaLocal.Length}.",
-                        string.Join(",", rawFields.Take(8))))
-                    return false;
+                        string.Join(",", rawFields.Take(8)));
+                return false;
             }
+
             var values = new object?[schemaLocal.Length];
             int upTo = Math.Min(schemaLocal.Length, rawFields.Length);
             for (int i = 0; i < upTo; i++)
@@ -667,7 +683,7 @@ public static partial class Read
                 current = session.Create(values);
                 return current != null;
             }
-            catch (OperationCanceledException) { throw; }   
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 if (!options.HandleError("CSV", options.Metrics.LinesRead, options.Metrics.RawRecordsParsed, filePath,
@@ -676,7 +692,7 @@ public static partial class Read
                 return false;
             }
         }
-    } 
-  
+    }
+
 }
 

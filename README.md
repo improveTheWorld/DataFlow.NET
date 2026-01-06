@@ -17,7 +17,7 @@ Let IntelliSense and the compiler do the work.
 
 ```bash
 # Install via NuGet
-dotnet add package DataFlow.Net --version 1.0.1
+dotnet add package DataFlow.Net --version 1.1.0
 ```
 
 ---
@@ -153,6 +153,9 @@ We carefully crafted an intuitive, fully-featured readers API with advanced erro
 > [!TIP]
 > The streaming row-by-row approach — absent in most other frameworks — is the cornerstone of DataFlow.NET's constant memory usage.
 
+[Materialization Quick Reference →](docs/Materialization-Quick-Reference.md) | [Data Reading Guide →](docs/DataFlow-Data-Reading-Infrastructure.md)
+
+
 ### LINQ Extensions
 
 DataFlow.NET implements additional LINQ extensions to make every data loop composable—even side-effect loops.
@@ -239,7 +242,7 @@ Your C# lambda expressions are decompiled at runtime and translated into **nativ
 
 **Via NuGet (Recommended):**
 ```bash
-dotnet add package DataFlow.Net --version 1.0.1
+dotnet add package DataFlow.Net --version 1.1.0
 ```
 
 **Or clone the repository:**
@@ -324,6 +327,7 @@ Read.SparkDataFrame<Order>(spark, ordersDf)
 | 🏰 **[SUPRA Pattern](docs/DataFlow-SUPRA-Pattern.md)** | The SUPRA Pattern deep dive |
 | 🔀 **[Cases Pattern](docs/Cases-Pattern.md)** | The Cases/SelectCase/ForEachCase Engine |
 | 📖 **[Data Reading](docs/DataFlow-Data-Reading-Infrastructure.md)** | Reading CSV, JSON, YAML, Text |
+| 🎯 **[Materialization Guide](docs/Materialization-Quick-Reference.md)** | Design classes for CSV, JSON, YAML, Snowflake, Spark |
 | ✍️ **[Data Writing](docs/DataFlow-Data-Writing-Infrastructure.md)** | Writing CSV, JSON, YAML, Text |
 | 🌊 **[Stream Merging](docs/Stream-Merging.md)** | UnifiedStream & Multi-Source Streams |
 | 🔄 **[Polling & Buffering](docs/Polling-Buffering.md)** | Data acquisition patterns |

@@ -301,6 +301,11 @@ internal sealed class MemberMaterializationPlan<T>
         return Expression.Lambda<Action<T, object?>>(body, obj, val).Compile();
     }
 
+    // Cache the ConvertObject method info to avoid repeated reflection
+    private static readonly MethodInfo ConvertObjectMethod =
+        typeof(MemberMaterializationPlan<T>).GetMethod(nameof(ConvertObject), BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException($"Internal error: ConvertObject method not found on {typeof(MemberMaterializationPlan<T>).FullName}");
+
     // Minimal conversion bridge: handles null/defaults and direct cast/unbox
     // Extend ConvertObject if you need string->primitive parsing.
     private static Expression BuildConvertExpression(ParameterExpression input,
@@ -309,6 +314,7 @@ internal sealed class MemberMaterializationPlan<T>
     bool allowThousands,
     string[] dateTimeFormats)
     {
+
         // If reference or nullable<T>, allow null straight through
         var underlyingNullable = Nullable.GetUnderlyingType(targetType);
         if (!targetType.IsValueType || underlyingNullable != null)
@@ -316,7 +322,7 @@ internal sealed class MemberMaterializationPlan<T>
             var tgt = underlyingNullable ?? targetType;
             return Expression.Convert(
                 Expression.Call(
-                    typeof(MemberMaterializationPlan<T>).GetMethod(nameof(ConvertObject), BindingFlags.NonPublic | BindingFlags.Static)!,
+                    ConvertObjectMethod,
                     input,
                     Expression.Constant(targetType, typeof(Type)),
                     Expression.Constant(culture, typeof(CultureInfo)),
@@ -331,7 +337,7 @@ internal sealed class MemberMaterializationPlan<T>
         var onNull = Expression.Default(targetType);
         var onVal = Expression.Convert(
             Expression.Call(
-                typeof(MemberMaterializationPlan<T>).GetMethod(nameof(ConvertObject), BindingFlags.NonPublic | BindingFlags.Static)!,
+                ConvertObjectMethod,
                 input,
                 Expression.Constant(targetType, typeof(Type)),
                 Expression.Constant(culture, typeof(CultureInfo)),

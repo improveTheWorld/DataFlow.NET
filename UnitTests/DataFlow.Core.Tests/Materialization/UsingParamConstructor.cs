@@ -94,7 +94,12 @@ namespace DataFlow
         [Fact]
         void Parse_StringFields_returnsAllFieldsAreFilled()
         {
-            Mix_Field_PropertyWithConstructor? parsed = ObjectMaterializer.Create<Mix_Field_PropertyWithConstructor>("True ;2 ;yes".Split(';', 3));
+            // Use schema to map constructor parameters correctly
+            // Constructor order: (bool fieldBool, int intField, string stringProperty)
+            string[] schema = { "FieldBool", "IntField", "StringProperty" };
+            object[] values = { true, 2, "yes" };
+
+            Mix_Field_PropertyWithConstructor? parsed = ObjectMaterializer.Create<Mix_Field_PropertyWithConstructor>(schema, values);
             Mix_Field_PropertyWithConstructor expected = new Mix_Field_PropertyWithConstructor(true, 2, "yes");
             Assert.Equal(expected.FieldBool, parsed.FieldBool);
             Assert.Equal(expected.IntField, parsed.IntField);
