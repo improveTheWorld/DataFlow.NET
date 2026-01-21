@@ -385,9 +385,9 @@ results.Select(x => x.ToString()).Display("Results");
 
 ```csharp
 // Standard LINQ aggregations
-var count = await source.CountAsync();
-var sum = await source.SumAsync(x => x.Amount);
-var list = await source.ToListAsync();
+var count = await source.Count();
+var sum = await source.Sum(x => x.Amount);
+var list = await source.ToList();
 ```
 
 ---

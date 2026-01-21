@@ -63,7 +63,7 @@ graph TD
 | **DateTime Props** | `x.Date.Year`, `x.Date.Month` | `YEAR(date)`, `MONTH(date)` |
 | **Math Functions** | `Math.Abs(x)`, `Math.Round(x)` | `ABS(x)`, `ROUND(x)` |
 | **String Props** | `x.Name.Length`, `x.Name.IndexOf(s)` | `LENGTH(name)`, `POSITION(s, name)` |
-| **Single Element** | `SingleAsync()`, `SingleOrDefaultAsync()` | `LIMIT 2` (verify count) |
+| **Single Element** | `Single()`, `SingleOrDefault()` | `LIMIT 2` (verify count) |
 
 ---
 
@@ -73,7 +73,7 @@ graph TD
 
 ```csharp
 // 1. Initialize from a table
-var orders = Read.SnowflakeTable<Order>(options, "orders");
+var orders = Snowflake.Table<Order>(options, "orders");
 
 // 2. Build Query
 var query = orders
@@ -87,7 +87,7 @@ query.Explain();
 // Output: SELECT id, customer_name, amount FROM orders WHERE status = 'Active'...
 
 // 4. Execute
-var results = await query.ToListAsync();
+var results = await query.ToList();
 ```
 
 ### 2. Grouping and Aggregation
@@ -209,12 +209,12 @@ orders.Where(o => o.Items.Any(i => i.Price > 100))
 
 2.  **Parameterization**: All query values are automatically parameterized using `SnowflakeDbParameter`. This prevents SQL injection attacks — you can safely use user input in LINQ expressions.
 
-3.  **Streaming**: For large datasets, prefer `GetAsyncEnumerator()` (streaming) over `ToListAsync()` (buffering).
+3.  **Streaming**: For large datasets, prefer `GetAsyncEnumerator()` (streaming) over `ToList()` (buffering).
     ```csharp
     await foreach (var item in query) { ... } // Memory efficient
     ```
 
-4.  **Debugging**: Use `.Spy()` or `.ShowAsync()` to inspect intermediate results during development.
+4.  **Debugging**: Use `.Spy()` or `.Show()` to inspect intermediate results during development.
     ```csharp
     query.Where(...).Spy("AfterFilter").OrderBy(...)
     ```

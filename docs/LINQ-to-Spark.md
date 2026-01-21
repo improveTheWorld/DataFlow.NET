@@ -34,7 +34,7 @@ It implements a **full expression tree translation layer** that:
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  var df = spark.Read().Parquet("orders.parquet");               │
-│  var query = Read.SparkDataFrame<Order>(spark, df)         │
+│  var query = Spark.DataFrame<Order>(spark, df)              │
 │      .Where(o => o.Amount > 1000)                               │
 │      .GroupBy(o => o.CustomerId)                                │
 │      .Select(g => new { g.Key, Total = g.Sum(o => o.Amount) }); │
@@ -375,7 +375,7 @@ orders.Select(o => new { o.Id, TotalPrices = o.Items.Select(i => i.Price * i.Qty
 
 ```csharp
 // Create a SparkQuery from a DataFrame
-var ordersQuery = Read.SparkDataFrame<Order>(spark, ordersDf);
+var ordersQuery = Spark.DataFrame<Order>(spark, ordersDf);
 
 ordersQuery
     .Cases(
@@ -463,8 +463,8 @@ ordersQuery
 
 ```csharp
 // C# Developer writes this
-var customers = Read.SparkSql<Customer>(spark, "SELECT * FROM customers");
-var orders = Read.SparkSql<Order>(spark, "SELECT * FROM orders");
+var customers = Spark.Sql<Customer>(spark, "SELECT * FROM customers");
+var orders = Spark.Sql<Order>(spark, "SELECT * FROM orders");
 
 var result = customers
     .Where(c => c.Country == "USA" && c.Age > 18)
@@ -597,7 +597,7 @@ result.Write().Mode(SaveMode.Overwrite).Parquet("hdfs://output/top_customers");
 
 ```csharp
 // Create SparkQuery from a DataFrame or SQL
-var ordersQuery = Read.SparkSql<Order>(spark, "SELECT * FROM orders");
+var ordersQuery = Spark.Sql<Order>(spark, "SELECT * FROM orders");
 
 // Write C# LINQ - executes on Spark cluster
 var result = ordersQuery
@@ -632,19 +632,19 @@ query.OrderBy(x => x.Id).Skip(10).Take(5);
 
 ## API Reference
 
-### Read.Spark* Factory Methods
+### Spark.* Factory Methods
 
 Factory methods for creating SparkQuery instances:
 
 ```csharp
 // Create from existing DataFrame
-var query = Read.SparkDataFrame<T>(spark, dataFrame, mapper);
+var query = Spark.DataFrame<T>(spark, dataFrame, mapper);
 
 // Create from a Spark table
-var query = Read.SparkTable<T>(spark, "table_name", mapper);
+var query = Spark.Table<T>(spark, "table_name", mapper);
 
 // Create from SQL query
-var query = Read.SparkSql<T>(spark, "SELECT * FROM ...", mapper);
+var query = Spark.Sql<T>(spark, "SELECT * FROM ...", mapper);
 ```
 
 ### Window Functions

@@ -41,7 +41,7 @@ public class ConcurrencyTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         _output.WriteLine($"Max observed concurrency: {tracker.MaxObserved}, Limit: {maxConcurrency}");
@@ -72,7 +72,7 @@ public class ConcurrencyTests
                 return x % 2 == 0;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         _output.WriteLine($"Max observed concurrency: {tracker.MaxObserved}, Limit: {maxConcurrency}");
@@ -105,7 +105,7 @@ public class ConcurrencyTests
             .Take(10);
 
         // Act - enumerate only 10 items
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - we get exactly 10 results
         Assert.Equal(10, results.Count);
@@ -132,7 +132,7 @@ public class ConcurrencyTests
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            await ToListAsync(query);
+            await query.ToList();
         });
 
         _output.WriteLine($"Processed {processedBeforeException} items before exception");
@@ -159,7 +159,7 @@ public class ConcurrencyTests
             });
 
         // Act
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(20, results.Count);
@@ -242,7 +242,7 @@ public class ConcurrencyTests
             });
 
         // Act
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(count, results.Count);
@@ -269,7 +269,7 @@ public class ConcurrencyTests
             });
 
         // Act
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - all items present (order may differ)
         Assert.Equal(count, results.Count);
@@ -296,7 +296,7 @@ public class ConcurrencyTests
             });
 
         // Act
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(count, results.Count);
@@ -316,15 +316,7 @@ public class ConcurrencyTests
         }
     }
 
-    private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source)
-    {
-        var list = new List<T>();
-        await foreach (var item in source)
-        {
-            list.Add(item);
-        }
-        return list;
-    }
+
 
     private class ConcurrencyTracker
     {

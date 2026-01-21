@@ -1,3 +1,4 @@
+using DataFlow;
 using DataFlow.Parallel;
 
 using Xunit;
@@ -42,7 +43,7 @@ public class StressAndEdgeCaseTests
                     await Task.Yield();
                     return x * 2;
                 });
-            allResults.Add(await ToListAsync(freshQuery));
+            allResults.Add(await freshQuery.ToList());
         }
 
         // Assert - all runs should have same count and values
@@ -75,7 +76,7 @@ public class StressAndEdgeCaseTests
                         await Task.Delay(5);
                         return x * multiplier;
                     });
-                return await ToListAsync(query);
+                return await query.ToList();
             });
             tasks.Add(task);
         }
@@ -111,7 +112,7 @@ public class StressAndEdgeCaseTests
                 return x * 2;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Empty(results);
     }
@@ -127,7 +128,7 @@ public class StressAndEdgeCaseTests
                 return true;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Empty(results);
     }
@@ -139,7 +140,7 @@ public class StressAndEdgeCaseTests
         var query = source.AsParallel()
             .SelectMany(x => GenerateNumbers(5));
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Empty(results);
     }
@@ -155,7 +156,7 @@ public class StressAndEdgeCaseTests
                 return x * 10;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Single(results);
         Assert.Equal(0, results[0]);
@@ -172,7 +173,7 @@ public class StressAndEdgeCaseTests
                 return true;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Single(results);
     }
@@ -188,7 +189,7 @@ public class StressAndEdgeCaseTests
                 return false;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Empty(results);
     }
@@ -208,7 +209,7 @@ public class StressAndEdgeCaseTests
                 return false; // Filter all
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Empty(results);
     }
@@ -225,7 +226,7 @@ public class StressAndEdgeCaseTests
                 return false;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Empty(results);
     }
@@ -241,7 +242,7 @@ public class StressAndEdgeCaseTests
         var query = source.AsParallel()
             .SelectMany(x => GenerateNumbers(0)); // All inner sequences are empty
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Empty(results);
     }
@@ -253,7 +254,7 @@ public class StressAndEdgeCaseTests
         var query = source.AsParallel()
             .SelectMany(x => x % 2 == 0 ? GenerateNumbers(2, startAt: x * 10) : GenerateNumbers(0));
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Only even numbers produce items: 0,2,4,6,8 → 5 items × 2 = 10 results
         Assert.Equal(10, results.Count);
@@ -266,7 +267,7 @@ public class StressAndEdgeCaseTests
         var query = source.AsParallel()
             .SelectMany(x => GenerateNumbers(1, startAt: x * 100));
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Equal(5, results.Count);
         var sorted = results.OrderBy(x => x).ToList();
@@ -295,7 +296,7 @@ public class StressAndEdgeCaseTests
             })
             .Take(5);
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Equal(5, results.Count);
         Assert.All(results, x => Assert.True(x % 4 == 0));
@@ -318,7 +319,7 @@ public class StressAndEdgeCaseTests
                 return x % 5 == 0; // Also divisible by 5
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // 0, 10, 20, 30, 40, 50, 60, 70, 80, 90 = 10 items
         Assert.Equal(10, results.Count);
@@ -353,7 +354,7 @@ public class StressAndEdgeCaseTests
                 return x % 2 == 0;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         _output.WriteLine($"Max concurrency observed: {tracker.MaxObserved}");
         Assert.Equal(15, results.Count); // Half are even
@@ -373,15 +374,7 @@ public class StressAndEdgeCaseTests
         }
     }
 
-    private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source)
-    {
-        var list = new List<T>();
-        await foreach (var item in source)
-        {
-            list.Add(item);
-        }
-        return list;
-    }
+
 
     private class ConcurrencyTracker
     {

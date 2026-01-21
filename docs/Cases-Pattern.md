@@ -174,7 +174,7 @@ var results = await logs
         other => { }                                  // Ignore supra
     )
     .AllCases()
-    .ToListAsync();
+    .ToList();
 ```
 
 ---

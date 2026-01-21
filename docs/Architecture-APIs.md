@@ -189,7 +189,7 @@ All pipelines use lazy evaluation—nothing executes until enumeration:
 var pipeline = data.Cases(...).SelectCase(...).AllCases();
 
 // Execution happens here
-var results = await pipeline.ToListAsync();
+var results = await pipeline.ToList();
 
 // Or streaming execution
 await foreach (var item in pipeline) { }

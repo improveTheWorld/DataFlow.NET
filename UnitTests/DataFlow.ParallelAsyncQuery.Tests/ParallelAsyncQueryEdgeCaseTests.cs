@@ -1,3 +1,4 @@
+using DataFlow;
 using DataFlow.Parallel;
 using Xunit;
 
@@ -17,16 +18,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         }
     }
 
-    // Helper to collect results from ParallelAsyncQuery
-    private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source)
-    {
-        var list = new List<T>();
-        await foreach (var item in source)
-        {
-            list.Add(item);
-        }
-        return list;
-    }
+
 
     #region Settings Configuration Tests
 
@@ -49,7 +41,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(20, results.Count);
@@ -73,7 +65,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x * 2;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(10, results.Count);
@@ -165,7 +157,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         // Assert
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
-            var results = await ToListAsync(query);
+            var results = await query.ToList();
         });
     }
 
@@ -190,7 +182,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - Should have skipped items 3, 6, 9, keeping 0, 1, 2, 4, 5, 7, 8
         Assert.Equal(7, results.Count);
@@ -218,7 +210,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         // Assert
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            await ToListAsync(query);
+            await query.ToList();
         });
     }
 
@@ -241,7 +233,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         // Assert
         await Assert.ThrowsAsync<ArgumentException>(async () =>
         {
-            await ToListAsync(query);
+            await query.ToList();
         });
     }
 
@@ -267,7 +259,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - Order should be preserved
         Assert.Equal(20, results.Count);
@@ -294,7 +286,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - All items present (order may vary)
         Assert.Equal(20, results.Count);
@@ -320,7 +312,7 @@ public class ParallelAsyncQueryEdgeCaseTests
             .AsParallel()
             .Take(10);
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(10, results.Count);
@@ -338,7 +330,7 @@ public class ParallelAsyncQueryEdgeCaseTests
             .WithOrderPreservation(true)
             .Take(5);
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(new[] { 0, 1, 2, 3, 4 }, results);
@@ -366,7 +358,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x;
             });
 
-        await ToListAsync(query);
+        await query.ToList();
 
         // Assert - With concurrency 1, should process in order
         Assert.Equal(10, processed.Count);
@@ -395,7 +387,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x % 2 == 0;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(10, results.Count);
@@ -418,7 +410,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x > 10;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - Should be 11, 12, 13, ... 19 in order
         Assert.Equal(9, results.Count);
@@ -445,7 +437,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x < 8;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - 5 throws, so we get 0,1,2,3,4,6,7
         Assert.Equal(7, results.Count);
@@ -472,7 +464,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x * 10;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - 0, 3, 6, 9, 12, 15, 18 -> 0, 30, 60, 90, 120, 150, 180
         Assert.Equal(7, results.Count);
@@ -501,7 +493,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return $"{i}:{x}";
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - With order preservation, indices should match
         Assert.Equal(new[] { "0:0", "1:1", "2:2", "3:3", "4:4" }, results);
@@ -531,7 +523,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x * 2;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(5, results.Count);
@@ -594,7 +586,7 @@ public class ParallelAsyncQueryEdgeCaseTests
             .AsParallel()
             .Take(0);
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Empty(results);
@@ -611,7 +603,7 @@ public class ParallelAsyncQueryEdgeCaseTests
             .AsParallel()
             .Take(100);
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(5, results.Count);
@@ -678,7 +670,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x % 3 == 0; // Divisible by 6: 0,6,12,18,24 (5 items)
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(5, results.Count);
@@ -702,7 +694,7 @@ public class ParallelAsyncQueryEdgeCaseTests
             })
             .Take(5);
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(5, results.Count);
@@ -733,7 +725,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(10, results.Count);
@@ -756,7 +748,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x * 2;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Empty(results);
@@ -781,7 +773,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return $"seq-{i}:{x}";
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(5, results.Count);
@@ -808,7 +800,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x * 2;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - Sequential should maintain order
         Assert.Equal(10, results.Count);
@@ -837,7 +829,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x % 2 == 0;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(new[] { 0, 2, 4, 6, 8 }, results);
@@ -859,7 +851,7 @@ public class ParallelAsyncQueryEdgeCaseTests
             })
             .Take(5);
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - First 5 even numbers
         Assert.Equal(5, results.Count);
@@ -883,7 +875,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x * 2;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(50, results.Count);
@@ -910,7 +902,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - All items present
         Assert.Equal(30, results.Count);
@@ -933,7 +925,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(10, results.Count);
@@ -955,7 +947,7 @@ public class ParallelAsyncQueryEdgeCaseTests
                 return x * 3;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert
         Assert.Equal(15, results.Count);

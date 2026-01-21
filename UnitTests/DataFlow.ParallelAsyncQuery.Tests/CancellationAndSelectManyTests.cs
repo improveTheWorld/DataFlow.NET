@@ -1,3 +1,4 @@
+using DataFlow;
 using DataFlow.Parallel;
 using Xunit;
 
@@ -64,7 +65,7 @@ public class CancellationAndSelectManyTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Equal(5, results.Count);
     }
@@ -104,7 +105,7 @@ public class CancellationAndSelectManyTests
                 return x;
             });
 
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         Assert.Equal(5, results.Count);
     }
@@ -128,7 +129,7 @@ public class CancellationAndSelectManyTests
             });
 
         // Act
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - Item 2 throws, so we skip its inner sequence
         // Expected: 0,1 from 0 | 10,11 from 1 | (skip 2) | 30,31 from 3 | 40,41 from 4
@@ -148,7 +149,7 @@ public class CancellationAndSelectManyTests
             .SelectMany(x => GenerateNumbersWithError(5, errorAt: 2, startAt: x * 10));
 
         // Act
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - Each inner sequence throws at index 2, but continues
         // We should get items 0,1,3,4 from each inner (items at index 2 fail)
@@ -171,7 +172,7 @@ public class CancellationAndSelectManyTests
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            await ToListAsync(query);
+            await query.ToList();
         });
     }
 
@@ -185,7 +186,7 @@ public class CancellationAndSelectManyTests
             .SelectMany(x => GenerateNumbers(2, startAt: x * 10));
 
         // Act
-        var results = await ToListAsync(query);
+        var results = await query.ToList();
 
         // Assert - 3 outer items × 2 inner items = 6 total
         Assert.Equal(6, results.Count);
@@ -214,15 +215,7 @@ public class CancellationAndSelectManyTests
         }
     }
 
-    private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source)
-    {
-        var list = new List<T>();
-        await foreach (var item in source)
-        {
-            list.Add(item);
-        }
-        return list;
-    }
+
 
     #endregion
 }

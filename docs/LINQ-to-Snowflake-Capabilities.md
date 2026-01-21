@@ -82,7 +82,7 @@ The following operations are translated directly to Snowflake SQL and executed s
 ### 7. Debug & Diagnostics
 | Method | Description |
 |--------|-------------|
-| `ShowAsync(n)` | Display first N rows to console |
+| `Show(n)` | Display first N rows to console |
 | `Explain(extended)` | Print SQL query plan |
 | `PrintSchema()` | Print result type schema |
 | `Spy(label)` | Display and continue chaining |
@@ -90,8 +90,8 @@ The following operations are translated directly to Snowflake SQL and executed s
 
 ### 8. Execution
 - **Async Streaming**: `IAsyncEnumerable<T>` support via `GetAsyncEnumerator` (efficient memory usage).
-- **Materialization**: `ToListAsync()`, `ToArrayAsync()`, `FirstAsync()`, `FirstOrDefaultAsync()`, `CountAsync()`, `AnyAsync()`.
-- **Single Element**: `SingleAsync()`, `SingleOrDefaultAsync()` (verify exactly 1 result).
+- **Materialization**: `ToList()`, `ToArray()`, `First()`, `FirstOrDefault()`, `Count()`, `Any()`.
+- **Single Element**: `Single()`, `SingleOrDefault()` (verify exactly 1 result).
 
 ---
 
