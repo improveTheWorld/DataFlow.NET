@@ -12,3 +12,7 @@ archive/
 coverage/
 kh/
 UnitTests/TestResults/
+nupkgs/
+# Secrets - never commit!
+.secrets.md
+../.secrets.md

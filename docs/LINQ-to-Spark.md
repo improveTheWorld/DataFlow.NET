@@ -497,6 +497,34 @@ result.Write().Mode(SaveMode.Overwrite).Parquet("hdfs://output/top_customers");
 
 ---
 
+### Fluent Write API
+
+> Simplified, chainable write operations that wrap `DataFrameWriter`.
+
+```csharp
+// File outputs (Parquet, CSV, JSON, ORC)
+result.WriteParquet("/data/orders");
+result.WriteParquet("/data/orders").Overwrite().PartitionBy(o => o.Year);
+
+// Table inserts
+result.WriteTable("catalog.db.orders");
+result.WriteTable("catalog.db.orders").Overwrite();
+
+// Unified API (same as Snowflake)
+records.WriteTable(sparkSession, "catalog.db.orders");
+records.MergeTable(sparkSession, "delta/orders", o => o.Id);
+```
+
+**Write Options:**
+| Method | Description |
+|--------|-------------|
+| `.Overwrite()` | Replace existing data |
+| `.Append()` | Add to existing data |
+| `.PartitionBy(o => o.Col)` | Partition output files |
+| `.WithHeader()` | Include header row (CSV) |
+
+---
+
 ### The Value Proposition
 
 | Aspect | Traditional Spark (Scala/Python) | Your SparkQuery Layer |

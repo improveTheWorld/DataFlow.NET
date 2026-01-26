@@ -124,6 +124,16 @@ DataFlow.NET's Snowflake provider is a **production-ready Analytical Query Build
 *   Filtering and aggregating massive datasets.
 *   Projecting flat results for analysis.
 *   Streaming data efficiently to your application.
+*   **Write operations**: `WriteTable()` and `MergeTable()` for inserts and upserts.
 *   **95%+** coverage of common analytics scenarios.
 
-It is **NOT** a full replacement for an ORM (like EF Core) for transaction-heavy, complex domain modeling applications.
+> **Note:** Snowflake is an analytics data warehouse, not a transactional database. EF Core does not support Snowflake. If your application needs complex entity relationships, change tracking, and migrations, use a traditional OLTP database (SQL Server, PostgreSQL) with Entity Framework Core. For Snowflake analytics workloads, DataFlow.Snowflake is the only LINQ solution available.
+
+---
+
+## See Also
+
+- [LINQ-to-Snowflake Guide](LINQ-to-Snowflake.md) — Complete usage documentation
+- [LINQ-to-Spark](LINQ-to-Spark.md) — SparkQuery provider documentation
+- [Cases Pattern](Cases-Pattern.md) — Cases/SelectCase pattern
+- [Licensing](../../DataFlow.Enterprise/docs/Licensing.md) — Product-specific licensing details

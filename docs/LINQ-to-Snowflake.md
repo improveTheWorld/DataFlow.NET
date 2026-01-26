@@ -12,7 +12,8 @@ A **C# LINQ-to-SQL translator** that enables .NET developers to write idiomatic 
    - [Window Functions](#window-functions-analytics)
    - [Set Operations](#set-operations)
    - [Semi-Structured Data (VARIANT)](#semi-structured-data-variant)
-6. [Best Practices](#best-practices)
+6. [Write Operations](#write-operations)
+7. [Best Practices](#best-practices)
 
 ---
 
@@ -197,6 +198,47 @@ orders.Where(o => o.Items.Any(i => i.Price > 100))
 - ✅ Logical operators: `&&`, `||`, `!`
 - ✅ Arithmetic: `+`, `-`, `*`, `/`
 - ❌ Method calls: `i.Name.Contains("test")` (not supported in lambda)
+
+---
+
+## Write Operations
+
+> Write data back to Snowflake using the unified Write API.
+
+### Insert (Bulk Load)
+
+```csharp
+// Simple insert
+await records.WriteTable(options, "ORDERS");
+
+// With options (chainable)
+await records
+    .WriteTable(options, "ORDERS")
+    .BatchSize(10_000)
+    .CreateIfMissing()
+    .Overwrite();
+```
+
+### Merge (Upsert)
+
+```csharp
+// Simple upsert on key
+await records.MergeTable(options, "ORDERS", o => o.OrderId);
+
+// Update specific columns only
+await records
+    .MergeTable(options, "CUSTOMERS", c => c.Email)
+    .UpdateOnly("Name", "UpdatedAt");
+```
+
+### Write Options
+
+| Method | Description |
+|--------|-------------|
+| `.BatchSize(n)` | Records per staged file (default: 10,000) |
+| `.CreateIfMissing()` | Create table if not exists |
+| `.Overwrite()` | Truncate before insert |
+| `.UpdateOnly(...)` | Merge: update specific columns |
 
 ---
 
