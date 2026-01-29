@@ -70,7 +70,58 @@ graph TD
 
 ## Usage Guide
 
-### 1. Basic Querying
+### Connecting with the Context API (Recommended)
+
+```csharp
+// Create a SnowflakeContext with required parameters
+await using var context = Snowflake.Connect(
+    account: "xxxxxxx.us-east-1",
+    user: "my_user",
+    password: "my_password",
+    database: "MY_DB",
+    warehouse: "MY_WAREHOUSE"
+);
+
+// Read from tables or SQL
+var orders = context.Read.Table<Order>("orders");
+
+// Raw SQL returns IAsyncEnumerable (streaming, not composable)
+await foreach (var order in context.Read.Sql<Order>("SELECT * FROM orders WHERE active = true"))
+{
+    // Process each order
+}
+
+// Build Query
+var query = orders
+    .Where(o => o.Status == "Active")
+    .Where(o => o.Amount > 1000)
+    .OrderByDescending(o => o.Date)
+    .Select(o => new { o.Id, o.CustomerName, o.Amount });
+
+// Execute
+var results = await query.ToList();
+```
+
+**Advanced Configuration:**
+
+```csharp
+await using var context = Snowflake.Connect(
+    account: "xxxxxxx",
+    user: "my_user",
+    password: "my_password",
+    database: "MY_DB",
+    warehouse: "MY_WAREHOUSE",
+    configure: opts => {
+        opts.Schema = "PUBLIC";
+        opts.Role = "ANALYST";
+        opts.ConnectionTimeout = 300;  // Seconds (5 minutes)
+    }
+);
+```
+
+### Legacy Factory Methods
+
+These methods are still available but the context API is preferred:
 
 ```csharp
 // 1. Initialize from a table
@@ -91,7 +142,7 @@ query.Explain();
 var results = await query.ToList();
 ```
 
-### 2. Grouping and Aggregation
+### Grouping and Aggregation
 
 Use fluent syntax for aggregations:
 
@@ -106,6 +157,39 @@ var stats = orders
         MaxSale = g.Max(o => o.Amount)
     });
 ```
+
+### Joins
+
+Combine data from multiple tables using LINQ-style joins:
+
+```csharp
+await using var context = Snowflake.Connect(account, user, password, database, warehouse);
+
+var orders = context.Read.Table<Order>("orders");
+var customers = context.Read.Table<Customer>("customers");
+
+// Join orders with customers
+var orderDetails = orders.Join(
+    customers,
+    o => o.CustomerId,           // Order key
+    c => c.Id,                   // Customer key
+    (o, c) => new {              // Result projection
+        o.OrderId,
+        o.Amount,
+        c.Name,
+        c.Email
+    }
+);
+
+// Execute
+var results = await orderDetails.ToList();
+```
+
+**Supported Join Types:**
+- `Join(...)` - INNER JOIN (default)
+- `Join(..., joinType: "LEFT")` - LEFT OUTER JOIN
+- `Join(..., joinType: "RIGHT")` - RIGHT OUTER JOIN
+- `Join(..., joinType: "FULL")` - FULL OUTER JOIN
 
 ---
 
@@ -204,6 +288,8 @@ orders.Where(o => o.Items.Any(i => i.Price > 100))
 ## Write Operations
 
 > Write data back to Snowflake using the unified Write API.
+> 
+> **O(1) Memory**: All writes use native `IAsyncEnumerable` streaming. Data is batched, staged via PUT, and bulk-loaded via COPY INTO. No full materialization on the client.
 
 ### Insert (Bulk Load)
 
@@ -214,7 +300,6 @@ await records.WriteTable(options, "ORDERS");
 // With options (chainable)
 await records
     .WriteTable(options, "ORDERS")
-    .BatchSize(10_000)
     .CreateIfMissing()
     .Overwrite();
 ```
@@ -235,10 +320,49 @@ await records
 
 | Method | Description |
 |--------|-------------|
-| `.BatchSize(n)` | Records per staged file (default: 10,000) |
 | `.CreateIfMissing()` | Create table if not exists |
 | `.Overwrite()` | Truncate before insert |
 | `.UpdateOnly(...)` | Merge: update specific columns |
+
+### Cases Pattern (Server-Side Routing)
+
+Route data to different destinations based on conditions—**all server-side**:
+
+```csharp
+await context.Read.Table<Order>("ORDERS")
+    .Cases(
+        o => o.Amount > 10000,    // Case 0: Premium
+        o => o.Status == "Rush"   // Case 1: Rush
+        // Default: Case 2 (Supra)
+    )
+    .WriteTables("PREMIUM_ORDERS", "RUSH_ORDERS", "STANDARD_ORDERS");
+```
+
+**Multi-Table Merge with Different Keys:**
+
+```csharp
+await categorizedQuery.MergeTables(
+    ("PREMIUM_ORDERS", o => o.OrderId),
+    ("RUSH_ORDERS", o => o.TrackingId),
+    ("STANDARD_ORDERS", o => o.BatchId)
+);
+```
+
+### Transformed Writes
+
+When using `SelectCase()` to transform types, the **projected type R** is written:
+
+```csharp
+await context.Read.Table<Order>("ORDERS")
+    .Cases(o => o.Amount > 10000, o => o.Status == "Rush")
+    .SelectCase(
+        o => new LiteOrder { Id = o.OrderId, Total = o.Amount },  // R1
+        o => new LiteOrder { Id = o.OrderId, Total = o.Amount },  // R2
+        o => new LiteOrder { Id = o.OrderId, Total = o.Amount }   // Supra
+    )
+    .WriteTables("PREMIUM_LITE", "RUSH_LITE", "STANDARD_LITE");
+    // ✅ Writes LiteOrder columns, not Order columns
+```
 
 ---
 
@@ -251,7 +375,7 @@ await records
 
 2.  **Parameterization**: All query values are automatically parameterized using `SnowflakeDbParameter`. This prevents SQL injection attacks — you can safely use user input in LINQ expressions.
 
-3.  **Streaming**: For large datasets, prefer `GetAsyncEnumerator()` (streaming) over `ToList()` (buffering).
+3.  **Streaming**: For large datasets, prefer `await foreach` (streaming) over `ToList()` (buffering).
     ```csharp
     await foreach (var item in query) { ... } // Memory efficient
     ```
@@ -259,6 +383,28 @@ await records
 4.  **Debugging**: Use `.Spy()` or `.Show()` to inspect intermediate results during development.
     ```csharp
     query.Where(...).Spy("AfterFilter").OrderBy(...)
+    ```
+
+5.  **Server-Client Hybrid Processing with `Pull()`**: Use `.Pull()` to explicitly switch from server-side SQL to client-side streaming while maintaining lazy row-by-row evaluation.
+    ```csharp
+    await foreach (var order in context.Read.Table<Order>("ORDERS")
+        .Where(o => o.Amount > 100)     // ✅ Server-side (SQL WHERE)
+        .Take(1000)                      // ✅ Server-side (SQL LIMIT)
+        .Pull()                          // ← Switch to local
+        .Where(o => MyComplexLogic(o))  // ✅ Client-side (C# code)
+        .Select(o => Transform(o)))     // ✅ Client-side
+    {
+        // Still streaming row-by-row, not buffered
+    }
+    ```
+
+6.  **ForEach Requires Explicit `Pull()`**: To prevent accidental client-side execution, `ForEach()` and other `IAsyncEnumerable` extensions do not resolve directly on `SnowflakeQuery`. Use `Pull()` first:
+    ```csharp
+    // ❌ Won't compile - ForEach hidden on SnowflakeQuery
+    // query.ForEach(x => Log(x));  
+    
+    // ✅ Correct - explicit Pull() makes boundary clear
+    await query.Pull().ForEach(x => Log(x)).Do();
     ```
 
 ---

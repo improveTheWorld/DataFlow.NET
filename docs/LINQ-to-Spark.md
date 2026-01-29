@@ -33,11 +33,11 @@ It implements a **full expression tree translation layer** that:
 │                    C# Developer Code                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  var df = spark.Read().Parquet("orders.parquet");               │
-│  var query = Spark.DataFrame<Order>(spark, df)              │
-│      .Where(o => o.Amount > 1000)                               │
-│      .GroupBy(o => o.CustomerId)                                │
-│      .Select(g => new { g.Key, Total = g.Sum(o => o.Amount) }); │
+│  using var context = Spark.Connect("local[*]", "MyApp");        │
+│  var query = context.Read.Table<Order>("orders")                 │
+│      .Where(o => o.Amount > 1000)                                │
+│      .GroupBy(o => o.CustomerId)                                 │
+│      .Select(g => new { g.Key, Total = g.Sum(o => o.Amount) });  │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
                             │
@@ -98,32 +98,9 @@ It implements a **full expression tree translation layer** that:
 
 ## Key Components Analysis
 
-### 1. **Expression Tree Translator** (The Core Innovation)
+### 1. **Expression Tree Translator**
 
-```csharp
-public class ColumnExpressionTranslator<T> : IExpressionTranslator<T>
-{
-    public Column TranslateToColumn(Expression expression)
-    {
-        return expression switch
-        {
-            // C# lambda → Spark Column
-            LambdaExpression lambda => TranslateToColumn(lambda.Body),
-            
-            // C# binary operators → Spark operators
-            BinaryExpression binary => TranslateBinary(binary),
-            
-            // C# property access → Spark column reference
-            MemberExpression member => GetColumnFromMember(member),
-            
-            // C# method calls → Spark functions
-            MethodCallExpression method => TranslateMethodCall(method),
-            
-            // ...
-        };
-    }
-}
-```
+The expression tree translator parses C# LINQ expressions at runtime and converts them to Spark Column operations.
 
 **What This Does:**
 - ✅ Parses C# expression trees at runtime
@@ -131,25 +108,13 @@ public class ColumnExpressionTranslator<T> : IExpressionTranslator<T>
 - ✅ Handles property access, method calls, constants
 - ✅ Preserves type safety
 
-**Example Translation:**
+**Example:**
 
 ```csharp
-// C# Code
+// C# Code - what you write
 query.Where(o => o.Amount > 1000 && o.Status == "Active")
 
-// Expression Tree (simplified)
-BinaryExpression(AndAlso)
-├─ BinaryExpression(GreaterThan)
-│  ├─ MemberExpression(o.Amount)
-│  └─ ConstantExpression(1000)
-└─ BinaryExpression(Equal)
-   ├─ MemberExpression(o.Status)
-   └─ ConstantExpression("Active")
-
-// Translated Spark Column
-(Functions.Col("amount") > 1000) & (Functions.Col("status") == "Active")
-
-// Executed on Spark Cluster
+// Spark Execution - what runs on the cluster
 dataFrame.Filter((col("amount") > 1000) && (col("status") === "Active"))
 ```
 
@@ -157,29 +122,13 @@ dataFrame.Filter((col("amount") > 1000) && (col("status") === "Active"))
 
 ### 2. **Column Mapper** (Schema Bridge)
 
-```csharp
-public class ConventionColumnMapper<T> : IColumnMapper<T>
-{
-    public string GetColumnName(string propertyName)
-    {
-        // Maps C# property names to Spark column names
-        // e.g., "CustomerId" → "customer_id"
-        return propertyName.ToSnakeCase();
-    }
-    
-    public T MapFromRow(Row row)
-    {
-        // Maps Spark Row back to C# object
-        // Handles records, classes, primitives
-    }
-}
-```
+The column mapper bridges C# naming conventions with Spark conventions.
 
 **What This Does:**
 - ✅ Bridges C# naming conventions (PascalCase) ↔ Spark conventions (snake_case)
 - ✅ Supports custom mappings via `[Column("custom_name")]` attribute
 - ✅ Handles records, classes, anonymous types
-- ✅ **Optimized Materialization**: Uses compiled expression trees (via `ObjectMaterializer`) for high-performance object creation (~4x faster than reflection).
+- ✅ High-performance object materialization (~4x faster than reflection)
 - ✅ Bidirectional mapping (C# → Spark, Spark → C#)
 - ✅ **Supports nested property access** (see below)
 
@@ -216,15 +165,6 @@ var result = query.Where(o => o.Customer.Address.ZipCode == "10001");
 ### 3. **GroupBy Translation** (Complex Aggregations)
 
 ```csharp
-public interface ISparkGrouping<TKey, TElement>
-{
-    TKey Key { get; }
-    long Count();
-    TValue Sum<TValue>(Expression<Func<TElement, TValue>> selector);
-    TValue Max<TValue>(Expression<Func<TElement, TValue>> selector);
-    // ...
-}
-
 // Usage
 query
     .GroupBy(o => o.Department)
@@ -242,63 +182,55 @@ query
 - ✅ Supports multiple aggregations in a single `Select`
 - ✅ Handles composite keys (multi-column grouping)
 
-**Translation:**
-
-```csharp
-// C# Code
-.GroupBy(o => o.Department)
-.Select(g => new { g.Key, Count = g.Count(), Max = g.Max(o => o.Salary) })
-
-// Spark Operations
-dataFrame
-    .GroupBy("department")
-    .Agg(
-        Functions.Count(Functions.Lit(1)).As("Count"),
-        Functions.Max(Functions.Col("salary")).As("Max")
-    )
-```
-
 ---
 
 ### 4. **Join Translation** (Distributed Joins)
 
+**Usage Example:**
+
 ```csharp
-public SparkQuery<TResult> Join<TOther, TKey, TResult>(
-    SparkQuery<TOther> other,
-    Expression<Func<T, TKey>> leftKeySelector,
-    Expression<Func<TOther, TKey>> rightKeySelector,
-    Expression<Func<T, TOther, TResult>> resultSelector,
-    string joinType = "inner")
-{
-    // 1. Alias columns to prevent collisions
-    var leftAliased = AliasColumns(_dataFrame, "left_");
-    var rightAliased = AliasColumns(other._dataFrame, "right_");
-    
-    // 2. Translate join keys
-    var joinCondition = leftAliased.Col("left_id") == rightAliased.Col("right_id");
-    
-    // 3. Perform distributed join
-    var joinedDf = leftAliased.Join(rightAliased, joinCondition, joinType);
-    
-    // 4. Translate result selector
-    var (selectColumns, newMapper) = TranslateJoinSelect(resultSelector);
-    
-    return new SparkQuery<TResult>(_sparkSession, joinedDf.Select(selectColumns), newMapper);
-}
+using var context = Spark.Connect("local[*]", "MyApp");
+
+var orders = context.Read.Table<Order>("orders");
+var customers = context.Read.Table<Customer>("customers");
+
+// Join orders with customers
+var orderDetails = orders.Join(
+    customers,
+    o => o.CustomerId,           // Order key
+    c => c.Id,                   // Customer key
+    (o, c) => new {              // Result projection
+        o.OrderId,
+        o.Amount,
+        c.Name,
+        c.Email
+    }
+);
+
+// Execute
+var results = orderDetails.ToList();
 ```
+
+**Supported Join Types:**
+- `Join(...)` - INNER JOIN (default)
+- `Join(..., joinType: "left")` - LEFT OUTER JOIN
+- `Join(..., joinType: "right")` - RIGHT OUTER JOIN
+- `Join(..., joinType: "full")` - FULL OUTER JOIN
 
 **What This Does:**
 - ✅ Handles distributed joins (broadcast, shuffle-hash, sort-merge)
 - ✅ Prevents column name collisions via aliasing
 - ✅ Supports inner, left, right, full outer joins
 - ✅ Type-safe result projection
-
-**This executes as a distributed join across the Spark cluster.**
+- ✅ Executes as a distributed join across the Spark cluster
 
 ---
 
 ### 5. **Window Functions** (Advanced Analytics)
 
+SparkQuery provides two window function APIs:
+
+**Column-Based API** (`WithWindow`) - For advanced use with raw Spark columns:
 ```csharp
 employees.WithWindow(
     spec => spec
@@ -314,28 +246,29 @@ employees.WithWindow(
     })
 ```
 
+**Expression-Based API** (`WithWindowTyped`) - Fully type-safe, no Microsoft.Spark imports needed:
+```csharp
+employees.WithWindowTyped(
+    spec => spec
+        .PartitionBy(e => e.Department)
+        .OrderBy(e => e.HireDate),
+    (e, w) => new
+    {
+        e.Name,
+        e.Salary,
+        RunningTotal = w.Sum(x => x.Salary),  // Expression-based!
+        AvgSalary = w.Avg(x => x.Salary),
+        MaxSalary = w.Max(x => x.Salary),
+        SalaryRank = w.Rank()
+    })
+```
+
 **What This Does:**
 - ✅ Translates to Spark's window functions
 - ✅ Supports ranking, lead/lag, running aggregations
 - ✅ Type-safe window specification
 - ✅ Distributed execution across partitions
-
-**Spark Execution:**
-
-```scala
-// Equivalent Spark code
-val windowSpec = Window
-    .partitionBy("department")
-    .orderBy(col("salary").desc)
-
-df.select(
-    col("name"),
-    col("department"),
-    col("salary"),
-    rank().over(windowSpec).as("RankInDept"),
-    sum("salary").over(windowSpec).as("RunningTotal")
-)
-```
+- ✅ **Expression-based aggregates** (no Microsoft.Spark imports required)
 
 ---
 
@@ -374,8 +307,9 @@ orders.Select(o => new { o.Id, TotalPrices = o.Items.Select(i => i.Price * i.Qty
 ### 7. **Cases Pattern** (Distributed Conditional Processing)
 
 ```csharp
-// Create a SparkQuery from a DataFrame
-var ordersQuery = Spark.DataFrame<Order>(spark, ordersDf);
+// Create a SparkQuery from a table
+using var context = Spark.Connect("local[*]", "MyApp");
+var ordersQuery = context.Read.Table<Order>("orders");
 
 ordersQuery
     .Cases(
@@ -389,9 +323,9 @@ ordersQuery
     )
     .ForEachCase(
         // Each action receives a SparkQuery<R> for that category
-        highValueQuery => highValueQuery.ToDataFrame().Write().Parquet("high_value_orders"),
-        internationalQuery => internationalQuery.ToDataFrame().Write().Parquet("international_orders"),
-        standardQuery => standardQuery.ToDataFrame().Write().Parquet("standard_orders")
+        highValueQuery => highValueQuery.WriteParquet("high_value_orders"),
+        internationalQuery => internationalQuery.WriteParquet("international_orders"),
+        standardQuery => standardQuery.WriteParquet("standard_orders")
     );
 
 // Or extract all transformed results
@@ -408,22 +342,6 @@ var allProcessedOrders = ordersQuery
 - ✅ Maintains type safety throughout
 - ✅ `AllCases()` extracts transformed items, filtering nulls by default  
 - ✅ `UnCase()` can undo categorization to get original items back
-
-**Spark Execution:**
-
-```scala
-// Equivalent Spark code
-val categorized = df.withColumn("category", 
-    when(col("amount") > 10000, 0)
-    .when(col("is_international"), 1)
-    .otherwise(2)
-)
-
-// Process each category in parallel
-categorized.filter(col("category") === 0).write.parquet("high_value_orders")
-categorized.filter(col("category") === 1).write.parquet("international_orders")
-categorized.filter(col("category") === 2).write.parquet("standard_orders")
-```
 
 #### Multi-Type Branching
 
@@ -443,9 +361,9 @@ ordersQuery
         vip => new VIPProcessing { FastTrack = true, CustomerId = vip.Customer.Id }
     )
     .ForEachCase<Order, ComplianceReview, CurrencyConversion, VIPProcessing>(
-        complianceQuery => complianceQuery.ToDataFrame().Write().Parquet("compliance_reviews"),
-        currencyQuery => currencyQuery.ToDataFrame().Write().Parquet("currency_conversions"),
-        vipQuery => vipQuery.ToDataFrame().Write().Parquet("vip_processing")
+        complianceQuery => complianceQuery.WriteParquet("compliance_reviews"),
+        currencyQuery => currencyQuery.WriteParquet("currency_conversions"),
+        vipQuery => vipQuery.WriteParquet("vip_processing")
     );
 ```
 
@@ -485,7 +403,7 @@ var result = customers
     .OrderByDescending(x => x.TotalSpent)
     .Take(100);
 
-result.Write().Mode(SaveMode.Overwrite).Parquet("hdfs://output/top_customers");
+await result.WriteParquet("hdfs://output/top_customers").Overwrite();
 ```
 
 **This code:**
@@ -500,20 +418,79 @@ result.Write().Mode(SaveMode.Overwrite).Parquet("hdfs://output/top_customers");
 ### Fluent Write API
 
 > Simplified, chainable write operations that wrap `DataFrameWriter`.
+> All write operations are **awaitable** and return result objects.
 
 ```csharp
-// File outputs (Parquet, CSV, JSON, ORC)
-result.WriteParquet("/data/orders");
-result.WriteParquet("/data/orders").Overwrite().PartitionBy(o => o.Year);
+// File outputs from SparkQuery (Parquet, CSV, JSON, ORC) - awaitable!
+await result.WriteParquet("/data/orders");
+await result.WriteParquet("/data/orders").Overwrite().PartitionBy(o => o.Year);
+await result.WriteCsv("/data/orders.csv").WithHeader();
+await result.WriteJson("/data/orders.json");
+await result.WriteOrc("/data/orders.orc");
 
 // Table inserts
-result.WriteTable("catalog.db.orders");
-result.WriteTable("catalog.db.orders").Overwrite();
+await result.WriteTable("catalog.db.orders");
+await result.WriteTable("catalog.db.orders").Overwrite();
 
-// Unified API (same as Snowflake)
-records.WriteTable(sparkSession, "catalog.db.orders");
-records.MergeTable(sparkSession, "delta/orders", o => o.Id);
+// Merge (upsert) into Delta tables
+await source.MergeTable(context, "delta/orders", o => o.OrderId);
 ```
+
+**Local Data → Spark Storage** (Push Pattern - O(1) Memory):
+
+```csharp
+// Push IEnumerable/IAsyncEnumerable data to Spark (streaming, O(1) memory)
+await data.WriteParquet(context, "/output/orders", bufferSize: 10_000);
+await data.WriteCsv(context, "/output/orders.csv", bufferSize: 10_000);
+await data.WriteJson(context, "/output/orders.json");
+await data.WriteOrc(context, "/output/orders.orc");
+
+// Table operations with buffer size
+await data.WriteTable(context, "catalog.orders", bufferSize: 50_000).Overwrite();
+await data.MergeTable(context, "delta/orders", o => o.OrderId, bufferSize: 50_000);
+
+// Timeout-triggered flush for slow streams (IAsyncEnumerable only)
+await asyncStream.WriteParquet(context, "/output", 
+    bufferSize: 10_000, 
+    flushInterval: TimeSpan.FromSeconds(30));  // Flush every 30s even if buffer not full
+
+// Works with IAsyncEnumerable for full streaming pipelines
+await asyncStream.WriteParquet(context, "/output/enriched").Overwrite();
+```
+
+**In-Memory Data → SparkQuery** (Push Pattern - for small datasets):
+
+```csharp
+// Primary: context.Push() - matches context.Read pattern
+var testData = new[] { new Order { Id = 1, Amount = 100 } };
+var query = context.Push(testData);
+
+// Extension: data.Push(context) - enables fluent chaining
+var result = testData.Push(context)
+    .Where(x => x.Amount > 50)
+    .GroupBy(x => x.Category);
+
+// Async support for IAsyncEnumerable
+var asyncQuery = await asyncData.Push(context);
+```
+
+> [!NOTE]
+> `Push()` is intended for **small datasets** (test data, lookup tables, configuration).
+> For large datasets, use `WriteParquet` + `Read.Parquet` for O(1) memory streaming.
+
+**Capture Result for Diagnostics:**
+
+```csharp
+SparkWriteResult writeResult = await result.WriteParquet("/output").Overwrite();
+Console.WriteLine($"Wrote to {writeResult.Path} in {writeResult.Duration.TotalSeconds}s");
+```
+
+**Result Types:**
+| Operation | Result Type | Properties |
+|-----------|-------------|------------|
+| `WriteParquet/Csv/Json/Orc` | `SparkWriteResult` | `Path`, `Format`, `Duration` |
+| `WriteTable` | `SparkWriteResult` | `Path` (table name), `Format` = "table", `Duration` |
+| `MergeTable` | `SparkMergeResult` | `TablePath`, `MatchKey`, `Duration` |
 
 **Write Options:**
 | Method | Description |
@@ -522,6 +499,7 @@ records.MergeTable(sparkSession, "delta/orders", o => o.Id);
 | `.Append()` | Add to existing data |
 | `.PartitionBy(o => o.Col)` | Partition output files |
 | `.WithHeader()` | Include header row (CSV) |
+
 
 ---
 
@@ -624,8 +602,9 @@ records.MergeTable(sparkSession, "delta/orders", o => o.Id);
 ### Code Example
 
 ```csharp
-// Create SparkQuery from a DataFrame or SQL
-var ordersQuery = Spark.Sql<Order>(spark, "SELECT * FROM orders");
+// Create SparkContext with unified API
+using var context = Spark.Connect("local[*]", "MyApp");
+var ordersQuery = context.Read.Table<Order>("orders");
 
 // Write C# LINQ - executes on Spark cluster
 var result = ordersQuery
@@ -635,7 +614,7 @@ var result = ordersQuery
     .OrderByDescending(x => x.Total);
 
 // Write results (distributed execution)
-result.Write().Mode(SaveMode.Overwrite).Parquet("hdfs://output");
+await result.WriteParquet("hdfs://output").Overwrite();
 ```
 
 ---
@@ -660,13 +639,54 @@ query.OrderBy(x => x.Id).Skip(10).Take(5);
 
 ## API Reference
 
-### Spark.* Factory Methods
+### Spark.Connect() Factory (Recommended)
 
-Factory methods for creating SparkQuery instances:
+The unified context API for creating Spark sessions and reading data:
+
+```csharp
+// Create a SparkContext with fluent configuration
+using var context = Spark.Connect("local[*]", "MyApp");
+using var context = Spark.Connect(SparkMaster.Local(), "MyApp");
+using var context = Spark.Connect(SparkMaster.Yarn(), "MyApp");
+
+// Read from various sources
+var orders = context.Read.Table<Order>("orders");
+var orders = context.Read.Parquet<Order>("/data/orders.parquet");
+var orders = context.Read.Csv<Order>("/data/orders.csv");
+var orders = context.Read.Json<Order>("/data/orders.json");
+var orders = context.Read.Orc<Order>("/data/orders.orc");
+var orders = context.Read.Sql<Order>("SELECT * FROM orders WHERE active = true");
+```
+
+**SparkMaster Helpers:**
+
+```csharp
+SparkMaster.Local()               // "local[*]" (all cores)
+SparkMaster.Local(cores: 4)       // "local[4]"
+SparkMaster.Yarn()                // "yarn"
+SparkMaster.Kubernetes(apiUrl)    // "k8s://https://..."
+SparkMaster.Standalone(host)      // "spark://host:7077"
+```
+
+**Advanced Configuration:**
+
+```csharp
+using var context = Spark.Connect("local[*]", "MyApp", opts => {
+    opts.Config["spark.driver.memory"] = "2g";
+    opts.Config["spark.executor.memory"] = "4g";
+    opts.Config["spark.executor.cores"] = "2";
+    opts.Config["spark.sql.shuffle.partitions"] = "200";
+    opts.Hive = true;  // Enable Hive support
+});
+```
+
+### Legacy Factory Methods
+
+These methods are still available but the context API is preferred:
 
 ```csharp
 // Create from existing DataFrame
-var query = Spark.DataFrame<T>(spark, dataFrame, mapper);
+var query = SparkQuery<T>.Create(spark, dataFrame, mapper);
 
 // Create from a Spark table
 var query = Spark.Table<T>(spark, "table_name", mapper);
@@ -830,9 +850,9 @@ var transformed = categorized.SelectCase(
 
 // Execute action per category
 transformed.ForEachCase(
-    aQuery => aQuery.Write().Parquet("path/a"),
-    bQuery => bQuery.Write().Parquet("path/b"),
-    otherQuery => otherQuery.Write().Parquet("path/other")
+    aQuery => aQuery.WriteParquet("path/a"),
+    bQuery => bQuery.WriteParquet("path/b"),
+    otherQuery => otherQuery.WriteParquet("path/other")
 );
 
 // Extract all transformed items

@@ -92,6 +92,15 @@ The following operations are translated directly to Snowflake SQL and executed s
 - **Async Streaming**: `IAsyncEnumerable<T>` support via `GetAsyncEnumerator` (efficient memory usage).
 - **Materialization**: `ToList()`, `ToArray()`, `First()`, `FirstOrDefault()`, `Count()`, `Any()`.
 - **Single Element**: `Single()`, `SingleOrDefault()` (verify exactly 1 result).
+- **Server-to-Client Transition**: `Pull()` switches to client-side streaming while maintaining lazy row-by-row evaluation.
+
+### 9. Cases Pattern (Multi-Destination Routing)
+| Method | Description |
+|--------|-------------|
+| `Cases(predicates...)` | Categorize rows by conditions (SQL CASE WHEN) |
+| `SelectCase(selectors...)` | Transform each category (server-side projection) |
+| `WriteTables(tables...)` | Write each category to different table |
+| `MergeTables((table, key)...)` | Merge each category with different match key |
 
 ---
 
@@ -124,7 +133,7 @@ DataFlow.NET's Snowflake provider is a **production-ready Analytical Query Build
 *   Filtering and aggregating massive datasets.
 *   Projecting flat results for analysis.
 *   Streaming data efficiently to your application.
-*   **Write operations**: `WriteTable()` and `MergeTable()` for inserts and upserts.
+*   **Write operations**: `WriteTable(s)` and `MergeTable(s)` for unified and multi-destination writes.
 *   **95%+** coverage of common analytics scenarios.
 
 > **Note:** Snowflake is an analytics data warehouse, not a transactional database. EF Core does not support Snowflake. If your application needs complex entity relationships, change tracking, and migrations, use a traditional OLTP database (SQL Server, PostgreSQL) with Entity Framework Core. For Snowflake analytics workloads, DataFlow.Snowflake is the only LINQ solution available.
