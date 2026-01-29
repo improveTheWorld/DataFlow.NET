@@ -2,6 +2,24 @@
 
 This document outlines the current capabilities of the `SnowflakeQuery<T>` provider in DataFlow.NET. It is designed to handle the "80% happy path" of analytics queries natively on Snowflake, while acknowledging specific limitations where client-side processing or alternative approaches are required.
 
+## Table of Contents
+
+1. [Supported Features](#-supported-features-native-execution)
+   - [Core Query Operations](#1-core-query-operations)
+   - [Grouping & Aggregation](#2-grouping--aggregation)
+   - [Joins](#3-joins)
+   - [Expression Translation](#4-expression-translation)
+   - [Window Functions](#5-window-functions)
+   - [Set Operations](#6-set-operations)
+   - [Debug & Diagnostics](#7-debug--diagnostics)
+   - [Execution](#8-execution)
+   - [Cases Pattern](#9-cases-pattern-multi-destination-routing)
+2. [Unsupported Features](#️-unsupported-features-remaining-gaps)
+3. [Summary](#summary)
+4. [See Also](#see-also)
+
+---
+
 ## ✅ Supported Features (Native Execution)
 
 The following operations are translated directly to Snowflake SQL and executed server-side.

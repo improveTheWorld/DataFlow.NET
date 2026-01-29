@@ -2,18 +2,30 @@
 
 A **C# LINQ-to-SQL translator** that enables .NET developers to write idiomatic C# code that executes natively on Snowflake Data Cloud.
 
+
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
 3. [Key Features](#key-features)
 4. [Usage Guide](#usage-guide)
+   - [Connecting with the Context API](#connecting-with-the-context-api-recommended)
+   - [Legacy Factory Methods](#legacy-factory-methods)
+   - [Grouping and Aggregation](#grouping-and-aggregation)
+   - [Joins](#joins)
 5. [Advanced Features](#advanced-features)
    - [Window Functions](#window-functions-analytics)
    - [Set Operations](#set-operations)
    - [Semi-Structured Data (VARIANT)](#semi-structured-data-variant)
 6. [Write Operations](#write-operations)
+   - [Insert (Bulk Load)](#insert-bulk-load)
+   - [Merge (Upsert)](#merge-upsert)
+   - [Write Options](#write-options)
+   - [Cases Pattern (Server-Side Routing)](#cases-pattern-server-side-routing)
+   - [Transformed Writes](#transformed-writes)
 7. [Best Practices](#best-practices)
+8. [Comparison with SparkQuery](#comparison-with-sparkquery)
+9. [See Also](#see-also)
 
 ---
 
