@@ -223,8 +223,47 @@ await records.WriteYaml(blobStream);
 
 ---
 
+## Cloud Writers
+
+Write data to Snowflake and Spark with unified API (O(1) memory):
+
+### Snowflake
+
+```csharp
+// From SnowflakeQuery (already has context - just pass table name)
+await context.Read.Table<Order>("ORDERS")
+    .Where(o => o.Amount > 1000)
+    .WriteTable("HIGH_VALUE_ORDERS");
+
+await context.Read.Table<Order>("ORDERS")
+    .Where(o => o.Status == "Pending")
+    .MergeTable("PROCESSED_ORDERS", o => o.OrderId);
+
+// From IEnumerable/List (needs context)
+await records.WriteTable(context, "ORDERS");
+await records.MergeTable(context, "ORDERS", o => o.Id).UpdateOnly("AMOUNT");
+```
+
+### Spark
+
+```csharp
+// From SparkQuery (just path)
+await query.WriteParquet("/data/orders");
+await query.WriteParquet("/data/orders").Overwrite();
+await query.WriteCsv("/data/export.csv").WithHeader();
+await query.WriteJson("/data/events.json");
+await query.WriteTable("catalog.db.orders");
+
+// From IEnumerable/List (context + path)
+await records.WriteParquet(context, "/data/orders");
+```
+
+---
+
 ## See Also
 
 - [DataFlow-Data-Reading-Infrastructure.md](DataFlow-Data-Reading-Infrastructure.md) - Reading APIs
+- [LINQ-to-Snowflake.md](LINQ-to-Snowflake.md) - Snowflake Write API
+- [LINQ-to-Spark.md](LINQ-to-Spark.md) - Spark Write API
 - [Architecture-APIs.md](Architecture-APIs.md) - Overall architecture
-- [Roadmap.md](Roadmap.md) - Future enhancements (V1.1: ErrorManager)
+

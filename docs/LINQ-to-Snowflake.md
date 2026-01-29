@@ -307,11 +307,11 @@ orders.Where(o => o.Items.Any(i => i.Price > 100))
 
 ```csharp
 // Simple insert
-await records.WriteTable(options, "ORDERS");
+await records.WriteTable(context, "ORDERS");
 
 // With options (chainable)
 await records
-    .WriteTable(options, "ORDERS")
+    .WriteTable(context, "ORDERS")
     .CreateIfMissing()
     .Overwrite();
 ```
@@ -320,11 +320,11 @@ await records
 
 ```csharp
 // Simple upsert on key
-await records.MergeTable(options, "ORDERS", o => o.OrderId);
+await records.MergeTable(context, "ORDERS", o => o.OrderId);
 
 // Update specific columns only
 await records
-    .MergeTable(options, "CUSTOMERS", c => c.Email)
+    .MergeTable(context, "CUSTOMERS", c => c.Email)
     .UpdateOnly("Name", "UpdatedAt");
 ```
 
