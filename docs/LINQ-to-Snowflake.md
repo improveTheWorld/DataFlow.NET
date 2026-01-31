@@ -10,7 +10,6 @@ A **C# LINQ-to-SQL translator** that enables .NET developers to write idiomatic 
 3. [Key Features](#key-features)
 4. [Usage Guide](#usage-guide)
    - [Connecting with the Context API](#connecting-with-the-context-api-recommended)
-   - [Legacy Factory Methods](#legacy-factory-methods)
    - [Grouping and Aggregation](#grouping-and-aggregation)
    - [Joins](#joins)
 5. [Advanced Features](#advanced-features)
@@ -18,6 +17,7 @@ A **C# LINQ-to-SQL translator** that enables .NET developers to write idiomatic 
    - [Set Operations](#set-operations)
    - [Semi-Structured Data (VARIANT)](#semi-structured-data-variant)
 6. [Write Operations](#write-operations)
+   - [Write Patterns](#write-patterns)
    - [Insert (Bulk Load)](#insert-bulk-load)
    - [Merge (Upsert)](#merge-upsert)
    - [Write Options](#write-options)
@@ -131,28 +131,6 @@ await using var context = Snowflake.Connect(
 );
 ```
 
-### Legacy Factory Methods
-
-These methods are still available but the context API is preferred:
-
-```csharp
-// 1. Initialize from a table
-var orders = Snowflake.Table<Order>(options, "orders");
-
-// 2. Build Query
-var query = orders
-    .Where(o => o.Status == "Active")
-    .Where(o => o.Amount > 1000)
-    .OrderByDescending(o => o.Date)
-    .Select(o => new { o.Id, o.CustomerName, o.Amount });
-
-// 3. Debug (Optional): See generated SQL
-query.Explain(); 
-// Output: SELECT id, customer_name, amount FROM orders WHERE status = 'Active'...
-
-// 4. Execute
-var results = await query.ToList();
-```
 
 ### Grouping and Aggregation
 
@@ -302,6 +280,31 @@ orders.Where(o => o.Items.Any(i => i.Price > 100))
 > Write data back to Snowflake using the unified Write API.
 > 
 > **O(1) Memory**: All writes use native `IAsyncEnumerable` streaming. Data is batched, staged via PUT, and bulk-loaded via COPY INTO. No full materialization on the client.
+
+### Write Patterns
+
+DataFlow supports two write patterns with different context requirements:
+
+| Source | Target | Context Required? | Example |
+|--------|--------|-------------------|--------|
+| **Query** (`SnowflakeQuery`) | Table | ❌ No (inherited) | `query.WriteTable("TABLE")` |
+| **Local Data** (`IEnumerable`) | Table | ✅ Yes | `list.WriteTable(context, "TABLE")` |
+
+**Remote-to-Remote (Pure Server-Side):**
+```csharp
+// Transform and route data without round-tripping to client
+await context.Read.Table<Order>("ORDERS")
+    .Where(o => o.Amount > 1000)
+    .Select(o => new { o.Id, o.CustomerName, Total = o.Amount })
+    .WriteTable("HIGH_VALUE_ORDERS");  // No context - server-side INSERT INTO...SELECT
+```
+
+**Local-to-Remote (Client Push):**
+```csharp
+// Push local data to Snowflake
+var localRecords = new List<Order> { ... };
+await localRecords.WriteTable(context, "ORDERS");  // Context required
+```
 
 ### Insert (Bulk Load)
 

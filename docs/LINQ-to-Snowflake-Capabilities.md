@@ -4,7 +4,7 @@ This document outlines the current capabilities of the `SnowflakeQuery<T>` provi
 
 ## Table of Contents
 
-1. [Supported Features](#-supported-features-native-execution)
+1. [Supported Features](#supported-features-native-execution)
    - [Core Query Operations](#1-core-query-operations)
    - [Grouping & Aggregation](#2-grouping--aggregation)
    - [Joins](#3-joins)
@@ -14,7 +14,7 @@ This document outlines the current capabilities of the `SnowflakeQuery<T>` provi
    - [Debug & Diagnostics](#7-debug--diagnostics)
    - [Execution](#8-execution)
    - [Cases Pattern](#9-cases-pattern-multi-destination-routing)
-2. [Unsupported Features](#️-unsupported-features-remaining-gaps)
+2. [Unsupported Features](#unsupported-features-remaining-gaps)
 3. [Summary](#summary)
 4. [See Also](#see-also)
 
@@ -151,7 +151,9 @@ DataFlow.NET's Snowflake provider is a **production-ready Analytical Query Build
 *   Filtering and aggregating massive datasets.
 *   Projecting flat results for analysis.
 *   Streaming data efficiently to your application.
-*   **Write operations**: `WriteTable(s)` and `MergeTable(s)` for unified and multi-destination writes.
+*   **Write operations**: 
+    - `query.WriteTable("TABLE")` — Server-side write (no context needed, inherited from query)
+    - `data.WriteTable(context, "TABLE")` — Client-to-server push (context required)
 *   **95%+** coverage of common analytics scenarios.
 
 > **Note:** Snowflake is an analytics data warehouse, not a transactional database. EF Core does not support Snowflake. If your application needs complex entity relationships, change tracking, and migrations, use a traditional OLTP database (SQL Server, PostgreSQL) with Entity Framework Core. For Snowflake analytics workloads, DataFlow.Snowflake is the only LINQ solution available.
