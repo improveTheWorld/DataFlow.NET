@@ -278,9 +278,12 @@ await results.ForEachCase(
 );
 ```
 
-### ForEach (Side Effects with Field Sync)
+### ForEach (Distributed Execution with Field Sync)
 
-Execute actions on each element during distributed processing with **automatic field synchronization** back to the driver.
+Execute actions **on Spark workers** (distributed) with **automatic field synchronization** back to the driver. Unlike `Pull().ForEach()` which streams data locally, `ForEach().Do()` runs your code across the cluster in parallel.
+
+> [!TIP]
+> **True distributed execution**: Your action runs on Spark worker nodes, processing millions of rows in parallel. Field changes are automatically aggregated and synchronized back to the driver.
 
 **Supported Patterns:**
 
