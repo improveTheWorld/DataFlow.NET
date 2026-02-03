@@ -17,6 +17,8 @@ A **C# LINQ-to-Spark translator** that enables .NET developers to write idiomati
    - [Window Functions](#window-functions-analytics)
    - [Higher-Order Functions](#higher-order-array-functions-nested-data)
    - [Cases Pattern](#cases-pattern-conditional-routing)
+   - [ForEach](#foreach-side-effects)
+   - [Auto-UDF Registration](#auto-udf-registration-custom-functions)
    - [Set Operations](#set-operations)
    - [Math & String](#math--string-functions)
    - [Caching & Partitioning](#caching--partitioning)
@@ -77,6 +79,7 @@ graph TD
 | **Window Functions** | `WithWindow(spec, ...)` | `Window.PartitionBy(...)` |
 | **Nested Data** | `x.Address.City` | `col("address.city")` |
 | **Higher-Order** | `x.Items.Any(i => i.Val > 10)` | `expr("exists(items, i -> i.val > 10)")` |
+| **Auto-UDF** | `MyClass.MyMethod(x.Field)` | Auto-registered `CallUDF()` |
 
 ---
 
@@ -127,6 +130,29 @@ var json = context.Read.Json<Event>("/data/events.json");
 // Apply LINQ operations
 var highValue = orders.Where(o => o.Amount > 1000);
 ```
+
+### Pushing In-Memory Data
+
+Push local data to Spark for distributed processing. Automatically batches large data for O(1) memory:
+
+```csharp
+// Small data - fast in-memory path
+var testData = new[] { new Order { Id = 1, Amount = 100 } };
+var query = context.Push(testData);
+
+// Large data - automatically batched (O(1) memory)
+var millionRows = GenerateLargeDataset();
+var query = context.Push(millionRows);  // Same API, auto-optimized!
+
+// Fluent syntax
+var enriched = localData.Push(context).Where(x => x.Active);
+
+// Custom batch size
+var query = context.Push(data, batchSize: 50_000);
+```
+
+> [!TIP]
+> **Pull → Process → Push workflow:** Use `Pull()` to stream data locally, process with instance methods, then `Push()` back to Spark.
 
 ### Grouping and Aggregation
 
@@ -252,7 +278,139 @@ await results.ForEachCase(
 );
 ```
 
+### ForEach (Side Effects with Field Sync)
+
+Execute actions on each element during distributed processing with **automatic field synchronization** back to the driver.
+
+**Supported Patterns:**
+
+```csharp
+// ✅ Static methods - static fields sync back
+public static class Stats
+{
+    public static int Count = 0;
+    public static void Process(Order o) => Count++;
+}
+query.ForEach(Stats.Process).Do();
+// Stats.Count is synchronized! 🎉
+
+// ✅ Lambda closures - captured variables sync back
+int count = 0;
+double total = 0;
+query.ForEach(o => { count++; total += o.Amount; }).Do();
+// count and total are synchronized! 🎉
+
+// ✅ Instance methods - instance fields sync back
+var processor = new OrderProcessor();
+query.ForEach(processor.Process).Do();
+// processor.Count and processor.Total are synchronized! 🎉
+```
+
+**With Index:**
+```csharp
+public static class Logger
+{
+    public static void LogWithIndex(Order o, int idx) => 
+        Console.WriteLine($"{idx}: {o.Id}");
+}
+query.ForEach(Logger.LogWithIndex).Do();
+```
+
+> [!NOTE]
+> Indices are generated using Spark's `monotonically_increasing_id()` - unique but not necessarily contiguous across partitions.
+
+**Tracked Field Types:**
+- Numeric: `int`, `long`, `double`, `float`
+- Text: `string` (concatenated across workers)
+
+**Limitations:**
+- Collections (`List<T>`, `Dictionary`) are NOT synchronized
+- Complex objects are NOT synchronized
+- Fields must be **written** (assigned), not just read
+
+
+### Auto-UDF Registration (Custom Functions)
+
+Use your own C# static methods directly in LINQ expressions. DataFlow automatically registers them as Spark UDFs - no manual setup required.
+
+**Basic Usage:**
+```csharp
+// Define your custom static methods
+public static class MyHelpers
+{
+    public static string Classify(double amount) => 
+        amount > 1000 ? "HIGH" : amount > 500 ? "MEDIUM" : "LOW";
+    
+    public static bool IsHighValue(double amount) => amount > 1000;
+    public static int DoubleIt(int value) => value * 2;
+    public static string Format(string text) => $"PREFIX-{text.ToUpper()}";
+    
+    // 2-param: any combination of primitives
+    public static int Add(int a, int b) => a + b;
+    public static string Concat(string a, string b) => $"{a}-{b}";
+    
+    // 3-param
+    public static int Sum3(int a, int b, int c) => a + b + c;
+}
+
+// Use directly in LINQ - auto-registered!
+orders.Where(o => MyHelpers.IsHighValue(o.Amount));
+orders.Where(o => MyHelpers.Add(o.Id, 10) > 15);
+```
+
+**Fully Supported Types:**
+
+| Type | Examples |
+|------|----------|
+| **Numeric** | `int`, `long`, `double`, `float`, `short` |
+| **Text** | `string` |
+| **Boolean** | `bool` |
+
+> [!IMPORTANT]
+> **Requirements:**
+> - Method must be **static** (instance methods can't be serialized to Spark workers)
+> - All parameters and return types must be **primitive types** listed above
+> - `decimal` is **NOT supported** due to Spark serialization issues (use `double` instead)
+> - Method must NOT be in `System.*` or `Microsoft.*` namespaces
+
+**Deployment:**
+
+DataFlow automatically handles assembly distribution - **no manual setup required!**
+
+When you call `Spark.Connect()`, DataFlow:
+1. Discovers all application DLLs in your project
+2. Distributes them to Spark workers using `SparkContext.AddFile`
+3. Makes your UDFs "just work" without any deployment configuration
+
+```csharp
+// Just connect and use UDFs - assemblies are distributed automatically!
+using var context = Spark.Connect(SparkMaster.Standalone("spark-master"), "MyApp");
+
+var orders = context.Read.Csv<Order>(path)
+    .Where(o => MyHelpers.IsHighValue(o.Amount))  // UDF just works!
+    .ToList();
+```
+
+> [!TIP]
+> **Press F5 and it works!** This is the "magic" that makes DataFlow different from other Spark libraries. No `--archives`, no manual packaging.
+
+**Requirements:**
+- **Microsoft.Spark.Worker** must be installed on workers ([download](https://github.com/dotnet/spark/releases))
+
+**Advanced: Disable auto-distribution (not recommended):**
+```csharp
+var context = Spark.Connect(master, "MyApp", opts => opts.AutoDistributeAssemblies = false);
+```
+
+> [!NOTE]
+> For full details on assembly distribution, see [Automatic Assembly Distribution](Spark-Assembly-Distribution.md).
+
+
+
+
+
 ### Set Operations
+
 
 ```csharp
 var combined = query1.Union(query2);       // UNION ALL
@@ -334,6 +492,9 @@ query.Skip(10).Take(5);
 // ✅ Works
 query.OrderBy(x => x.Id).Skip(10).Take(5);
 ```
+
+> [!NOTE]
+> **Decimal Auto-Conversion**: The `System.Decimal` type is not supported by the underlying Microsoft.Spark driver. DataFlow.Spark automatically converts `decimal` values to `double` at write time. A runtime warning is emitted on first conversion. For precision-critical applications (>15 significant digits), use `double` explicitly in your model classes.
 
 ---
 
