@@ -17,7 +17,7 @@ A **C# LINQ-to-Spark translator** that enables .NET developers to write idiomati
    - [Window Functions](#window-functions-analytics)
    - [Higher-Order Functions](#higher-order-array-functions-nested-data)
    - [Cases Pattern](#cases-pattern-conditional-routing)
-   - [ForEach](#foreach-side-effects)
+   - [ForEach (Distributed)](#foreach-distributed-execution-with-field-sync)
    - [Auto-UDF Registration](#auto-udf-registration-custom-functions)
    - [Set Operations](#set-operations)
    - [Math & String](#math--string-functions)
