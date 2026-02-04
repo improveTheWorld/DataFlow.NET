@@ -1,7 +1,6 @@
-# LINQ-to-Spark Layer
+# LINQ-to-Spark
 
-A **C# LINQ-to-Spark translator** that enables .NET developers to write idiomatic C# code that executes on Apache Spark clusters.
-
+Write idiomatic C# LINQ that executes on Apache Spark clusters.
 
 ## Table of Contents
 
@@ -17,27 +16,26 @@ A **C# LINQ-to-Spark translator** that enables .NET developers to write idiomati
    - [Window Functions](#window-functions-analytics)
    - [Higher-Order Functions](#higher-order-array-functions-nested-data)
    - [Cases Pattern](#cases-pattern-conditional-routing)
-   - [ForEach (Distributed)](#foreach-distributed-execution-with-field-sync)
-   - [Auto-UDF Registration](#auto-udf-registration-custom-functions)
+   - [ForEach (Row Processing)](#foreach-row-processing)
+   - [Custom Methods](#custom-methods-in-expressions)
    - [Set Operations](#set-operations)
    - [Math & String](#math--string-functions)
    - [Caching & Partitioning](#caching--partitioning)
-6. [Write Operations](#write-operations)
-7. [Best Practices](#best-practices)
-8. [Comparison with SnowflakeQuery](#comparison-with-snowflakequery)
-9. [See Also](#see-also)
+6. [Build-Time Protections](#build-time-protections)
+7. [Write Operations](#write-operations)
+8. [Best Practices](#best-practices)
+9. [Comparison with SnowflakeQuery](#comparison-with-snowflakequery)
+10. [See Also](#see-also)
 
 ---
 
 ## Overview
 
-It implements a **full expression tree translation layer** that:
+DataFlow translates C# LINQ expressions to Spark DataFrame operations:
 
-1. ✅ **Translates C# LINQ expressions** → **Spark DataFrame operations**
-2. ✅ **Guarantees Type-safe LINQ methods** executed by Distributed Spark power
-3. ✅ **Provides a fluent, type-safe API** that feels C# native
-4. ✅ **Executes on real Apache Spark** (distributed processing, fault tolerance, petabyte scale)
-5. ✅ **Bridges the .NET/JVM gap** using Microsoft.Spark
+- ✅ Write C# → Execute on Spark (distributed, fault-tolerant, petabyte-scale)
+- ✅ Type-safe, fluent API that feels C# native
+- ✅ No need to learn Spark internals
 
 ---
 
@@ -79,7 +77,7 @@ graph TD
 | **Window Functions** | `WithWindow(spec, ...)` | `Window.PartitionBy(...)` |
 | **Nested Data** | `x.Address.City` | `col("address.city")` |
 | **Higher-Order** | `x.Items.Any(i => i.Val > 10)` | `expr("exists(items, i -> i.val > 10)")` |
-| **Auto-UDF** | `MyClass.MyMethod(x.Field)` | Auto-registered `CallUDF()` |
+| **Custom Methods** | `MyClass.MyMethod(x.Field)` | Auto-registered UDF |
 
 ---
 
@@ -278,142 +276,83 @@ await results.ForEachCase(
 );
 ```
 
-### ForEach (Distributed Execution with Field Sync)
+### ForEach (Row Processing)
 
-Execute actions **on Spark workers** (distributed) with **automatic field synchronization** back to the driver. Unlike `Pull().ForEach()` which streams data locally, `ForEach().Do()` runs your code across the cluster in parallel.
-
-> [!TIP]
-> **True distributed execution**: Your action runs on Spark worker nodes, processing millions of rows in parallel. Field changes are automatically aggregated and synchronized back to the driver.
-
-**Supported Patterns:**
+Process each row and collect results back. Perfect for counting, summing, or logging.
 
 ```csharp
-// ✅ Static methods - static fields sync back
-public static class Stats
-{
-    public static int Count = 0;
-    public static void Process(Order o) => Count++;
-}
-query.ForEach(Stats.Process).Do();
-// Stats.Count is synchronized! 🎉
-
-// ✅ Lambda closures - captured variables sync back
+// Count and sum with a lambda
 int count = 0;
 double total = 0;
-query.ForEach(o => { count++; total += o.Amount; }).Do();
-// count and total are synchronized! 🎉
+query.ForEach(order => { count++; total += order.Amount; }).Do();
+Console.WriteLine($"Processed {count} orders, total: {total}");
 
-// ✅ Instance methods - instance fields sync back
+// Or use instance methods
 var processor = new OrderProcessor();
 query.ForEach(processor.Process).Do();
-// processor.Count and processor.Total are synchronized! 🎉
+Console.WriteLine($"Result: {processor.Count} orders");
+
+// Or static methods
+query.ForEach(Stats.Process).Do();
+Console.WriteLine($"Result: {Stats.Count} orders");
 ```
 
-**With Index:**
+**Rules:**
+
+| Rule | Description |
+|------|-------------|
+| Call `.Do()` | ForEach is lazy - nothing happens until you call `.Do()` |
+| Use simple types | Only `int`, `long`, `double`, `float`, `string` are collected back |
+| Collections don't work | `List<T>`, `Dictionary` etc. are NOT collected |
+| Reset before use | Always reset your counters before calling ForEach |
+| String order varies | If collecting strings, the order may vary |
+
+> [!TIP]
+> **ForEach runs your code in parallel across the cluster.** Results are automatically collected and merged back.
+
+---
+
+### Custom Methods in Expressions
+
+Use your own C# methods directly in `Where`, `Select`, etc. They work automatically!
+
 ```csharp
-public static class Logger
-{
-    public static void LogWithIndex(Order o, int idx) => 
-        Console.WriteLine($"{idx}: {o.Id}");
-}
-query.ForEach(Logger.LogWithIndex).Do();
-```
-
-> [!NOTE]
-> Indices are generated using Spark's `monotonically_increasing_id()` - unique but not necessarily contiguous across partitions.
-
-**Tracked Field Types:**
-- Numeric: `int`, `long`, `double`, `float`
-- Text: `string` (concatenated across workers)
-
-**Limitations:**
-- Collections (`List<T>`, `Dictionary`) are NOT synchronized
-- Complex objects are NOT synchronized
-- Fields must be **written** (assigned), not just read
-
-
-### Auto-UDF Registration (Custom Functions)
-
-Use your own C# static methods directly in LINQ expressions. DataFlow automatically registers them as Spark UDFs - no manual setup required.
-
-**Basic Usage:**
-```csharp
-// Define your custom static methods
+// Define your methods
 public static class MyHelpers
 {
     public static string Classify(double amount) => 
         amount > 1000 ? "HIGH" : amount > 500 ? "MEDIUM" : "LOW";
     
     public static bool IsHighValue(double amount) => amount > 1000;
-    public static int DoubleIt(int value) => value * 2;
-    public static string Format(string text) => $"PREFIX-{text.ToUpper()}";
-    
-    // 2-param: any combination of primitives
-    public static int Add(int a, int b) => a + b;
-    public static string Concat(string a, string b) => $"{a}-{b}";
-    
-    // 3-param
-    public static int Sum3(int a, int b, int c) => a + b + c;
 }
 
-// Use directly in LINQ - auto-registered!
-orders.Where(o => MyHelpers.IsHighValue(o.Amount));
-orders.Where(o => MyHelpers.Add(o.Id, 10) > 15);
+// Use them - just works!
+var results = orders
+    .Where(o => MyHelpers.IsHighValue(o.Amount))
+    .Select(o => new { o.Id, Category = MyHelpers.Classify(o.Amount) });
 ```
 
-**Fully Supported Types:**
+**Rules:**
 
-| Type | Examples |
-|------|----------|
-| **Numeric** | `int`, `long`, `double`, `float`, `short` |
-| **Text** | `string` |
-| **Boolean** | `bool` |
+| Rule | Reason |
+|------|--------|
+| Methods must be **static** | Instance methods only work in `ForEach`, not in `Where`/`Select` |
+| Use primitive types | `int`, `long`, `double`, `float`, `string`, `bool` only |
+| No `decimal` | Use `double` instead |
 
 > [!IMPORTANT]
-> **Requirements:**
-> - Method must be **static** (instance methods can't be serialized to Spark workers)
-> - All parameters and return types must be **primitive types** listed above
-> - `decimal` is **NOT supported** due to Spark serialization issues (use `double` instead)
-> - Method must NOT be in `System.*` or `Microsoft.*` namespaces
+> **Static methods only in Where/Select!** If you need instance methods, use `ForEach` or `Pull()` to process locally.
 
-**Deployment:**
+**Automatic Deployment:**
 
-DataFlow automatically handles assembly distribution - **no manual setup required!**
-
-When you call `Spark.Connect()`, DataFlow:
-1. Discovers all application DLLs in your project
-2. Distributes them to Spark workers using `SparkContext.AddFile`
-3. Makes your UDFs "just work" without any deployment configuration
+DataFlow automatically distributes your code to all workers when you call `Spark.Connect()`. No manual setup needed - just press F5 and it works!
 
 ```csharp
-// Just connect and use UDFs - assemblies are distributed automatically!
-using var context = Spark.Connect(SparkMaster.Standalone("spark-master"), "MyApp");
-
-var orders = context.Read.Csv<Order>(path)
-    .Where(o => MyHelpers.IsHighValue(o.Amount))  // UDF just works!
-    .ToList();
-```
-
-> [!TIP]
-> **Press F5 and it works!** This is the "magic" that makes DataFlow different from other Spark libraries. No `--archives`, no manual packaging.
-
-**Requirements:**
-- **Microsoft.Spark.Worker** must be installed on workers ([download](https://github.com/dotnet/spark/releases))
-
-**Advanced: Disable auto-distribution (not recommended):**
-```csharp
+// Disable auto-distribution if needed (not recommended)
 var context = Spark.Connect(master, "MyApp", opts => opts.AutoDistributeAssemblies = false);
 ```
 
-> [!NOTE]
-> For full details on assembly distribution, see [Automatic Assembly Distribution](Spark-Assembly-Distribution.md).
-
-
-
-
-
 ### Set Operations
-
 
 ```csharp
 var combined = query1.Union(query2);       // UNION ALL
@@ -435,11 +374,59 @@ var query = products.Select(p => new {
 
 ### Caching & Partitioning
 
-Manual control over Spark's distributed execution state:
+Control distributed execution:
 
 ```csharp
 var cached = query.Cache();
 var repartitioned = query.Repartition(8);
+```
+
+---
+
+## Build-Time Protections
+
+DataFlow includes a **Roslyn analyzer** that catches common mistakes at compile time, before you even run your code.
+
+### Warnings You May See
+
+| Code | What It Means | What To Do |
+|------|--------------|------------|
+| **DFSP001** | String field in ForEach - order may vary | Accept or use numeric counter |
+| **DFSP002** | Collection field won't be collected | Use numeric counters instead |
+| **DFSP004** | Custom method detected | Informational - performance note |
+| **DFSP005** | Instance method in Where/Select | Use static method or ForEach |
+| **DFSP006** | Multiple custom methods | Consider combining into one |
+
+### Example
+
+```csharp
+var validator = new OrderValidator();
+query.Where(o => validator.IsValid(o));  
+//                ^^^^^^^^^^^^^^^^^^^
+// ❌ DFSP005: Instance method not supported in Where - use static method
+```
+
+**Fix:**
+```csharp
+// Option 1: Make it static
+query.Where(o => OrderValidator.IsValid(o));
+
+// Option 2: Use ForEach (supports instance methods)
+query.ForEach(validator.Process).Do();
+
+// Option 3: Process locally
+query.Pull().Where(o => validator.IsValid(o));
+```
+
+### Suppressing Warnings
+
+If you understand the implications:
+
+```csharp
+#pragma warning disable DFSP001
+string log = "";
+query.ForEach(o => log += $"{o.Id},").Do();
+#pragma warning restore DFSP001
 ```
 
 ---
@@ -471,7 +458,7 @@ Use `ToUpper()` or `ToLower()` for consistent case-insensitive comparisons acros
 ```
 
 ### 2. Debugging & Diagnostics
-Use `Show()` to peak at data without collecting everything, and `Explain()` to understand the execution plan.
+Use `Show()` to peek at data without collecting everything, and `Explain()` to see the execution plan.
 
 ```csharp
 query.Where(x => x.Amount > 100).Spy("Filtered").Show(20);
@@ -513,6 +500,26 @@ query.OrderBy(x => x.Id).Skip(10).Take(5);
 | **Distribution** | ✅ Manual (`.Repartition()`) | ⚡ Automatic |
 
 Both providers share ~95% API surface area, allowing you to reuse your LINQ skills across both Big Data platforms.
+
+---
+
+## Known Limitations
+
+The following features are not currently supported due to architectural constraints:
+
+| Feature | Issue | Workaround |
+|---------|-------|------------|
+| **Self-Joins** | `query.Join(query, ...)` fails | Create separate queries or use SQL |
+| **Composite Join Keys** | `Join(..., x => new { x.A, x.B }, ...)` fails | Join on single key, add `Where` clause for additional conditions |
+
+> [!TIP]
+> For composite keys, you can often work around by joining on one key and filtering:
+> ```csharp
+> // Instead of: orderQuery.Join(details, o => new { o.Id, o.Type }, d => new { d.OrderId, d.Type }, ...)
+> // Use:
+> orderQuery.Join(details, o => o.Id, d => d.OrderId, (o, d) => new { Order = o, Detail = d })
+>           .Where(x => x.Order.Type == x.Detail.Type);
+> ```
 
 ---
 
