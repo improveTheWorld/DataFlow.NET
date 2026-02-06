@@ -20,8 +20,18 @@ public static class LegacyExamples
     {
         Console.WriteLine("=== Legacy: CSV Simple Example ===\n");
 
-        // Read lines from a CSV file, extract data, and fill into an Enumerable of Person
-        Read.CsvSync<Person>("People.csv", ",")
+        // Inline CSV data - no external file needed (portable sample)
+        var csvData = """
+            FirstName,Name,Age
+            John,Smith,42
+            Jane,Doe,35
+            Bob,Johnson,28
+            Alice,Williams,31
+            Charlie,Brown,55
+            """;
+
+        // Read lines from inline CSV, extract data, and fill into an Enumerable of Person
+        csvData.AsCsv<Person>(",")
             .Take(5)
             // Convert names to uppercase
             .Select(p =>
@@ -39,8 +49,23 @@ public static class LegacyExamples
     {
         Console.WriteLine("=== Legacy: Text Advanced Example ===\n");
 
+        // Inline log data - no external file needed (portable sample)
+        var logLines = new List<string>
+        {
+            "Application started successfully",
+            "WARNING: Low memory condition detected",
+            "Processing request from client 127.0.0.1",
+            "ERROR: Connection timeout on database",
+            "Retrying connection...",
+            "WARNING: Disk space running low",
+            "ERROR: Failed to write to log file",
+            "Shutting down gracefully",
+            "INFO: Cleanup complete",
+            "STOP: Application terminated"
+        };
+
         // Read lines and categorize by log level
-        var results = Read.TextSync("log.txt")
+        var results = logLines
             .Until(line => line.StartsWith("STOP:"))
             .Cases(
                 line => line.ToUpper().Contains("ERROR"),

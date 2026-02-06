@@ -26,13 +26,4 @@
     <ProjectReference Include="..\..\DataFlow.Extensions.ParallelAsyncQueryExtensions\DataFlow.Extensions.ParallelAsyncQueryExtensions.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="legacyExamples\log.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="legacyExamples\People.csv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>
