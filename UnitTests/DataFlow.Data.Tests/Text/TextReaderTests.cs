@@ -165,6 +165,10 @@ public sealed class Read_Text_Tests : IDisposable
         Assert.Null(opts.Metrics.CompletedUtc);
     }
 
+    /// <summary>
+    /// FLAKY: Progress&lt;T&gt; posts callbacks asynchronously. When run with other tests,
+    /// thread pool contention may delay callbacks. Run alone if fails in batch.
+    /// </summary>
     [Fact]
     public void Sync_Stream_Options_TracksMetrics_And_Progress()
     {

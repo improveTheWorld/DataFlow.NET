@@ -187,7 +187,7 @@ public class AdditionalReadTests
         var opts = new CsvReadOptions
         {
             HasHeader = true,
-            Separator = ';'
+            Separator = ";"
         };
 
         var items = new List<SimpleRecord>();

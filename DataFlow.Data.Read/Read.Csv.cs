@@ -1,4 +1,4 @@
-﻿using DataFlow.Extensions;
+using DataFlow.Extensions;
 using System.Runtime.CompilerServices;
 using System.Text;
 using DataFlow.Framework;
@@ -15,9 +15,9 @@ namespace DataFlow;
 /// CSV Reading Behavior:
 /// 
 /// LENIENT MODE (default):
-/// - Empty strings for numeric fields → default values (0, 0.0, etc.)
-/// - Missing trailing fields → default values
-/// - Invalid conversions → field kept as string, no error
+/// - Empty strings for numeric fields ? default values (0, 0.0, etc.)
+/// - Missing trailing fields ? default values
+/// - Invalid conversions ? field kept as string, no error
 /// 
 /// STRICT MODE:
 /// - Set AllowMissingTrailingFields = false
@@ -27,8 +27,8 @@ namespace DataFlow;
 /// Example:
 /// CSV: "Name,Age\nJohn,\n"
 /// 
-/// Lenient: { Name = "John", Age = 0 }  ← Empty age becomes 0
-/// Strict:  Throws InvalidDataException  ← Empty age causes error
+/// Lenient: { Name = "John", Age = 0 }  ? Empty age becomes 0
+/// Strict:  Throws InvalidDataException  ? Empty age causes error
 /// </summary>
 public static partial class Read
 {
@@ -66,7 +66,7 @@ public static partial class Read
 
         var options = new CsvReadOptions
         {
-            Separator = separator.FirstOrDefault(','),
+            Separator = separator ?? ",",
             Schema = schema == null || schema.Length == 0 ? null : schema,
             ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
             ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, "(string)")
@@ -138,7 +138,7 @@ public static partial class Read
 
         var options = new CsvReadOptions
         {
-            Separator = separator.FirstOrDefault(','),
+            Separator = separator ?? ",",
             Schema = schema == null || schema.Length == 0 ? null : schema,
             ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
             ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, path)
@@ -150,7 +150,7 @@ public static partial class Read
     {
         var options = new CsvReadOptions
         {
-            Separator = separator.FirstOrDefault(','),
+            Separator = separator ?? ",",
             Schema = schema == null || schema.Length == 0 ? null : schema,
             ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
             ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, path)
@@ -165,7 +165,7 @@ public static partial class Read
         => Csv<T>(path,
             new CsvReadOptions
             {
-                Separator = separator.FirstOrDefault(','),
+                Separator = separator ?? ",",
                 Schema = schema == null || schema.Length == 0 ? null : schema,
                 ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
                 ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, path)
@@ -176,7 +176,7 @@ public static partial class Read
         => CsvSync<T>(path,
             new CsvReadOptions
             {
-                Separator = separator.FirstOrDefault(','),
+                Separator = separator ?? ",",
                 Schema = schema == null || schema.Length == 0 ? null : schema,
                 ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
                 ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, path)
@@ -191,7 +191,7 @@ public static partial class Read
             stream,
             new CsvReadOptions
             {
-                Separator = separator.FirstOrDefault(','),
+                Separator = separator ?? ",",
                 Schema = schema == null || schema.Length == 0 ? null : schema,
                 ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
                 ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, StreamPseudoPath)
@@ -204,7 +204,7 @@ public static partial class Read
             stream,
             new CsvReadOptions
             {
-                Separator = separator.FirstOrDefault(','),
+                Separator = separator ?? ",",
                 Schema = schema == null || schema.Length == 0 ? null : schema,
                 ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
                 ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, StreamPseudoPath)

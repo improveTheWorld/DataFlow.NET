@@ -7,7 +7,7 @@ namespace DataFlow;
 
 public sealed record CsvReadOptions : ReadOptions
 {
-    public char Separator { get; init; } = ',';
+    public string Separator { get; init; } = ",";
     public string[]? Schema { get; set; }
     public bool HasHeader { get; init; } = true;
 

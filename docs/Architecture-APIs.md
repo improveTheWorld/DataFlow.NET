@@ -257,7 +257,7 @@ public async Task TestProcessingLogic()
             standard => new { o.Id, Category = "Standard" }
         )
         .AllCases()
-        .ToListAsync();
+        .ToList();
 
     Assert.AreEqual("High", results.First(r => r.Id == 1).Category);
 }

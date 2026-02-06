@@ -225,6 +225,8 @@ internal sealed class MemberMaterializationPlan<T>
         {
             // Skip backing fields for properties (avoid duplicates)
             if (f.Name.Contains("BackingField")) continue;
+            // Skip readonly fields (e.g., anonymous type backing fields)
+            if (f.IsInitOnly) continue;
             var ord = GetOrder(f);
             members.Add(new MemberSetter(f.Name, ord, CompileSetterForField(f, actualCulture, allowThousandsSeparators, actualFormats)));
         }
@@ -454,6 +456,20 @@ internal sealed class MemberMaterializationPlan<T>
             {
                 if (Enum.TryParse(targetType, s, ignoreCase: true, out var enumVal))
                     return enumVal;
+            }
+
+            // JSON deserialization for collections and complex types
+            // DataFlow.Spark serializes List<T> and complex types to JSON for Spark compatibility
+            if (s.StartsWith("[") || s.StartsWith("{"))
+            {
+                try
+                {
+                    return System.Text.Json.JsonSerializer.Deserialize(s, targetType);
+                }
+                catch
+                {
+                    // Fall through to Convert.ChangeType if JSON parsing fails
+                }
             }
         }
 

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Test using project references (simulates what package users will get) -->
+  <ItemGroup>
+    <ProjectReference Include="..\DataFlow.Data.Read\DataFlow.Data.Read.csproj" />
+    <ProjectReference Include="..\DataFlow.Data.Write\DataFlow.Data.Write.csproj" />
+    <ProjectReference Include="..\DataFlow.Extensions.ParallelQueryExtensions\DataFlow.Extensions.ParallelQueryExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Extensions.ParallelAsyncQueryExtensions\DataFlow.Extensions.ParallelAsyncQueryExtensions.csproj" />
+    <ProjectReference Include="..\DataFlow.Framework.ParallelAsyncQuery\DataFlow.Framework.ParallelAsyncQuery.csproj" />
+  </ItemGroup>
+
+</Project>

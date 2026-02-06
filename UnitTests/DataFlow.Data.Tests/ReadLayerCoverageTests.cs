@@ -46,7 +46,7 @@ public class ReadLayerCoverageTests
     {
         var csv = "Id\tName\n1\tTabTest\n";
         using var ms = new MemoryStream(Encoding.UTF8.GetBytes(csv));
-        var opts = new CsvReadOptions { HasHeader = true, Separator = '\t' };
+        var opts = new CsvReadOptions { HasHeader = true, Separator = "\t" };
 
         var items = Read.CsvSync<TestRecord>(ms, opts).ToList();
 

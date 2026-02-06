@@ -47,9 +47,13 @@
 ### 🛠 Improvements
 
 - **Decimal handling**: Complete read/write round-trip (decimal→double→decimal)
+- **DateTime handling**: Spark `Timestamp`→`DateTime` coercion for CSV/Parquet reads
+- **Float handling**: `float/Single` now supported via double conversion
 - **Type coercion** in `ConventionColumnMapper.MapFromRow()`:
   - `double → decimal` (Spark DecimalType)
+  - `double → float` (Spark doesn't support float directly)
   - `long → int` / `int → long` (Spark integer types)
+  - `Timestamp → DateTime` (Spark Timestamp type)
 - **Test parallelization fix**: `SparkLicenseEnforcementTests` now uses `[Collection("Spark")]` to prevent race conditions
 
 ### ⚠️ Dependencies

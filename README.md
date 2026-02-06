@@ -11,13 +11,14 @@ Let IntelliSense and the compiler do the work.
 ```
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE)
-[![Coverage](https://img.shields.io/badge/Core%20Coverage-77%25-brightgreen)](docs/COVERAGE.md)
+[![Tests](https://img.shields.io/badge/Tests-832%20passing-brightgreen)](docs/COVERAGE.md)
+[![Coverage](https://img.shields.io/badge/Code%20Coverage-60%25-yellowgreen)](docs/COVERAGE.md)
 [![NuGet](https://img.shields.io/nuget/v/DataFlow.Net.svg?label=DataFlow.Net)](https://www.nuget.org/packages/DataFlow.Net/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/DataFlow.Net.svg)](https://www.nuget.org/packages/DataFlow.Net/)
 
 ```bash
 # Install via NuGet
-dotnet add package DataFlow.Net --version 1.1.0
+dotnet add package DataFlow.Net --version 1.2.0
 ```
 
 ---
@@ -105,8 +106,8 @@ DataFlow.NET provides tools to abstract the *source* of data from the *processin
 | **JSON/CSV/YAML Files** | `Read.Json<T>()` / `Read.Csv<T>()` | `IAsyncEnumerable<T>` |
 | **REST APIs** | `.Poll()` + `.SelectMany()` | `IAsyncEnumerable<T>` |
 | **Kafka / RabbitMQ / WebSocket** | Wrap + `.WithBoundedBuffer()` | `IAsyncEnumerable<T>` |
-| **Snowflake** *(Premium)* | `Read.SnowflakeTable<T>()` | `IAsyncEnumerable<T>` |
-| **Apache Spark** *(Premium)* | `Read.SparkDataFrame<T>()` | `SparkQuery<T>` |
+| **Snowflake** *(Premium)* | `Snowflake.Connect().Read.Table<T>()` | `SnowflakeQuery<T>` |
+| **Apache Spark** *(Premium)* | `Spark.Connect().Read.Table<T>()` | `SparkQuery<T>` |
 
 
 > [!IMPORTANT]
@@ -302,20 +303,22 @@ await new UnifiedStream<Order>()
 
 // 3. CLOUD: Query Snowflake Data Warehouse
 // Filters and aggregations execute on the server
-await Read.SnowflakeTable<Order>(options, "orders")
+using var sfContext = Snowflake.Connect(account, user, password, database, warehouse);
+await sfContext.Read.Table<Order>("orders")
     .Where(o => o.Year == 2024)
     .Cases(o => o.Amount > 10000, o => o.IsInternational) // 👈 SAME Logic
     .SelectCase(...)
-    .ToListAsync();
+    .ToList();
 
 // 4. SCALE: Run on Apache Spark (Petabyte Scale)
 // Translates your C# Expression Tree to native Spark orchestration
-Read.SparkDataFrame<Order>(spark, ordersDf)
+using var sparkContext = Spark.Connect("spark://master:7077", "MyApp");
+sparkContext.Read.Table<Order>("sales.orders")
     .Where(o => o.Amount > 10000)
     .Cases(o => o.Amount > 50000, o => o.IsInternational) // 👈 SAME Logic
     .SelectCase(...)
     .AllCases()
-    .Write().Parquet("s3://data/output");
+    .WriteParquet("s3://data/output");
 ```
 
 ---

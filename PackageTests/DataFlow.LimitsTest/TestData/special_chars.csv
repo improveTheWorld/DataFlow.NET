@@ -1,0 +1,12 @@
+Id,Name,Amount,CustomerType,IsInternational
+1,"O'Brien",1500.50,VIP,true
+2,"Müller",250.00,Regular,false
+3,"田中",12000.00,VIP,true
+4,"Раджеш",500.00,Regular,false
+5,"José García",8500.00,Premium,true
+6,"Line1
+Line2",150.00,Regular,false
+7,"Contains ""quotes""",25000.00,VIP,true
+8,"Tab	here",3200.00,Premium,false
+9,"Comma,in,name",750.00,Regular,true
+10,Émilie,45000.00,VIP,false

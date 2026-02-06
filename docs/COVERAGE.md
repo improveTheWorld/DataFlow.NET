@@ -1,9 +1,9 @@
 # DataFlow Test Coverage Report
 
-> **Generated:** January 2026  
+> **Generated:** February 2026  
 > **Test Framework:** xUnit  
 > **Coverage Tool:** Coverlet
-> **Total Tests:** 830 (100% pass)
+> **Total Tests:** 832 (100% pass)
 
 ---
 
@@ -18,7 +18,7 @@
 | `DataFlow.ParallelAsyncQuery.Tests` | 83 | 81 | 0 | 2 |
 | `DataFlow.Data.Write.Tests` | 45 | 45 | 0 | 0 |
 | `DataFlow.CasesOverloadTests` | 5 | 5 | 0 | 0 |
-| **Total** | **830** | **828** | **0** | **11** |
+| **Total** | **832** | **832** | **0** | **11** |
 
 **Pass Rate:** 100% (flaky tests pass when run individually)  
 **Overall Status:** ✅ Release Ready
@@ -33,7 +33,9 @@
 
 | Test Project | Total | Pass | Notes |
 |--------------|-------|------|-------|
-| `DataFlow.SparkQuery.Tests` | 182 | 182 | ✅ All pass (requires Spark backend) |
+| `DataFlow.SparkQuery.UnitTests` | 54 | 54 | ✅ Fast, no Spark needed |
+| `DataFlow.SparkQuery.IntegrationTests` | 155 | 155 | ✅ Requires Spark backend |
+| **Spark Total** | **209** | **209** | ✅ 100% |
 
 **Features Tested:**
 - Math functions: `Abs`, `Round`, `Ceiling`, `Floor`, `Sqrt`, `Pow`
@@ -43,6 +45,7 @@
 - Cases pattern: Filter expression translation, SelectCase transforms, DataFrame integration
 - Write API: `WriteParquet`, `WriteCsv`, `WriteJson`, `WriteTable`
 - Window functions, Joins, Grouping, Set operations
+- **v1.2.0:** Auto-UDF, Assembly Distribution, Adaptive Push, Decimal Conversion
 
 ### SnowflakeQuery Tests (Enterprise)
 
@@ -138,7 +141,7 @@
 
 | Coverage Level | Industry Standard | DataFlow Status |
 |----------------|-------------------|-----------------|
-| Core API (80%+) | Critical | ✅ ~77% |
+| Core API (80%+) | Critical | 🟡 ~50% (v1.2.0) |
 
 ---
 
@@ -224,4 +227,4 @@ This report is manually maintained. To update:
 
 ---
 
-*Last updated: January 2026*
+*Last updated: February 2026*

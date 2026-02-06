@@ -60,7 +60,7 @@ public static partial class Read
         }
     }
 
-  
+
 
     /// <summary>
     /// Reads a specific sheet from an Excel file by name.
@@ -265,9 +265,9 @@ public static partial class Read
                 values.Add(EscapeCsvField(value, options.Separator));
             }
 
-          
 
-            writer.WriteLine(string.Join(options.Separator.ToString(), values));
+
+            writer.WriteLine(string.Join(options.Separator, values));
         }
     }
 
@@ -293,13 +293,13 @@ public static partial class Read
         }
     }
 
-    private static string EscapeCsvField(string field, char separator)
+    private static string EscapeCsvField(string field, string separator)
     {
         if (string.IsNullOrEmpty(field))
             return string.Empty;
 
         bool needsQuoting = field.Contains(separator) ||
-                           field.Contains('"') ||
+                           field.Contains('\"') ||
                            field.Contains('\n') ||
                            field.Contains('\r');
 
@@ -325,7 +325,7 @@ public static partial class Read
 /// </summary>
 public sealed record ExcelConversionOptions
 {
-    public char Separator { get; init; } = ',';
+    public string Separator { get; init; } = ",";
     public bool SkipHiddenSheets { get; init; } = true;
     public bool SkipEmptySheets { get; init; } = true;
     //public bool SkipEmptyRows { get; init; } = false;

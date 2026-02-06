@@ -53,16 +53,25 @@ public static class DataLayerExamples
     }
 
     /// <summary>
-    /// Technical-Doc: CSV reading with type mapping
+    /// Technical-Doc: CSV reading with type mapping using inline data
     /// </summary>
     public static void CsvReadingSync()
     {
         Console.WriteLine("=== CSV Reading (Sync) ===\n");
 
-        // Using the existing People.csv file
-        Console.WriteLine("Reading People.csv and transforming:");
+        // Using inline string data with AsCsv() - no external file needed
+        var csvData = """
+            FirstName,Name,Age
+            John,Doe,30
+            Jane,Smith,25
+            Bob,Wilson,45
+            Alice,Brown,28
+            Charlie,Davis,35
+            """;
 
-        var people = Read.CsvSync<Person>("People.csv", ",")
+        Console.WriteLine("Reading inline CSV and transforming:");
+
+        var people = csvData.AsCsv<Person>(",")
             .Take(5)
             .Select(p => $"  {p.FirstName} {p.Name}, Age: {p.Age}")
             .ToList();

@@ -1,4 +1,4 @@
-# DataFlow.Net v1.1.0 Release Notes
+# DataFlow.Net v1.0.2 Release Notes
 
 **Release Date:** 2026-01-06  
 **Package:** [DataFlow.Net](https://www.nuget.org/packages/DataFlow.Net/)
@@ -93,17 +93,6 @@ Custom `FieldValueConverter` now works correctly with record types.
 
 ---
 
-### BUG-007: YAML MaxNodeScalarLength Causes Infinite Loop
-**Severity:** High
-
-YAML reader hung indefinitely when `MaxNodeScalarLength` security option was set and a scalar exceeded the limit.
-
-**Root Cause:** In `SecurityFilteringParser.EnsureAdvanced()`, when an oversized scalar was detected, the code called `continue` which left the parser in an incomplete state (scalar was part of a mapping that never closed).
-
-**Fix:** Changed to throw `InvalidDataException` which triggers the outer error handling to properly resync and skip the affected element. Also updated `Read.Yaml` to re-throw when `ErrorAction == Throw`.
-
----
-
 ## 📦 Package Contents
 
 The NuGet package now includes **13 DLLs**:
@@ -123,8 +112,8 @@ The NuGet package now includes **13 DLLs**:
 
 | Test Suite | Passed | Status |
 |------------|--------|--------|
-| DataFlow.Data.Tests | 271+ | ✅ |
-| DataFlow.Core.Tests | 130 | ✅ |
+| DataFlow.Data.Tests | 341 | ✅ |
+| DataFlow.Core.Tests | 482 | ✅ |
 
 ---
 

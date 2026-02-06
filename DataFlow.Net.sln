@@ -41,11 +41,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Extensions.AsyncEn
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Extensions.EnumerableExtensions", "DataFlow.Extensions.EnumerableExtensions\DataFlow.Extensions.EnumerableExtensions.csproj", "{3C167F8E-90B8-A920-CF37-1FE5FF863E19}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.App.UsageExamples", "DataFlow.Test.UsageExamples\DataFlow.App.UsageExamples.csproj", "{D0CCC604-AE81-D182-579C-64617B978DA4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.App.UsageExamples", "IntegrationTests\DataFlow.UsageExamples\DataFlow.App.UsageExamples.csproj", "{D0CCC604-AE81-D182-579C-64617B978DA4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Data.Read", "DataFlow.Data.Read\DataFlow.Data.Read.csproj", "{05AECCA9-400C-122E-DF25-9014D996CCDA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Logger.Test.UsageExamples", "DataFlow.Logger.Test.UsageExamples\DataFlow.Logger.Test.UsageExamples.csproj", "{89D0EA19-2B3C-E8E8-8F8D-EF5423B9360C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Logger.Test.UsageExamples", "IntegrationTests\DataFlow.Logger.UsageExamples\DataFlow.Logger.Test.UsageExamples.csproj", "{89D0EA19-2B3C-E8E8-8F8D-EF5423B9360C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.FrameworkSyntaxi", "DataFlow.Framework.Syntaxi\DataFlow.FrameworkSyntaxi.csproj", "{F2092437-7C22-EDE1-2409-5B1AF0D40096}"
 EndProject
@@ -63,7 +63,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Framework.ObjectMa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Data.Tests", "UnitTests\DataFlow.Data.Tests\DataFlow.Data.Tests.csproj", "{F5799313-3B89-2400-BD30-A8DAE615EA75}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Logger.Tests", "DataFlow.Logger\DataFlow.Logger.Tests\DataFlow.Logger.Tests.csproj", "{B82BD05E-2C48-248A-6867-98A0C96A430E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Logger.Tests", "UnitTests\DataFlow.Logger.Tests\DataFlow.Logger.Tests.csproj", "{B82BD05E-2C48-248A-6867-98A0C96A430E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlow.Core.Tests", "UnitTests\DataFlow.Core.Tests\DataFlow.Core.Tests.csproj", "{8F2BF73F-0FF5-4CEA-C318-BD8AE1771E52}"
 EndProject

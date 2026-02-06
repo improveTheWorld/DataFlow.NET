@@ -1,0 +1,11 @@
+Id,Name,Amount,CustomerType,IsInternational
+1,Alice,1500.50,VIP,true
+2,Bob,250.00,Regular,false
+3,Carol,12000.00,VIP,true
+4,Dave,500.00,Regular,false
+5,Eve,8500.00,Premium,true
+6,Frank,150.00,Regular,false
+7,Grace,25000.00,VIP,true
+8,Henry,3200.00,Premium,false
+9,Ivy,750.00,Regular,true
+10,Jack,45000.00,VIP,false

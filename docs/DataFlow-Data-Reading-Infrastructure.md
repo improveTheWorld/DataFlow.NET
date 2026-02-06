@@ -214,7 +214,7 @@ Notes:
 ```csharp
 var options = new CsvReadOptions {
     HasHeader = true,
-    Separator = ';',
+    Separator = ";",  // string, not char
     AllowMissingTrailingFields = false,
     AllowExtraFields = false,
     TrimWhitespace = false,

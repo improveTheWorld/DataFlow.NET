@@ -1,0 +1,9 @@
+Id,Name,Amount,CustomerType,IsInternational
+1,Alice,1500.50,VIP,true
+2,Bob,bad_amount,Regular,false
+3,Carol,12000.00,VIP
+4
+5,Eve,"Missing quote,Premium,true
+6,Frank,150.00,Regular,false,extra_column
+,Grace,25000.00,VIP,true
+8,Henry,,Premium,false

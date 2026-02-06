@@ -12,6 +12,13 @@ internal class Program
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
+        // Support non-interactive mode for CI/automation
+        if (args.Length > 0 && args[0].ToLower() == "--all")
+        {
+            await RunAllExamples();
+            return;
+        }
+
         while (true)
         {
             ShowMenu();

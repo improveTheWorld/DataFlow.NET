@@ -6,12 +6,12 @@ internal static class CsvRfc4180Parser
 {
     private const int DefaultBufferSize = 64 * 1024;
 
-  
+
     // New sync API with external cancellation token
     public static IEnumerable<string[]> Parse(
         TextReader reader,
         CsvReadOptions options,
-        int bufferSize =  DefaultBufferSize,
+        int bufferSize = DefaultBufferSize,
         CancellationToken ct = default)
     {
         if (reader == null) throw new ArgumentNullException(nameof(reader));
@@ -311,7 +311,7 @@ internal static class CsvRfc4180Parser
                 }
                 else if (_afterClosingQuote)
                 {
-                    if (c == _options.Separator)
+                    if (_options.Separator.Length > 0 && c == _options.Separator[0])
                     {
                         CommitField();
                         continue;
@@ -372,7 +372,7 @@ internal static class CsvRfc4180Parser
                         }
                     }
 
-                    if (c == _options.Separator)
+                    if (_options.Separator.Length > 0 && c == _options.Separator[0])
                     {
                         CommitField();
                         continue;
@@ -548,7 +548,7 @@ internal static class CsvRfc4180Parser
         private string GetExcerpt()
         {
             if (_rawPrefixLen == 0) return "";
-            return new string (_rawPrefix, 0, _rawPrefixLen);
+            return new string(_rawPrefix, 0, _rawPrefixLen);
         }
     }
 

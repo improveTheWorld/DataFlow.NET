@@ -396,6 +396,8 @@ DataFlow includes a **Roslyn analyzer** that catches common mistakes at compile 
 | **DFSP004** | Custom method detected | Informational - performance note |
 | **DFSP005** | Instance method in Where/Select | Use static method or ForEach |
 | **DFSP006** | Multiple custom methods | Consider combining into one |
+| **DFSP007** | Decimal property in model | ⚠️ Auto-converts to double (precision loss) |
+| **DFSP008** | Float property in model | ℹ️ Auto-converts to double |
 
 ### Example
 
@@ -429,7 +431,21 @@ query.ForEach(o => log += $"{o.Id},").Do();
 #pragma warning restore DFSP001
 ```
 
----
+### Configuring Severity
+
+You can escalate warnings to errors (or suppress them) using `.editorconfig`:
+
+```ini
+[*.cs]
+# Treat decimal precision loss as error
+dotnet_diagnostic.DFSP007.severity = error
+
+# Treat float conversion as warning (default is info)
+dotnet_diagnostic.DFSP008.severity = warning
+
+# Suppress a rule completely
+dotnet_diagnostic.DFSP001.severity = none
+```
 
 ## Write Operations
 
@@ -484,9 +500,15 @@ query.OrderBy(x => x.Id).Skip(10).Take(5);
 ```
 
 > [!NOTE]
-> **Decimal Auto-Conversion**: The `System.Decimal` type is not supported by the underlying Microsoft.Spark driver. DataFlow.Spark automatically converts `decimal` values to `double` at write time. A runtime warning is emitted on first conversion. For precision-critical applications (>15 significant digits), use `double` explicitly in your model classes.
-
----
+> **Type Auto-Conversion**: Some .NET types are not directly supported by Microsoft.Spark. DataFlow handles this automatically:
+>
+> | .NET Type | Spark Storage | Round-Trip |
+> |-----------|--------------|------------|
+> | `decimal` | `double` | ✅ Automatic (precision limited to ~15 digits) |
+> | `float` | `double` | ✅ Automatic |
+> | `DateTime` | `string` (ISO 8601) | ✅ Automatic |
+>
+> For precision-critical decimal values (>15 digits), use `double` explicitly or store as strings.
 
 ## Comparison with SnowflakeQuery
 

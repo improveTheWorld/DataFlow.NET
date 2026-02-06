@@ -210,7 +210,7 @@ public class AsyncEnumerableTests
     public async Task MutatingAfterEnumerationStarts_Throws()
     {
         var flow = new UnifiedStream<int>();
-        flow.Unify(Enumerable.Range(0, 3).Async(), "A");
+        flow.Unify(ExtensionsForTests.DelayedRange(0, 5, 100), "A");  // Slower source ensures mutation during enumeration
 
         var started = new TaskCompletionSource();
         var done = new TaskCompletionSource();
@@ -344,7 +344,7 @@ public class AsyncEnumerableTests
     public async Task Unlisten_RemovesByName_BeforeFreeze()
     {
         var flow = new UnifiedStream<int>();
-        flow.Unify(Enumerable.Range(0, 3).Async(), "A");
+        flow.Unify(ExtensionsForTests.DelayedRange(0, 5, 100), "A");  // Slower source ensures mutation during enumeration
         Assert.True(flow.Unlisten("A"));
         Assert.False(flow.Unlisten("A"));
         flow.Unify(Enumerable.Range(0, 1).Async(), "B");

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using static DataFlow.Read;
@@ -209,7 +209,7 @@ internal static class TextParser
 
         var options = new CsvReadOptions
         {
-            Separator = separator.FirstOrDefault(','),
+            Separator = separator ?? ",",
             Schema = schema == null || schema.Length == 0 ? null : schema,
             ErrorAction = onError == null ? ReaderErrorAction.Throw : ReaderErrorAction.Skip,
             ErrorSink = onError == null ? NullErrorSink.Instance : new DelegatingErrorSink(onError, "(string)")

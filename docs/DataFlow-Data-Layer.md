@@ -88,7 +88,7 @@ foreach (var emp in Read.CsvSync<Employee>("data.csv", separator: ";"))
 var options = new CsvReadOptions
 {
     HasHeader = true,
-    Separator = ',',
+    Separator = ",",
     ErrorAction = ReaderErrorAction.Skip,
     ErrorSink = new JsonLinesFileErrorSink("errors.ndjson"),
     Progress = new Progress<ReaderProgress>(p => Console.WriteLine($"Read {p.RecordsRead} rows"))

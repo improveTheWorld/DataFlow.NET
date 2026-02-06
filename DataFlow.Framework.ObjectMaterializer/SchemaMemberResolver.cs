@@ -17,9 +17,24 @@ internal static class SchemaMemberResolver
     {
         // Get member names from the plan once (properties + fields)
         var plan = MemberMaterializationPlanner.Get<T>();
-        var memberNames = plan.Members.Select(m => m.Name).ToArray();
+        var memberNames = plan.Members.Select(m => m.Name).ToList();
 
-        var res = Resolve(schema, memberNames, allowFuzzyResemblance: true, maxLevenshtein: 2);
+        // For types with no settable members (e.g., anonymous types, readonly records),
+        // use constructor parameter names for resolution instead
+        if (memberNames.Count == 0)
+        {
+            var ctor = ConstructorHelper<T>.PrimaryCtor;
+            if (ctor != null)
+            {
+                memberNames = ctor.GetParameters()
+                                  .Select(p => p.Name ?? "")
+                                  .Where(n => !string.IsNullOrEmpty(n))
+                                  .ToList();
+            }
+        }
+
+        var memberNamesArray = memberNames.ToArray();
+        var res = Resolve(schema, memberNamesArray, allowFuzzyResemblance: true, maxLevenshtein: 2);
 
         // Build a new schema array: for each original schema[i], if mapped -> use member name; else keep original
         var resolved = new string[schema.Length];
