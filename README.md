@@ -10,9 +10,9 @@ Let IntelliSense and the compiler do the work.
 + .Where(o => o.Amount > 1000)          // Typo? Won't compile. ✓
 ```
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-832%20passing-brightgreen)](docs/COVERAGE.md)
-[![Coverage](https://img.shields.io/badge/Code%20Coverage-60%25-yellowgreen)](docs/COVERAGE.md)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green)](https://github.com/improveTheWorld/DataFlow.NET/blob/main/LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-832%20passing-brightgreen)](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/COVERAGE.md)
+[![Coverage](https://img.shields.io/badge/Code%20Coverage-60%25-yellowgreen)](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/COVERAGE.md)
 [![NuGet](https://img.shields.io/nuget/v/DataFlow.Net.svg?label=DataFlow.Net)](https://www.nuget.org/packages/DataFlow.Net/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/DataFlow.Net.svg)](https://www.nuget.org/packages/DataFlow.Net/)
 
@@ -56,7 +56,7 @@ dotnet add package DataFlow.Net --version 1.2.0
 **DataFlow.NET was built to stop this cycle:**
 
 - ✅ **Unified API** — Same code for CSV, JSON, Kafka, Spark
-- ✅ **Constant memory** — Stream billions of rows without `OutOfMemoryException` ([see benchmarks](docs/Benchmarks.md))
+- ✅ **Constant memory** — Stream billions of rows without `OutOfMemoryException` ([see benchmarks](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Benchmarks.md))
 - ✅ **No spaghetti** — Declarative `Cases` pattern replaces nested `if/else`
 - ✅ **Pure C#** — LINQ all the way down
 
@@ -83,7 +83,7 @@ graph LR
 We call this the **SUPRA** pattern — the name comes from gathering the first letter of each stage: **S**ink, **U**nify, **P**rocess, **R**oute, **A**pply.
 
 > [!NOTE]
-> The SUPRA pattern ensures memory stays constant and items flow one at a time. [Read the SUPRA-Pattern Guide →](docs/DataFlow-SUPRA-Pattern.md)
+> The SUPRA pattern ensures memory stays constant and items flow one at a time. [Read the SUPRA-Pattern Guide →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/DataFlow-SUPRA-Pattern.md)
 
 To achieve the SUPRA pattern, you'll have to follow these rules:
 
@@ -98,7 +98,7 @@ DataFlow.NET provides all the ready-to-use blocks to natively apply these rules.
 
 DataFlow.NET provides tools to abstract the *source* of data from the *processing*. Use these to make every data source an `IAsyncEnumerable<T>` stream — the essence of the "Unified API" — same LINQ operators, same processing logic, regardless of origin.
 
-[See Integration Patterns Guide →](docs/Integration-Patterns-Guide.md)
+[See Integration Patterns Guide →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Integration-Patterns-Guide.md)
 
 | Source Type | Pattern | Output |
 |-------------|---------|--------|
@@ -145,7 +145,7 @@ var kafkaStream = ConsumeKafka(token).WithBoundedBuffer(1024);
 
 DataFlow.NET provides high-performance file readers: no Reflection on the hot path; expression trees are compiled once and cached.
 
-*   **4x faster** than standard reflection-based creation ([benchmark results →](docs/Benchmarks.md))
+*   **4x faster** than standard reflection-based creation ([benchmark results →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Benchmarks.md))
 *   **Zero allocation overhead** — same 48 bytes as native `new()` instantiation
 *   Handles CSV, JSON, and YAML files generically.
 
@@ -154,7 +154,7 @@ We carefully crafted an intuitive, fully-featured readers API with advanced erro
 > [!TIP]
 > The streaming row-by-row approach — absent in most other frameworks — is the cornerstone of DataFlow.NET's constant memory usage.
 
-[Materialization Quick Reference →](docs/Materialization-Quick-Reference.md) | [Data Reading Guide →](docs/DataFlow-Data-Reading-Infrastructure.md)
+[Materialization Quick Reference →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Materialization-Quick-Reference.md) | [Data Reading Guide →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/DataFlow-Data-Reading-Infrastructure.md)
 
 
 ### LINQ Extensions
@@ -164,13 +164,13 @@ DataFlow.NET implements additional LINQ extensions to make every data loop compo
 - **Independent implementation** — Re-implemented `IAsyncEnumerable` methods without depending on `System.Linq.Async`
 - **Clear terminal vs non-terminal separation** — Terminal methods (`Do()`, `Display()`) force execution; non-terminal methods (`ForEach()`, `Select()`, `Where()`) stay lazy
 
-[See Extension Methods API Reference →](docs/Extension-Methods-API-Reference.md)
+[See Extension Methods API Reference →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Extension-Methods-API-Reference.md)
 
 ### Cases/SelectCase/ForEachCase
 
 We've extended standard LINQ with custom operators for declarative branching. Using `Cases`, `SelectCase`, and `ForEachCase`, you can replace complex nested `if/else` blocks with an optimized, single-pass dispatch tree — while remaining fully composable.
 
-[See Cases Pattern Guide →](docs/Cases-Pattern.md)
+[See Cases Pattern Guide →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Cases-Pattern.md)
 
 ### Multi-Source Stream Merging
 This is the "U" (Unify) step of the SUPRA pattern — "absorb many sources into one stream."
@@ -183,7 +183,7 @@ var unifiedStream = new UnifiedStream<Log>()
 // Result: A single IAsyncEnumerable<Log> you can query
 ```
 
-[See Stream Merging Guide →](docs/Stream-Merging.md)
+[See Stream Merging Guide →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Stream-Merging.md)
 
 ### Debug with Spy()
 
@@ -220,7 +220,7 @@ await asyncStream.AsParallel()
     .Do();
 ```
 
-[See ParallelAsyncQuery API Reference →](docs/ParallelAsyncQuery-API-Reference.md) | [Parallel Processing Guide →](docs/Parallel-Processing.md) | [Extension Methods →](docs/Extension-Methods-API-Reference.md)
+[See ParallelAsyncQuery API Reference →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/ParallelAsyncQuery-API-Reference.md) | [Parallel Processing Guide →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Parallel-Processing.md) | [Extension Methods →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Extension-Methods-API-Reference.md)
 
 ### Scale to the cloud *(Premium)*
 If you hit the limit of local computing power, DataFlow.NET lets you **seamlessly** scale to the cloud with **LINQ-to-Spark & Snowflake**.
@@ -229,7 +229,7 @@ Your C# lambda expressions are decompiled at runtime and translated into **nativ
 *   ✅ Execution happens on the cluster
 *   ✅ Full type safety
 
-[LINQ-to-Spark Guide →](docs/LINQ-to-Spark.md) | [LINQ-to-Snowflake Guide →](docs/LINQ-to-Snowflake.md)
+[LINQ-to-Spark Guide →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/LINQ-to-Spark.md) | [LINQ-to-Snowflake Guide →](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/LINQ-to-Snowflake.md)
 
 
 ---
@@ -327,23 +327,23 @@ sparkContext.Read.Table<Order>("sales.orders")
 
 | Topic | Description |
 |-------|-------------|
-| 🏰 **[SUPRA Pattern](docs/DataFlow-SUPRA-Pattern.md)** | The SUPRA Pattern deep dive |
-| 🔀 **[Cases Pattern](docs/Cases-Pattern.md)** | The Cases/SelectCase/ForEachCase Engine |
-| 📖 **[Data Reading](docs/DataFlow-Data-Reading-Infrastructure.md)** | Reading CSV, JSON, YAML, Text |
-| 🎯 **[Materialization Guide](docs/Materialization-Quick-Reference.md)** | Design classes for CSV, JSON, YAML, Snowflake, Spark |
-| ✍️ **[Data Writing](docs/DataFlow-Data-Writing-Infrastructure.md)** | Writing CSV, JSON, YAML, Text |
-| 🌊 **[Stream Merging](docs/Stream-Merging.md)** | UnifiedStream & Multi-Source Streams |
-| 🔄 **[Polling & Buffering](docs/Polling-Buffering.md)** | Data acquisition patterns |
-| 🔥 **[Big Data](docs/LINQ-to-Spark.md)** | Running C# on Apache Spark |
-| ❄️ **[Snowflake](docs/LINQ-to-Snowflake.md)** | LINQ-to-Snowflake Provider |
-| 🚀 **[Performance](docs/ObjectMaterializer.md)** | The Zero-Allocation Engine |
-| 📋 **[API Reference](docs/API-Reference.md)** | Complete API Documentation |
-| 🧩 **[Extension Methods](docs/Extension-Methods-API-Reference.md)** | IEnumerable/IAsyncEnumerable/Parallel API Matrix |
-| 🔌 **[Integration Patterns](docs/Integration-Patterns-Guide.md)** | HTTP, Kafka, EF Core, WebSocket examples |
-| ⚡ **[Parallel Processing](docs/Parallel-Processing.md)** | ParallelQuery & ParallelAsyncQuery |
-| ⚡ **[ParallelAsyncQuery](docs/ParallelAsyncQuery-API-Reference.md)** | Parallel async processing API |
-| 🧪 **[Test Coverage](docs/COVERAGE.md)** | Coverage Reports (~77% Core) |
-| 🗺️ **[Roadmap](docs/Roadmap.md)** | Future Enterprise Connectors |
+| 🏰 **[SUPRA Pattern](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/DataFlow-SUPRA-Pattern.md)** | The SUPRA Pattern deep dive |
+| 🔀 **[Cases Pattern](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Cases-Pattern.md)** | The Cases/SelectCase/ForEachCase Engine |
+| 📖 **[Data Reading](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/DataFlow-Data-Reading-Infrastructure.md)** | Reading CSV, JSON, YAML, Text |
+| 🎯 **[Materialization Guide](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Materialization-Quick-Reference.md)** | Design classes for CSV, JSON, YAML, Snowflake, Spark |
+| ✍️ **[Data Writing](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/DataFlow-Data-Writing-Infrastructure.md)** | Writing CSV, JSON, YAML, Text |
+| 🌊 **[Stream Merging](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Stream-Merging.md)** | UnifiedStream & Multi-Source Streams |
+| 🔄 **[Polling & Buffering](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Polling-Buffering.md)** | Data acquisition patterns |
+| 🔥 **[Big Data](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/LINQ-to-Spark.md)** | Running C# on Apache Spark |
+| ❄️ **[Snowflake](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/LINQ-to-Snowflake.md)** | LINQ-to-Snowflake Provider |
+| 🚀 **[Performance](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/ObjectMaterializer.md)** | The Zero-Allocation Engine |
+| 📋 **[API Reference](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/API-Reference.md)** | Complete API Documentation |
+| 🧩 **[Extension Methods](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Extension-Methods-API-Reference.md)** | IEnumerable/IAsyncEnumerable/Parallel API Matrix |
+| 🔌 **[Integration Patterns](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Integration-Patterns-Guide.md)** | HTTP, Kafka, EF Core, WebSocket examples |
+| ⚡ **[Parallel Processing](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Parallel-Processing.md)** | ParallelQuery & ParallelAsyncQuery |
+| ⚡ **[ParallelAsyncQuery](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/ParallelAsyncQuery-API-Reference.md)** | Parallel async processing API |
+| 🧪 **[Test Coverage](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/COVERAGE.md)** | Coverage Reports (60% Weighted) |
+| 🗺️ **[Roadmap](https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/Roadmap.md)** | Future Enterprise Connectors |
 
 ---
 
