@@ -18,7 +18,7 @@
     <PackageTags>dataflow;streaming;linq;async;csv;json;yaml;data-processing</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <PackageReleaseNotes>v1.2.0: BREAKING - Separator unified from char to string across Read/Write APIs. Full notes: https://github.com/improveTheWorld/DataFlow.NET/releases/tag/v1.2.0</PackageReleaseNotes>
+    <PackageReleaseNotes>v1.2.0: ObjectMaterializer fixes, API harmonization, test reorganization. Full notes: https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/changelog/DataFlow.Net_1.2.0.md</PackageReleaseNotes>
     
     <!-- Symbols & Source Link -->
     <IncludeSymbols>true</IncludeSymbols>
