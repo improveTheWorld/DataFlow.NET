@@ -18,8 +18,8 @@ internal class SelectManyParallelAsyncQuery<TSource, TResult> : ParallelAsyncQue
 
     public override async IAsyncEnumerator<TResult> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        using var linkedCts = CreateLinkedCts(cancellationToken);
-        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
+        using var combinedCts = BuildCombinedCts(cancellationToken);
+        var combinedToken = combinedCts.Token;
 
         // SelectMany is inherently difficult to parallelize while preserving outer sequence order
         // without significant buffering. This implementation parallelizes the processing of the
@@ -112,15 +112,29 @@ internal class SelectManyParallelAsyncQuery<TSource, TResult> : ParallelAsyncQue
     }
 
     /// <summary>
-    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
-    /// Returns null if linking is not needed (to avoid unnecessary allocation).
-    /// Caller must dispose the returned CTS.
+    /// Builds a CancellationTokenSource that combines the settings token, the caller token,
+    /// and the OperationTimeout. Always returns a non-null CTS. Caller must dispose.
+    /// Fixes NET-001 (timeout enforcement) and NET-002 (combined token linking).
     /// </summary>
-    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
+    private CancellationTokenSource BuildCombinedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default || cancellationToken == default)
-            return null;
+        var tokens = new List<CancellationToken>(2);
+        if (_settings.CancellationToken != default) tokens.Add(_settings.CancellationToken);
+        if (cancellationToken != default) tokens.Add(cancellationToken);
 
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
+        var cts = tokens.Count switch
+        {
+            0 => new CancellationTokenSource(),
+            1 => CancellationTokenSource.CreateLinkedTokenSource(tokens[0]),
+            _ => CancellationTokenSource.CreateLinkedTokenSource(tokens[0], tokens[1]),
+        };
+
+        if (_settings.OperationTimeout != Timeout.InfiniteTimeSpan &&
+            _settings.OperationTimeout > TimeSpan.Zero)
+        {
+            cts.CancelAfter(_settings.OperationTimeout);
+        }
+
+        return cts;
     }
 }

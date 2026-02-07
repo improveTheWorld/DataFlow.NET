@@ -74,7 +74,22 @@ public abstract class ParallelAsyncQuery<TSource> : IAsyncEnumerable<TSource>
 
     public ParallelAsyncQuery<TSource> WithCancellation(CancellationToken cancellationToken)
     {
-        var newSettings = _settings with { CancellationToken = cancellationToken };
+        // If there's already a settings token, link both so either can cancel.
+        // This fixes NET-002: previously, the new token replaced the existing one,
+        // meaning the original settings token from AsParallel(settings) was lost.
+        var effectiveToken = cancellationToken;
+        if (_settings.CancellationToken != default && cancellationToken != default)
+        {
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                _settings.CancellationToken, cancellationToken);
+            effectiveToken = linked.Token;
+        }
+        else if (_settings.CancellationToken != default)
+        {
+            effectiveToken = _settings.CancellationToken;
+        }
+
+        var newSettings = _settings with { CancellationToken = effectiveToken };
         return CloneWithNewSettings(newSettings);
     }
 
@@ -122,13 +137,14 @@ internal class SourceParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 
     public override async IAsyncEnumerator<TSource> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        using var linkedCts = CreateLinkedCts(cancellationToken);
-        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
+        using var combinedCts = BuildCombinedCts(cancellationToken);
+        var combinedToken = combinedCts.Token;
 
         if (_settings.ExecutionMode == ParallelExecutionMode.Sequential)
         {
             await foreach (var item in _source.WithCancellation(combinedToken))
             {
+                combinedToken.ThrowIfCancellationRequested();
                 yield return item;
             }
             yield break;
@@ -140,6 +156,7 @@ internal class SourceParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 
         await foreach (var item in _source.WithCancellation(combinedToken))
         {
+            combinedToken.ThrowIfCancellationRequested();
             await semaphore.WaitAsync(combinedToken);
             try
             {
@@ -158,14 +175,30 @@ internal class SourceParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
     }
 
     /// <summary>
-    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
-    /// Returns null if linking is not needed. Caller must dispose the returned CTS.
+    /// Builds a CancellationTokenSource that combines the settings token, the caller token,
+    /// and the OperationTimeout. Always returns a non-null CTS. Caller must dispose.
+    /// Fixes NET-001 (timeout enforcement) and NET-002 (combined token linking).
     /// </summary>
-    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
+    private CancellationTokenSource BuildCombinedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default || cancellationToken == default)
-            return null;
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
+        var tokens = new List<CancellationToken>(2);
+        if (_settings.CancellationToken != default) tokens.Add(_settings.CancellationToken);
+        if (cancellationToken != default) tokens.Add(cancellationToken);
+
+        var cts = tokens.Count switch
+        {
+            0 => new CancellationTokenSource(),
+            1 => CancellationTokenSource.CreateLinkedTokenSource(tokens[0]),
+            _ => CancellationTokenSource.CreateLinkedTokenSource(tokens[0], tokens[1]),
+        };
+
+        if (_settings.OperationTimeout != Timeout.InfiniteTimeSpan &&
+            _settings.OperationTimeout > TimeSpan.Zero)
+        {
+            cts.CancelAfter(_settings.OperationTimeout);
+        }
+
+        return cts;
     }
 }
 
@@ -193,8 +226,8 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
     }
     public override async IAsyncEnumerator<TResult> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        using var linkedCts = CreateLinkedCts(cancellationToken);
-        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
+        using var combinedCts = BuildCombinedCts(cancellationToken);
+        var combinedToken = combinedCts.Token;
 
         if (_settings.ExecutionMode == ParallelExecutionMode.Sequential)
         {
@@ -442,14 +475,30 @@ internal class SelectParallelAsyncQuery<TSource, TResult> : ParallelAsyncQuery<T
     }
 
     /// <summary>
-    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
-    /// Returns null if linking is not needed. Caller must dispose the returned CTS.
+    /// Builds a CancellationTokenSource that combines the settings token, the caller token,
+    /// and the OperationTimeout. Always returns a non-null CTS. Caller must dispose.
+    /// Fixes NET-001 (timeout enforcement) and NET-002 (combined token linking).
     /// </summary>
-    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
+    private CancellationTokenSource BuildCombinedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default || cancellationToken == default)
-            return null;
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
+        var tokens = new List<CancellationToken>(2);
+        if (_settings.CancellationToken != default) tokens.Add(_settings.CancellationToken);
+        if (cancellationToken != default) tokens.Add(cancellationToken);
+
+        var cts = tokens.Count switch
+        {
+            0 => new CancellationTokenSource(),
+            1 => CancellationTokenSource.CreateLinkedTokenSource(tokens[0]),
+            _ => CancellationTokenSource.CreateLinkedTokenSource(tokens[0], tokens[1]),
+        };
+
+        if (_settings.OperationTimeout != Timeout.InfiniteTimeSpan &&
+            _settings.OperationTimeout > TimeSpan.Zero)
+        {
+            cts.CancelAfter(_settings.OperationTimeout);
+        }
+
+        return cts;
     }
 }
 
@@ -468,8 +517,8 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 
     public override async IAsyncEnumerator<TSource> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        using var linkedCts = CreateLinkedCts(cancellationToken);
-        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
+        using var combinedCts = BuildCombinedCts(cancellationToken);
+        var combinedToken = combinedCts.Token;
 
         if (_settings.ExecutionMode == ParallelExecutionMode.Sequential)
         {
@@ -725,14 +774,30 @@ internal class WhereParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
     }
 
     /// <summary>
-    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
-    /// Returns null if linking is not needed. Caller must dispose the returned CTS.
+    /// Builds a CancellationTokenSource that combines the settings token, the caller token,
+    /// and the OperationTimeout. Always returns a non-null CTS. Caller must dispose.
+    /// Fixes NET-001 (timeout enforcement) and NET-002 (combined token linking).
     /// </summary>
-    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
+    private CancellationTokenSource BuildCombinedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default || cancellationToken == default)
-            return null;
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
+        var tokens = new List<CancellationToken>(2);
+        if (_settings.CancellationToken != default) tokens.Add(_settings.CancellationToken);
+        if (cancellationToken != default) tokens.Add(cancellationToken);
+
+        var cts = tokens.Count switch
+        {
+            0 => new CancellationTokenSource(),
+            1 => CancellationTokenSource.CreateLinkedTokenSource(tokens[0]),
+            _ => CancellationTokenSource.CreateLinkedTokenSource(tokens[0], tokens[1]),
+        };
+
+        if (_settings.OperationTimeout != Timeout.InfiniteTimeSpan &&
+            _settings.OperationTimeout > TimeSpan.Zero)
+        {
+            cts.CancelAfter(_settings.OperationTimeout);
+        }
+
+        return cts;
     }
 }
 
@@ -754,8 +819,8 @@ internal class TakeParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
 
     public override async IAsyncEnumerator<TSource> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        using var linkedCts = CreateLinkedCts(cancellationToken);
-        var combinedToken = linkedCts?.Token ?? (_settings.CancellationToken != default ? _settings.CancellationToken : cancellationToken);
+        using var combinedCts = BuildCombinedCts(cancellationToken);
+        var combinedToken = combinedCts.Token;
         var taken = 0;
 
         await foreach (var item in _source.WithCancellation(combinedToken))
@@ -775,14 +840,30 @@ internal class TakeParallelAsyncQuery<TSource> : ParallelAsyncQuery<TSource>
     }
 
     /// <summary>
-    /// Creates a linked CancellationTokenSource only if both tokens are non-default.
-    /// Returns null if linking is not needed. Caller must dispose the returned CTS.
+    /// Builds a CancellationTokenSource that combines the settings token, the caller token,
+    /// and the OperationTimeout. Always returns a non-null CTS. Caller must dispose.
+    /// Fixes NET-001 (timeout enforcement) and NET-002 (combined token linking).
     /// </summary>
-    private CancellationTokenSource? CreateLinkedCts(CancellationToken cancellationToken)
+    private CancellationTokenSource BuildCombinedCts(CancellationToken cancellationToken)
     {
-        if (_settings.CancellationToken == default || cancellationToken == default)
-            return null;
-        return CancellationTokenSource.CreateLinkedTokenSource(_settings.CancellationToken, cancellationToken);
+        var tokens = new List<CancellationToken>(2);
+        if (_settings.CancellationToken != default) tokens.Add(_settings.CancellationToken);
+        if (cancellationToken != default) tokens.Add(cancellationToken);
+
+        var cts = tokens.Count switch
+        {
+            0 => new CancellationTokenSource(),
+            1 => CancellationTokenSource.CreateLinkedTokenSource(tokens[0]),
+            _ => CancellationTokenSource.CreateLinkedTokenSource(tokens[0], tokens[1]),
+        };
+
+        if (_settings.OperationTimeout != Timeout.InfiniteTimeSpan &&
+            _settings.OperationTimeout > TimeSpan.Zero)
+        {
+            cts.CancelAfter(_settings.OperationTimeout);
+        }
+
+        return cts;
     }
 }
 

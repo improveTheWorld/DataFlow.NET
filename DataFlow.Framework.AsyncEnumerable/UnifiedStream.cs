@@ -56,13 +56,21 @@ public sealed class UnifiedStream<T> : IAsyncEnumerable<T>
         return false;
     }
 
-    public async IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+    {
+        // NET-007 FIX: Set _frozen eagerly (this method runs synchronously).
+        // The async iterator body is lazy (deferred until first MoveNextAsync),
+        // so setting _frozen inside the iterator was too late — callers could
+        // mutate the source list between GetAsyncEnumerator() and the first await.
+        _frozen = true;
+        Interlocked.Increment(ref _activeEnumerations);
+        return GetAsyncEnumeratorCore(cancellationToken);
+    }
+
+    private async IAsyncEnumerator<T> GetAsyncEnumeratorCore(CancellationToken cancellationToken)
     {
         if (_sources.Count == 0)
             yield break;
-
-        Interlocked.Increment(ref _activeEnumerations);
-        _frozen = true;
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var token = linkedCts.Token;

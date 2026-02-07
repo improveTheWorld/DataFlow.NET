@@ -1,4 +1,4 @@
-using DataFlow.Framework;
+﻿using DataFlow.Framework;
 using Xunit;
 
 namespace DataFlow.Core.Tests.Materialization;
@@ -21,7 +21,7 @@ public class EdgeCaseTests
         Assert.Equal(75000m, person.Salary);
     }
 
-    [Fact] // BUG: NET-005 - Schema dictionary case-insensitive, cannot map case-variant properties
+    [Fact] // FIXED: NET-005 - Was case-insensitive, now auto-detects (v1.2.1)
     public void Create_WithCaseSensitiveModel_ShouldMapCorrectly()
     {
         // Arrange

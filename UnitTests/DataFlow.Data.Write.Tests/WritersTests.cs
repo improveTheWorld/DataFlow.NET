@@ -671,6 +671,107 @@ public class WritersTests
 
     #endregion
 
+    #region JsonLinesFormat Tests
+
+    // JsonLinesFormat — Doc: Data-Writing-Infrastructure.md L88
+    // "One object per line, no array" when JsonLinesFormat = true
+
+    [Fact]
+    public async Task WriteJson_JsonLinesFormat_IEnumerable_FilePath_ProducesNDJSON()
+    {
+        // Arrange — exact audit report scenario
+        var data = new[] { new { Id = 1, Name = "A" }, new { Id = 2, Name = "B" } };
+        var tempFile = Path.GetTempFileName();
+        var opts = new JsonWriteOptions { JsonLinesFormat = true };
+        try
+        {
+            // Act
+            await data.WriteJson(tempFile, opts);
+            var content = await File.ReadAllTextAsync(tempFile);
+
+            // Assert — each line should be a self-contained JSON object, no array wrapper
+            var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            Assert.Equal(2, lines.Length);
+            Assert.DoesNotContain("[", content);
+            Assert.DoesNotContain("]", content);
+            Assert.Contains("\"Id\"", lines[0]);
+            Assert.Contains("\"Name\"", lines[0]);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public async Task WriteJson_JsonLinesFormat_IAsyncEnumerable_FilePath_ProducesNDJSON()
+    {
+        // Arrange
+        var data = ToAsync(new[] { new TestRecord(1, "A", 10m), new TestRecord(2, "B", 20m) });
+        var tempFile = Path.GetTempFileName();
+        var opts = new JsonWriteOptions { JsonLinesFormat = true };
+        try
+        {
+            // Act
+            await data.WriteJson(tempFile, opts);
+            var content = await File.ReadAllTextAsync(tempFile);
+
+            // Assert
+            var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            Assert.Equal(2, lines.Length);
+            Assert.DoesNotContain("[", content);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public void WriteJsonSync_JsonLinesFormat_FilePath_ProducesNDJSON()
+    {
+        // Arrange
+        var data = new[] { new TestRecord(1, "A", 10m), new TestRecord(2, "B", 20m) };
+        var tempFile = Path.GetTempFileName();
+        var opts = new JsonWriteOptions { JsonLinesFormat = true };
+        try
+        {
+            // Act
+            data.WriteJsonSync(tempFile, opts);
+            var content = File.ReadAllText(tempFile);
+
+            // Assert
+            var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            Assert.Equal(2, lines.Length);
+            Assert.DoesNotContain("[", content);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public async Task WriteJson_JsonLinesFormat_Stream_ProducesNDJSON()
+    {
+        // Arrange
+        var data = new[] { new TestRecord(1, "A", 10m), new TestRecord(2, "B", 20m) };
+        using var stream = new MemoryStream();
+        var opts = new JsonWriteOptions { JsonLinesFormat = true };
+
+        // Act
+        await data.WriteJson(stream, opts);
+
+        // Assert
+        stream.Position = 0;
+        var content = new StreamReader(stream).ReadToEnd();
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, lines.Length);
+        Assert.DoesNotContain("[", content);
+    }
+
+    #endregion
+
     #region Null Argument Tests
 
     [Fact]

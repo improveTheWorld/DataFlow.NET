@@ -371,8 +371,9 @@ public static class ObjectMaterializer
     {
         Type type = typeof(T);
 
-        //  USE CACHED SCHEMA DICTIONARY
-        var schemaDict = MemberMaterializationPlanner.Get<T>().GetSchemaDict(schema);
+        // NET-008 FIX: resolve schema names through the 5-pass pipeline before lookup
+        var resolvedSchema = SchemaMemberResolver.ResolveSchemaToMembers<T>(schema);
+        var schemaDict = MemberMaterializationPlanner.Get<T>().computeSchemaDict(resolvedSchema);
 
         // USE SHARED HELPER to get primary constructor
         var primaryCtor = ConstructorHelper<T>.PrimaryCtor

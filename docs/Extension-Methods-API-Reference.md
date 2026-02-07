@@ -117,6 +117,8 @@ The categorization pattern for conditional branching in streaming pipelines.
 | `Sum(float)` | ❌ | ❌ | ✅ | ❌ | Uses lock for thread-safety |
 | `Sum(decimal)` | ❌ | ❌ | ✅ | ❌ | Uses lock for thread-safety |
 
+> **⚠️ Known Issue:** `Sum(float)` and `Sum(decimal)` on `ParallelQuery` conflict with `System.Linq.ParallelEnumerable.Sum`, causing ambiguous call errors. **Workaround:** Call explicitly via `DataFlow.Parallel.ParallelQueryExtensions.Sum(query)`.
+
 ---
 
 ## 3. Debugging Extensions
@@ -130,6 +132,8 @@ The categorization pattern for conditional branching in streaming pipelines.
 
 | `Display(tag)` | ✅ | ✅ | ✅ | ✅ |
 | `ToLines(separator)` | ✅ | ✅ | ❌ | ❌ |
+
+> **Note:** `ToLines(separator)` requires a `separator` string parameter (e.g., `","` or `"\t"`). It joins each item's properties into a single delimited string.
 
 ---
 

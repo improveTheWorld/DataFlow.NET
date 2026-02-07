@@ -273,7 +273,7 @@ var events = Read.Json<Event>("events.json");
 // With options
 var data = Read.Csv<Record>("data.csv", new CsvReadOptions {
     HasHeader = true,
-    Delimiter = ';',
+    Separator = ";",
     ErrorAction = ReaderErrorAction.Skip
 });
 ```
@@ -360,8 +360,8 @@ await results.WriteJson("results.json");
 
 // With options
 await data.WriteCsv("data.csv", new CsvWriteOptions {
-    Delimiter = ';',
-    IncludeHeader = true
+    Separator = ";",
+    WriteHeader = true
 });
 ```
 

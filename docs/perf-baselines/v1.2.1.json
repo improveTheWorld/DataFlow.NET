@@ -1,0 +1,60 @@
+{
+    "version": "1.2.1",
+    "date": "2026-02-07",
+    "environment": {
+        "os": "Windows",
+        "runtime": ".NET 8.0",
+        "configuration": "Debug",
+        "mode": "BENCHMARK (DEV_MODE=false)",
+        "note": "Run in isolation (--filter Category=Performance) to avoid GC/timing interference from other tests"
+    },
+    "tests": {
+        "Create_FirstCall_ShouldCacheCompiledPlan": {
+            "status": "pass",
+            "duration_ms": 38,
+            "metric": "cache_speedup",
+            "threshold": "2nd call > 3x faster than 1st"
+        },
+        "Create_BulkMaterialization_ShouldBeEfficient": {
+            "status": "pass",
+            "duration_ms": 996,
+            "metric": "avg_microseconds_per_materialization",
+            "threshold": "<50µs",
+            "iterations": 100000
+        },
+        "Create_WithReflectionComparison_ShouldBeFaster_Session": {
+            "status": "pass",
+            "duration_ms": 3000,
+            "metric": "session_vs_reflection_speedup",
+            "threshold": "1.5x faster than reflection",
+            "iterations": 10000000
+        },
+        "CreateCtorSession_WithReflectionComparison_ShouldBeFaster": {
+            "status": "pass",
+            "duration_ms": 414,
+            "metric": "ctor_session_vs_reflection_speedup",
+            "threshold": "2.5x faster than reflection",
+            "iterations": 1000000
+        },
+        "CreateGeneralSession_WithReflectionComparison_ShouldBeFaster": {
+            "status": "pass",
+            "duration_ms": 281,
+            "metric": "general_session_vs_reflection_speedup",
+            "threshold": "4x faster than reflection",
+            "iterations": 1000000
+        },
+        "Create_MemoryAllocation_ShouldBeMinimal": {
+            "status": "pass",
+            "duration_ms": 808,
+            "metric": "bytes_per_materialization",
+            "threshold": "<200 bytes/object (20MB for 100K)",
+            "iterations": 100000
+        }
+    },
+    "summary": {
+        "total": 6,
+        "passed": 6,
+        "failed": 0,
+        "total_duration_ms": 8102
+    }
+}

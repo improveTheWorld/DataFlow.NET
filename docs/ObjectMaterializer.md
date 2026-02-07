@@ -78,6 +78,7 @@ public void ProcessOrder_ValidData_Success()
 | **Culture-Aware Parsing** | Localized number/date formats | Supports `CultureInfo` configuration |
 | **Type-Safe** | Generic API with compile-time checking | No runtime type errors |
 | **Lightweight** | Zero external dependencies | Only BCL required |
+| **5-Pass Schema Matching** | Exact → CI → Normalized → Resemblance → Fuzzy | Auto-resolves messy column names |
 | **Thread-Safe** | Concurrent plan caching | Safe for parallel tests |
 
 ---
@@ -232,7 +233,7 @@ internal sealed class MemberMaterializationPlan<T>
 }
 ```
 
-**Note:** Schema lookups are **case-insensitive** by default (`StringComparer.OrdinalIgnoreCase`).
+**Schema Resolution:** Column-to-member matching uses a **5-pass resolution pipeline** — exact → case-insensitive → normalized (snake_case, camelCase) → resemblance → Levenshtein (≤2 edits). If the schema contains case-variant entries (e.g., `Name`, `name`, `NAME`), the materializer auto-detects this and switches to case-sensitive mode to preserve distinct mappings. See [Materialization-Quick-Reference.md](Materialization-Quick-Reference.md) for full details.
 
 **Key Points:**
 - Built **once per type** (per configuration)

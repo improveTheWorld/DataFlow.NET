@@ -308,8 +308,23 @@ public static class Writers
         options.Metrics.Start();
 
         using var stream = File.Create(path);
-        var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { WriteIndented = options.Indented };
-        JsonSerializer.Serialize(stream, items, serializerOptions);
+        if (options.JsonLinesFormat)
+        {
+            using var writer = new StreamWriter(stream);
+            foreach (var item in items)
+            {
+                token.ThrowIfCancellationRequested();
+                var json = JsonSerializer.Serialize(item, options.SerializerOptions);
+                writer.WriteLine(json);
+                options.Metrics.IncrementRecords();
+            }
+            writer.Flush();
+        }
+        else
+        {
+            var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { WriteIndented = options.Indented };
+            JsonSerializer.Serialize(stream, items, serializerOptions);
+        }
         options.Metrics.Complete();
     }
 
@@ -323,9 +338,24 @@ public static class Writers
         options.Metrics.Start();
 
         await using var stream = File.Create(path);
-        var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { WriteIndented = options.Indented };
-        await JsonSerializer.SerializeAsync(stream, items, serializerOptions, token);
-        await stream.FlushAsync(token);
+        if (options.JsonLinesFormat)
+        {
+            await using var writer = new StreamWriter(stream);
+            foreach (var item in items)
+            {
+                token.ThrowIfCancellationRequested();
+                var json = JsonSerializer.Serialize(item, options.SerializerOptions);
+                await writer.WriteLineAsync(json);
+                options.Metrics.IncrementRecords();
+            }
+            await writer.FlushAsync();
+        }
+        else
+        {
+            var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { WriteIndented = options.Indented };
+            await JsonSerializer.SerializeAsync(stream, items, serializerOptions, token);
+            await stream.FlushAsync(token);
+        }
         options.Metrics.Complete();
     }
 
@@ -380,8 +410,23 @@ public static class Writers
         options.CancellationToken.ThrowIfCancellationRequested();
         options.Metrics.Start();
 
-        var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { WriteIndented = options.Indented };
-        JsonSerializer.Serialize(stream, items, serializerOptions);
+        if (options.JsonLinesFormat)
+        {
+            using var writer = new StreamWriter(stream, leaveOpen: true);
+            foreach (var item in items)
+            {
+                options.CancellationToken.ThrowIfCancellationRequested();
+                var json = JsonSerializer.Serialize(item, options.SerializerOptions);
+                writer.WriteLine(json);
+                options.Metrics.IncrementRecords();
+            }
+            writer.Flush();
+        }
+        else
+        {
+            var serializerOptions = options.SerializerOptions ?? new JsonSerializerOptions { WriteIndented = options.Indented };
+            JsonSerializer.Serialize(stream, items, serializerOptions);
+        }
         options.Metrics.Complete();
     }
 

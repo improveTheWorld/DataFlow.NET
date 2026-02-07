@@ -28,7 +28,7 @@ public class PerformanceTests
         _output = output;
     }
 
-    [Fact]
+    [Fact, Trait("Category", "Performance")]
     public void Create_FirstCall_ShouldCacheCompiledPlan()
     {
         // Arrange
@@ -55,7 +55,7 @@ public class PerformanceTests
             $"Second call ({sw2.ElapsedTicks}) should be faster than first ({sw1.ElapsedTicks})");
     }
 
-    [Fact]
+    [Fact, Trait("Category", "Performance")]
     public void Create_BulkMaterialization_ShouldBeEfficient()
     {
         // Arrange
@@ -85,7 +85,7 @@ public class PerformanceTests
             $"Average materialization time ({avgMicroseconds:F2}µs) should be under 50µs");
     }
 
-    [Fact]
+    [Fact, Trait("Category", "Performance")]
     public void Create_WithReflectionComparison_ShouldBeFaster_Session()
     {
         var schema = new[] { "Name", "Age", "Salary" };
@@ -117,7 +117,7 @@ public class PerformanceTests
            $"ObjectMaterializer ({sw1.ElapsedMilliseconds}ms) should be faster than reflection ({sw2.ElapsedMilliseconds}ms), {(decimal)sw2.ElapsedMilliseconds / (decimal)sw1.ElapsedMilliseconds} times faster");
     }
 
-    [Fact]
+    [Fact, Trait("Category", "Performance")]
     public void Create_MemoryAllocation_ShouldBeMinimal()
     {
         // Arrange
@@ -175,7 +175,7 @@ public class PerformanceTests
 
     public sealed record PersonCtor(string Name, int Age, decimal Salary);
 
-    [Fact]
+    [Fact, Trait("Category", "Performance")]
     public void CreateCtorSession_WithReflectionComparison_ShouldBeFaster()
     {
         var schema = new[] { "Name", "Age", "Salary" };
@@ -209,7 +209,7 @@ public class PerformanceTests
             $"CtorSession ({sw1.ElapsedMilliseconds}ms) should be much faster than reflection ({sw2.ElapsedMilliseconds}ms), {(decimal)sw2.ElapsedMilliseconds / (decimal)sw1.ElapsedMilliseconds}x faster");
     }
 
-    [Fact]
+    [Fact, Trait("Category", "Performance")]
     public void CreateGeneralSession_WithReflectionComparison_ShouldBeFaster()
     {
         var schema = new[] { "Name", "Age", "Salary" };

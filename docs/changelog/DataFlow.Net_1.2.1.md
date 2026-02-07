@@ -50,10 +50,31 @@
 - **Record type deserialization** — C# positional records and `{ get; init; }` properties now work via Dictionary→ObjectMaterializer bridge with `ConvertYamlValues<T>()` type conversion (int, long, double, decimal, bool, DateTime, Guid, enums)
 - Materialization errors from partial data (e.g., after security filter skip) are silently absorbed
 
-### Known Regressions (ObjectMaterializer)
-- `Create_WithNoParameterlessConstructor_ShouldThrowDetailedError` — ObjectMaterializer no longer throws on constructor-only types (side effect of record support)
-- `Create_WithCaseSensitiveModel_ShouldMapCorrectly` — Case-sensitive schema mapping broken
-- `MutatingAfterEnumerationStarts_Throws` — UnifiedStream allows `Unify()`/`Unlisten()` during active enumeration (NET-007)
+### ObjectMaterializer (NET-005)
+- **Case-sensitive schema auto-detection** — `computeSchemaDict()` now detects when schema entries differ only by case (e.g., `Name`, `name`, `NAME`) and switches from `OrdinalIgnoreCase` to `Ordinal` to preserve distinct property mappings
+- Normal case-insensitive matching preserved for standard use cases (`name` → `Name`)
+
+### ParallelAsyncQuery (NET-001)
+- **WithTimeout enforcement in parallel mode** — `OperationTimeout` is now enforced as an overall operation timeout via `CancelAfter()` in the unified `BuildCombinedCts` helper, replacing the previous `CreateLinkedCts` which never applied the timeout
+- Applied consistently across all query types: `Source`, `Select`, `Where`, `Take`, `SelectMany`
+
+### ParallelAsyncQuery (NET-002)
+- **Combined cancellation token linking** — `WithCancellation()` now links the new token with any existing settings token instead of replacing it, ensuring both `AsParallel(settings)` and `await foreach ... .WithCancellation(callToken)` tokens are honored
+- Added explicit `ThrowIfCancellationRequested()` in source iteration loops for sources that don't support `[EnumeratorCancellation]`
+
+### UnifiedStream (NET-007)
+- **Mutation guard race condition** — `_frozen` flag was set inside the async iterator body, which is lazily evaluated (deferred until first `MoveNextAsync()`). Callers could call `Unify()`/`Unlisten()` between `GetAsyncEnumerator()` and the first iteration without `InvalidOperationException`. Fixed by splitting into eager wrapper + lazy core iterator.
+
+### ObjectMaterializer (NET-008)
+- **snake_case schema normalization silently failed** — `BuildSchemaAction` and `CreateViaPrimaryConstructorWithSchema` bypassed the 5-pass `SchemaMemberResolver`, using only direct dictionary lookup (Pass 1-2). Schema columns like `first_name` silently produced default values instead of mapping to `FirstName`. Fixed by routing both paths through `SchemaMemberResolver.ResolveSchemaToMembers<T>()` which enables all 5 passes (exact → case-insensitive → normalized → resemblance → Levenshtein).
+- Added 5 unit tests in `10_SnakeCaseNormalization.cs` covering: basic snake_case, Snowflake columns, records, single-word, and mixed scenarios.
+
+### Data.Write (NET-009)
+- **JsonLinesFormat option had no effect** — `WriteJsonSync(string path)`, `WriteJson(IEnumerable, string path)`, and `WriteJsonSync(stream)` used `JsonSerializer.Serialize` directly, always producing a JSON array. They never checked `options.JsonLinesFormat`. Fixed by adding NDJSON branch (one JSON object per line) to all 3 overloads. The `IAsyncEnumerable` and async stream overloads already worked correctly.
+- Added 4 unit tests in `WritersTests.cs` covering: IEnumerable file path, IAsyncEnumerable file path, sync file path, and stream-based.
+
+### Known Issues
+- 4 × `PerformanceTests.*` + `Fix8` may fail in batch runs (timing-dependent, pass individually)
 
 ---
 
@@ -101,6 +122,6 @@ dotnet add package DataFlow.Net --version 1.2.1
 
 | Metric | Value |
 |--------|-------|
-| Tests | 750+ passing (99%) |
+| Tests | 859 passing (99.6%) |
 | Coverage | 60% |
 | Framework | .NET 8.0 |

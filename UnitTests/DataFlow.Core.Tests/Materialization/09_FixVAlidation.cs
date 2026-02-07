@@ -1,4 +1,4 @@
-using DataFlow.Framework;
+ï»¿using DataFlow.Framework;
 using Xunit;
 
 namespace DataFlow.Core.Tests.Materialization;
@@ -60,7 +60,7 @@ public class FixValidationTests
     public void Fix3_ErrorMessages_ShouldIncludeContext()
     {
         // Arrange - schema column name doesn't match constructor parameter
-        var schema = new[] { "FullName" }; //  Constructor expects "name"
+        var schema = new[] { "ZzzUnrelated" }; //  Schema that cannot resolve to "name" via any pass
         var values = new object[] { "Test" };
 
         // Act & Assert
@@ -175,7 +175,7 @@ public class FixValidationTests
         Assert.Null(obj2.Second);
     }
 
-    [Fact]
+    [Fact, Trait("Category", "Performance")]
     public void Fix8_PerformanceRegression_ShouldRemainFast()
     {
         // Arrange
@@ -197,7 +197,7 @@ public class FixValidationTests
         // Assert - Should complete in reasonable time
         var avgMicroseconds = (sw.Elapsed.TotalMilliseconds * 1000) / iterations;
         Assert.True(avgMicroseconds < 100,
-            $"Performance regression detected: {avgMicroseconds:F2}µs per materialization (should be <100µs)");
+            $"Performance regression detected: {avgMicroseconds:F2}ï¿½s per materialization (should be <100ï¿½s)");
     }
 }
 

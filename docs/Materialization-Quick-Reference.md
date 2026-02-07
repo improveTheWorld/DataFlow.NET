@@ -70,12 +70,18 @@ Works with **all readers**.
 
 ## 🔗 Column Matching Rules
 
-| Priority | Rule | Example |
-|:--------:|------|---------|
-| 1 | Exact (case-insensitive) | `name` → `Name` ✅ |
-| 2 | snake_case → PascalCase | `user_name` → `UserName` ✅ |
-| 3 | camelCase → PascalCase | `firstName` → `FirstName` ✅ |
-| 4 | Fuzzy (≤2 edits) | `Nmae` → `Name` ✅ |
+`SchemaMemberResolver` uses a **5-pass resolution pipeline** (first match wins):
+
+| Pass | Strategy | Example |
+|:----:|----------|---------|
+| 1 | Exact (case-sensitive) | `Name` → `Name` ✅ |
+| 2 | Case-insensitive | `name` → `Name` ✅ |
+| 3 | Normalized (snake_case, camelCase, no-spaces, lowercase) | `first_name` → `FirstName` ✅ |
+| 4 | Resemblance (prefix/suffix/contains) | `CustomerName` → `Name` ✅ |
+| 5 | Levenshtein (≤2 edits) | `Nmae` → `Name` ✅ |
+
+> [!NOTE]
+> **Case-variant properties (v1.2.1):** If your type has properties that differ only by case (e.g., `Name`, `name`, `NAME`), the materializer auto-detects this and uses case-sensitive mapping to preserve each property's identity.
 
 **Extra columns** → Ignored  
 **Missing columns** → Default value

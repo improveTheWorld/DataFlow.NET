@@ -59,17 +59,21 @@ When YamlDotNet deserializes to `Dictionary<string, object>`, nested YAML mappin
 
 ---
 
-## 4. Schema Matching is Case-Insensitive but Not Fuzzy
+## 4. ~~Schema Matching is Case-Insensitive but Not Fuzzy~~ ✅ Resolved
 
-**Impact:** Low  
-**Affects:** `MemberMaterializationPlanner.GetSchemaDict()`
+**Status:** **No longer a limitation** as of v1.2.x.
 
-Schema-to-constructor-parameter matching uses `StringComparer.OrdinalIgnoreCase`, which handles `Id` vs `id` but not:
-- Underscore-separated names (`first_name` → `FirstName`)
-- Hyphenated names (`first-name` → `FirstName`)
-- Abbreviated names (`qty` → `Quantity`)
+`SchemaMemberResolver` implements a **5-pass resolution pipeline**:
 
-**v2.x Goal:** Pluggable naming strategy (e.g., `NamingConvention.SnakeCase`, `NamingConvention.CamelCase`).
+| Pass | Strategy | Example |
+|------|----------|---------|
+| 1 | Exact (case-sensitive) | `Name` → `Name` |
+| 2 | Case-insensitive | `name` → `Name` |
+| 3 | Normalized (snake_case, camelCase, lowercase) | `first_name` → `FirstName` |
+| 4 | Resemblance (prefix/suffix/contains) | `CustomerName` → `Name` |
+| 5 | Levenshtein (≤2 edits) | `Nmae` → `Name` |
+
+> **v1.2.1 Fix (NET-005):** `computeSchemaDict()` now auto-detects case-variant properties. If the schema has entries differing only by case (e.g., `Name`, `name`, `NAME`), it switches from `OrdinalIgnoreCase` to `Ordinal` to preserve distinct mappings.
 
 ---
 
@@ -102,6 +106,6 @@ When a constructor parameter is `int?` and the source value is an empty string o
 | 1 | No auto type conversion in ctor path | High | ✅ Caller converts |
 | 2 | Constructor heuristic by param count | Medium | ✅ Works for standard records |
 | 3 | No nested object materialization | Medium | ✅ Use classes for nested types |
-| 4 | No fuzzy schema matching | Low | ✅ Use matching names |
+| 4 | ~~No fuzzy schema matching~~ | ✅ Resolved | 5-pass fuzzy matching implemented |
 | 5 | Nullable\<T\> handling gaps | Low | ⚠️ Partial |
 | 6 | No async path | Low | ✅ Not needed for most cases |

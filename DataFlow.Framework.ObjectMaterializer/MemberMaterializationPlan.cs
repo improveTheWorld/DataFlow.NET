@@ -143,11 +143,28 @@ internal sealed class MemberMaterializationPlan<T>
     private readonly ConcurrentDictionary<SchemaKey, Dictionary<string, int>> _schemaDictCache = new();
     internal Dictionary<string, int> computeSchemaDict(string[] schema)
     {
-        // Case-insensitive to match PascalCase schema with camelCase ctor params
-        var dict = new Dictionary<string, int>(schema.Length, StringComparer.OrdinalIgnoreCase);
+        // Auto-detect: if case-insensitive would cause key collisions, use case-sensitive.
+        // This preserves ergonomic CSV matching (name → Name) while supporting
+        // models with case-variant properties (Name, name, NAME).
+        var comparer = HasCaseVariantDuplicates(schema)
+            ? StringComparer.Ordinal
+            : StringComparer.OrdinalIgnoreCase;
+        var dict = new Dictionary<string, int>(schema.Length, comparer);
         for (int i = 0; i < schema.Length; i++)
             dict[schema[i]] = i;
         return dict;
+    }
+
+    private static bool HasCaseVariantDuplicates(string[] schema)
+    {
+        var ci = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var cs = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var s in schema)
+        {
+            ci.Add(s);
+            cs.Add(s);
+        }
+        return ci.Count < cs.Count;
     }
     public Dictionary<string, int> GetSchemaDict(string[] schema)  // Control it here
     {
@@ -172,7 +189,16 @@ internal sealed class MemberMaterializationPlan<T>
 
     private Action<T, object?[]> BuildSchemaAction(string[] schema)
     {
-        var schemaDict = GetSchemaDict(schema);
+        // NET-008 FIX: Use SchemaMemberResolver to resolve schema names to member names
+        // before building the mapping. This enables the 5-pass pipeline:
+        //   Pass 1: exact match
+        //   Pass 2: case-insensitive
+        //   Pass 3: normalized (snake_case, camelCase, etc.)
+        //   Pass 4: resemblance (prefix/suffix/contains)
+        //   Pass 5: Levenshtein edit distance
+        // Previously, this only did a direct dictionary lookup which missed Pass 3-5.
+        var resolvedSchema = SchemaMemberResolver.ResolveSchemaToMembers<T>(schema);
+        var schemaDict = computeSchemaDict(resolvedSchema);
 
         // Build a compact mapping: for each matched member, store (valueIndex, setter)
         // Allocate once per schema key (acceptable since _schemaMappingCache caches actions).

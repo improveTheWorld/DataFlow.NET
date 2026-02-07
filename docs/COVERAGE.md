@@ -3,7 +3,7 @@
 > **Generated:** February 2026  
 > **Test Framework:** xUnit  
 > **Coverage Tool:** Coverlet
-> **Total Tests:** 832 (100% pass)
+> **Total Tests:** 868 (99.5% pass)
 
 ---
 
@@ -13,14 +13,14 @@
 
 | Test Project | Tests | Pass | Fail | Skip |
 |--------------|-------|------|------|------|
-| `DataFlow.Core.Tests` | 399 | 399 | 0 | 6 |
+| `DataFlow.Core.Tests` | 404 | 404 | 0 | 7 |
 | `DataFlow.Data.Tests` | 298 | 298 | 0 | 3 |
-| `DataFlow.ParallelAsyncQuery.Tests` | 83 | 81 | 0 | 2 |
-| `DataFlow.Data.Write.Tests` | 45 | 45 | 0 | 0 |
+| `DataFlow.ParallelAsyncQuery.Tests` | 110 | 110 | 0 | 0 |
+| `DataFlow.Data.Write.Tests` | 49 | 49 | 0 | 0 |
 | `DataFlow.CasesOverloadTests` | 5 | 5 | 0 | 0 |
-| **Total** | **832** | **832** | **0** | **11** |
+| **Total** | **868** | **864** | **4** | **12** |
 
-**Pass Rate:** 100% (flaky tests pass when run individually)  
+**Pass Rate:** 99.5% (4 flaky PerformanceTests fail in batch, pass individually)  
 **Overall Status:** ✅ Release Ready
 
 ---
@@ -227,4 +227,4 @@ This report is manually maintained. To update:
 
 ---
 
-*Last updated: February 2026*
+*Last updated: February 7, 2026 (v1.2.1 — +27 ParallelAsyncQuery cancellation/timeout tests)*

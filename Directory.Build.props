@@ -18,7 +18,7 @@
     <PackageTags>dataflow;streaming;linq;async;csv;json;yaml;data-processing</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <PackageReleaseNotes>v1.2.1: Smart Decimal Auto-Detection, Write API Harmonization, ReadOptions.OnError property, YAML record support, 5 GitHub issues closed. Full notes: https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/changelog/DataFlow.Net_1.2.1.md</PackageReleaseNotes>
+    <PackageReleaseNotes>v1.2.1: Smart Decimal Auto-Detection, Write API Harmonization, ReadOptions.OnError property, YAML record support, NET-001/002/003/005/006/007 bug fixes, 27 new cancellation/timeout tests, 5 GitHub issues closed. Full notes: https://github.com/improveTheWorld/DataFlow.NET/blob/main/docs/changelog/DataFlow.Net_1.2.1.md</PackageReleaseNotes>
     
     <!-- Symbols & Source Link -->
     <IncludeSymbols>true</IncludeSymbols>
