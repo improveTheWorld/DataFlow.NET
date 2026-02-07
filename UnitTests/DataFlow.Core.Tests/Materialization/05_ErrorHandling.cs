@@ -6,23 +6,22 @@ namespace DataFlow.Core.Tests.Materialization;
 public class ErrorHandlingTests
 {
     /// <summary>
-    /// Detailed error with context
+    /// Schema-based constructor matching correctly handles types without parameterless constructors.
+    /// CreateViaPrimaryConstructorWithSchema maps schema names to constructor parameters.
     /// </summary>
-    [Fact(Skip = "V1.1 Feature: Enhanced error messages not yet implemented")]
-    public void Create_WithNoParameterlessConstructor_ShouldThrowDetailedError()
+    [Fact] // NET-003 RESOLVED: ObjectMaterializer handles this via constructor matching
+    public void Create_WithNoParameterlessConstructor_ShouldSucceedViaConstructorMatching()
     {
         // Arrange
         var schema = new[] { "Name" };
         var values = new object[] { "Test" };
 
-        // Act & Assert
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            ObjectMaterializer.Create<NoDefaultConstructor>(schema, values));
+        // Act — should succeed via CreateViaPrimaryConstructorWithSchema
+        var result = ObjectMaterializer.Create<NoDefaultConstructor>(schema, values);
 
-        //  Should include helpful details
-        Assert.Contains("NoDefaultConstructor", ex.Message);
-        Assert.Contains("no public parameterless constructor", ex.Message);
-        Assert.Contains("schema-based", ex.Message); // Mention attempted strategy
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Test", result!.Name);
     }
 
     /// <summary>

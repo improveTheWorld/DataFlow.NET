@@ -1,4 +1,4 @@
-using DataFlow.Framework;
+ï»¿using DataFlow.Framework;
 
 using System.Runtime.CompilerServices;
 
@@ -206,7 +206,7 @@ public class AsyncEnumerableTests
         flow.Unify(Enumerable.Range(0, 1).Async(), "C");
     }
 
-    [Fact]
+    [Fact] // BUG: NET-007 - UnifiedStream allows mutation during active enumeration
     public async Task MutatingAfterEnumerationStarts_Throws()
     {
         var flow = new UnifiedStream<int>();
@@ -380,7 +380,7 @@ public class AsyncEnumerableTests
         var results = new List<int>();
         await foreach (var x in flow) results.Add(x);
 
-        // Should only contain sources that weren’t removed (odd indices)
+        // Should only contain sources that werenï¿½t removed (odd indices)
         var expected = Enumerable.Range(0, 10)
                                  .Where(i => i % 2 == 1)
                                  .SelectMany(i => Enumerable.Range(i * 10, 3))

@@ -164,12 +164,20 @@ var rows3 = Read.Csv<MyRow>(
 var quick = Read.Csv<MyRow>(
     "maybe_dirty.csv",
     onError: (rawLineExcerpt, ex) => Console.WriteLine($"Row skipped: {ex.Message}"));
+
+// OPTIONS-BASED OnError (v1.2.1+): use OnError directly on options — combines with all other settings:
+var errors = new List<Exception>();
+var opts = new CsvReadOptions {
+    HasHeader = true,
+    OnError = ex => errors.Add(ex)  // auto-sets ErrorAction = Skip
+};
+var rows4 = Read.Csv<MyRow>("maybe_dirty.csv", opts);
 ```
 Notes:
 
-- In the simple overload above, passing onError automatically sets ErrorAction = Skip internally and wraps the delegate with an internal bridge (DelegatingErrorSink). You cannot directly construct DelegatingErrorSink in your own code.
-- You can ONLY adjust separator, schema and onError via the simple CSV overload. All advanced behaviors (inference, quoting modes, auditing, custom sinks, progress) require the options-based overload.
-- To print structured error info when using the options-based API, implement a small custom IReaderErrorSink (see Section 2.5).
+- **OnError property (v1.2.1+)**: Setting `OnError` on any `ReadOptions` automatically configures `ErrorAction = Skip` and wires the delegate internally. This works on `CsvReadOptions`, `JsonReadOptions<T>`, and `YamlReadOptions<T>`.
+- The simple overload's inline `onError` parameter works identically but cannot be combined with other options.
+- To print structured error info, implement a custom `IReaderErrorSink` and set `ErrorSink` directly (see Section 2.5).
  
 ### 0.6 CSV With Schema & Type Inference
 
@@ -814,6 +822,16 @@ Implementation Note on MaxElementBytes:
 - Enforcement occurs only on the validation path (ParseValue + JsonDocument). The measured size excludes the delimiter (comma) and any following whitespace outside the element.
 - Large elements on the fast path are not currently size-checked. A future enhancement could: (a) probe element completeness with TrySkip, (b) compute size from start/end BytesConsumed, and (c) enforce MaxElementBytes without forcing full materialization. If adopted, documentation will be updated to reflect support on both paths.
 
+### 4.7 Null and Missing Field Handling
+
+| JSON value | C# `decimal` (non-nullable) | C# `decimal?` (nullable) |
+|------------|:---------------------------:|:------------------------:|
+| `"Price": 9.99` | `9.99m` ✅ | `9.99m` ✅ |
+| `"Price": null` | ❌ Error (→ `ErrorAction` decides: Throw / Skip / Stop) | `null` ✅ |
+| Field absent | `0m` (default) ✅ | `null` ✅ |
+
+> **Tip**: Use nullable properties (`decimal?`, `int?`) if your JSON source may contain `null` values. For non-nullable models, set `ErrorAction = ReaderErrorAction.Skip` to skip problematic records instead of throwing, and `ErrorSink` to capture error details.
+
 ## 5. YAML (`YamlReadOptions<T>`)
 
 ### 5.1. YAML Fields & Defaults
@@ -1091,20 +1109,22 @@ The default configuration triggers progress whichever comes first: every 5 secon
 
 **CSV**:
   - Column indices are not included in error records (only line and record numbers).
-  - Type inference is limited to a fixed primitive set and uses current culture Parse methods; there is no culture-override hook. Use `FieldTypeInference.Custom` for custom parsing.
+  - Type inference uses a fixed primitive set (`bool`, `int`, `long`, `decimal`, `double`, `DateTime`, `Guid`). By default, **smart decimal auto-detection** normalizes all common international formats (US dot, European comma, German/French mixed) without requiring culture configuration. For full control, set `CsvReadOptions.FormatProvider` to a specific `CultureInfo`, or disable auto-detection with `TextParsingOptions.SmartDecimalParsing = false`.
   -  `MaxRawRecordLength` counts raw character length including quotes and line terminators; if you normalize newlines post-parse the measured length may appear larger than the final stored representation.
 **JSON**:
 - Element validation mode (`ValidateElements = true`) is slower and more memory-intensive due to per-element JsonDocument materialization.
 - Percentage-based progress is only available for JSON (uses file length + stream position).
 - A single non-array root processed under validation/guard-rail paths is read using a full file pass (non-streaming) to validate and deserialize.
-- The simple overload’s onError delegate provides only exception context (no line/record/excerpt); use options + custom sink for structured error metadata.
+- The simple overload's onError delegate provides only exception context (no line/record/excerpt); use options + custom sink for structured error metadata.
+
+
 **YAML**:
 - LinesRead metric is not populated for YAML (remains 0).
 
 **General**:
 - `CompletedUtc` remains `null` if the read terminates early due to Stop, Throw, cancellation, or an unhandled exception.
-- Simple overloads (CSV/JSON/YAML) implicitly set `ErrorAction = Skip` when an `onError` delegate is supplied; you cannot override `ErrorAction` or attach a custom sink through those overloads.
-- DelegatingErrorSink wraps all reported errors in a new InvalidDataException (original stack / type discarded). Use options + custom sink to retain richer context.
+- Simple overloads (CSV/JSON/YAML) implicitly set `ErrorAction = Skip` when an inline `onError` delegate is supplied. Alternatively, use the `OnError` property on any `ReadOptions` (v1.2.1+) to get the same behavior with full access to other options.
+- DelegatingErrorSink wraps all reported errors in a new InvalidDataException (original stack / type discarded). Use options + custom `ErrorSink` to retain richer context.
 
 ---
 

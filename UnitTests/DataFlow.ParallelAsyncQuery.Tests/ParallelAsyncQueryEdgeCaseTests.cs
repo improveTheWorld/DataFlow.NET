@@ -138,7 +138,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         Assert.True(processedCount < 100, $"Expected early cancellation, but processed {processedCount} items");
     }
 
-    [Fact(Skip = "V1.1: Timeout functionality not yet enforced during execution")]
+    [Fact] // BUG: NET-001 - WithTimeout not enforced during parallel execution
     public async Task WithTimeout_ExceedsLimit_CancelsExecution()
     {
         // Arrange
@@ -609,7 +609,7 @@ public class ParallelAsyncQueryEdgeCaseTests
         Assert.Equal(5, results.Count);
     }
 
-    [Fact(Skip = "Timing-sensitive test - cancellation propagation through channel read is complex and depends on timing")]
+    [Fact] // BUG: NET-002 - Combined cancellation tokens not honored
     public async Task CombinedTokens_BothTokensSet_BothHonored()
     {
         // Arrange  

@@ -1,4 +1,5 @@
 #nullable enable
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -46,6 +47,12 @@ public sealed record CsvReadOptions : ReadOptions
     public int MaxColumnsPerRow { get; init; } = 0;
     public int MaxRawRecordLength { get; init; } = 0;
 
+    /// <summary>
+    /// Culture used for numeric and DateTime parsing. Defaults to <see cref="CultureInfo.InvariantCulture"/>.
+    /// Set to e.g. <c>new CultureInfo("fr-FR")</c> for European CSV files that use comma as decimal separator.
+    /// </summary>
+    public IFormatProvider FormatProvider { get; init; } = CultureInfo.InvariantCulture;
+
 
     /// <summary>
     /// Converts a raw CSV field string to a typed object based on column schema and inference settings.
@@ -89,7 +96,7 @@ public sealed record CsvReadOptions : ReadOptions
             if (t == typeof(string))
                 return raw;
 
-            if (!raw.TryParseAs(t, out var converted))
+            if (!raw.TryParseAs(t, out var converted, new TextParsingOptions { FormatProvider = FormatProvider }))
             {
                 // Demote to string and finalize (no further parse attempts for this column).
                 InferredTypes[columnIndex] = typeof(string);
@@ -107,7 +114,8 @@ public sealed record CsvReadOptions : ReadOptions
                  PreserveLeadingZeroNumeric = PreserveNumericStringsWithLeadingZeros,
                  PreserveLargeIntegerStrings = PreserveLargeIntegerStrings,
                  TrimWhitespace = TrimWhitespace,
-                 EnableDouble = true
+                 EnableDouble = true,
+                 FormatProvider = FormatProvider
              });
     }
 }
@@ -229,6 +237,23 @@ public abstract record ReadOptions
 {
     public ReaderErrorAction ErrorAction { get; init; } = ReaderErrorAction.Throw;
     public IReaderErrorSink ErrorSink { get; init; } = NullErrorSink.Instance;
+
+    /// <summary>
+    /// Convenience shorthand: when set, automatically configures ErrorAction = Skip
+    /// and ErrorSink to delegate errors to the provided callback.
+    /// Equivalent to using the inline <c>onError</c> parameter on Read methods.
+    /// </summary>
+    public Action<Exception>? OnError
+    {
+        init
+        {
+            if (value != null)
+            {
+                ErrorAction = ReaderErrorAction.Skip;
+                ErrorSink = new Read.DelegatingErrorSink(value, "(options)");
+            }
+        }
+    }
     public IProgress<ReaderProgress>? Progress { get; init; }
 
     // Fire progress either when count interval reached OR time interval reached.

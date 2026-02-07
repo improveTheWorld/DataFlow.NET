@@ -11,15 +11,15 @@ When using DataFlow readers like `Read.Csv<T>()`, `Read.Json<T>()`, or `Read.Yam
 | Pattern | CSV | JSON | YAML | Snowflake | Spark |
 |---------|:---:|:----:|:----:|:---------:|:-----:|
 | Mutable class `{ get; set; }` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Positional record `(int Id, string Name)` | ✅ | ✅ | ❌ | ✅ | ✅ |
-| Init-only `{ get; init; }` | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Positional record `(int Id, string Name)` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Init-only `{ get; init; }` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Private setter `{ get; private set; }` | ✅ | ❌ | ❌ | ✅ | ✅ |
 | Public fields | ✅ | ❌ | ❌ | ✅ | ✅ |
 
 > [!IMPORTANT]
 > **CSV** uses custom parser that fully uses ObjectMaterializer capacities.
-> **JSON** uses System.Text.Json (requires public setters, no fields).
-> **YAML** uses YamlDotNet (requires mutable properties).
+> **JSON** uses System.Text.Json (supports records natively via constructor deserialization).
+> **YAML** uses YamlDotNet + ObjectMaterializer bridge (flat records supported; nested objects require mutable classes).
 > **Snowflake** uses ObjectMaterializer (most flexible).
 > **Spark** uses ObjectMaterializer (most flexible).
 
@@ -51,7 +51,10 @@ Works with **all readers** (CSV, JSON, YAML, Snowflake, Spark).
 ```csharp
 public record Order(int Id, string Product, decimal Amount);
 ```
-Works with CSV, JSON, Snowflake, Spark. **NOT YAML**.
+Works with **all readers** (CSV, JSON, YAML, Snowflake, Spark).
+
+> [!NOTE]
+> YAML record support uses a Dictionary→ObjectMaterializer bridge. Flat records work perfectly; nested object records require mutable classes. See [ObjectMaterializer-Limitations.md](ObjectMaterializer-Limitations.md).
 
 ### Good: Record with Properties
 ```csharp
@@ -98,13 +101,17 @@ public class Doc { public string Name { get; set; } = ""; }
 public record Doc(string Name);
 ```
 
-### YAML ⚠️
+### YAML
 ```csharp
-// ✅ Works - mutable only
+// ✅ Works - mutable class
 public class Config { public string DbUrl { get; set; } = ""; }
 
-// ❌ Fails - positional record
+// ✅ Works - positional record (flat properties)
 public record Config(string DbUrl);
+
+// ⚠️ Nested objects require mutable classes
+public record Address(string City);          // ← flat record OK
+public class Person { public Address Addr { get; set; } }  // ← nested needs class
 ```
 
 ### Snowflake / Spark
@@ -126,8 +133,8 @@ Before using `Read.Csv<T>()`, `Read.Json<T>()`, etc.:
 
 - [ ] Has parameterless constructor (or matching primary constructor)
 - [ ] Properties have setters (`{ get; set; }` or `{ get; init; }` for CSV/Snowflake/Spark)
-- [ ] For YAML: use mutable classes, NOT positional records
-- [ ] For JSON: use public setters only (no private setters or fields)
+- [ ] For YAML: positional records work for flat types; use mutable classes for nested objects
+- [ ] For JSON: use public setters or positional records (no private setters or fields)
 - [ ] Property names roughly match column/key names
 
 ---
@@ -136,5 +143,6 @@ Before using `Read.Csv<T>()`, `Read.Json<T>()`, etc.:
 
 - [DataFlow-Data-Reading-Infrastructure.md](DataFlow-Data-Reading-Infrastructure.md) - Reader architecture overview
 - [ObjectMaterializer.md](ObjectMaterializer.md) - Full API reference
+- [ObjectMaterializer-Limitations.md](ObjectMaterializer-Limitations.md) - Known limitations and v2.x roadmap
 - [LINQ-to-Snowflake-Capabilities.md](LINQ-to-Snowflake-Capabilities.md) - Snowflake query features
 - [LINQ-to-Spark.md](LINQ-to-Spark.md) - Spark query features

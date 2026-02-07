@@ -1,5 +1,8 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Globalization;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
+using DataFlow.Framework;
 
 namespace DataFlow;
 
@@ -92,6 +95,12 @@ public static partial class Read
             .IgnoreUnmatchedProperties();
         var deserializer = deserializerBuilder.Build();
 
+        // NET-006 FIX: Detect record types (no parameterless constructor).
+        // For these types, deserialize to Dictionary then use ObjectMaterializer.
+        bool useRecordPath = !ObjectMaterializer.TryGetParameterlessFactory<T>(out _)
+                             && typeof(T) != typeof(string)
+                             && !typeof(T).IsValueType;
+
 
         long record = 0;
         bool sequenceRootChecked = false;
@@ -152,7 +161,32 @@ public static partial class Read
             //bool stopAfterCurrent = false;  
             try
             {
-                item = deserializer.Deserialize<T>(secureParser);
+                if (useRecordPath)
+                {
+                    // NET-006 FIX: Deserialize to Dictionary, then use ObjectMaterializer
+                    var dict = deserializer.Deserialize<Dictionary<string, object>>(secureParser);
+                    if (dict != null)
+                    {
+                        var schema = dict.Keys.ToArray();
+                        var rawValues = dict.Values.Select(v => v ?? (object)"").ToArray();
+                        var values = ConvertYamlValues<T>(schema, rawValues);
+                        try
+                        {
+                            item = ObjectMaterializer.Create<T>(schema, values);
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // Materialization failure from partial data (e.g., after security filter skip).
+                            // The root cause was already reported by the parser. Just skip this item.
+                            continue;
+                        }
+                    }
+                }
+                else
+                {
+                    item = deserializer.Deserialize<T>(secureParser);
+                }
+
                 if (options.RestrictTypes && !IsAllowed(options, item))
                 {
                     // HandleError may set TerminatedEarly (Stop mode)
@@ -166,7 +200,7 @@ public static partial class Read
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch (Exception ex) when (ex is YamlDotNet.Core.YamlException || ex is InvalidDataException)
+            catch (Exception ex) when (ex is YamlDotNet.Core.YamlException || ex is InvalidDataException || (useRecordPath && ex is InvalidOperationException))
             {
                 // If ErrorAction is Throw, propagate the exception to the caller
                 if (options.ErrorAction == ReaderErrorAction.Throw)
@@ -285,6 +319,11 @@ public static partial class Read
             .IgnoreUnmatchedProperties();
         var deserializer = deserializerBuilder.Build();
 
+        // NET-006 FIX: Detect record types (no parameterless constructor).
+        bool useRecordPath = !ObjectMaterializer.TryGetParameterlessFactory<T>(out _)
+                             && typeof(T) != typeof(string)
+                             && !typeof(T).IsValueType;
+
 
         long record = 0;
         bool sequenceRootChecked = false;
@@ -345,7 +384,31 @@ public static partial class Read
 
             try
             {
-                item = deserializer.Deserialize<T>(secureParser);
+                if (useRecordPath)
+                {
+                    // NET-006 FIX: Deserialize to Dictionary, then use ObjectMaterializer
+                    var dict = deserializer.Deserialize<Dictionary<string, object>>(secureParser);
+                    if (dict != null)
+                    {
+                        var schema = dict.Keys.ToArray();
+                        var rawValues = dict.Values.Select(v => v ?? (object)"").ToArray();
+                        var values = ConvertYamlValues<T>(schema, rawValues);
+                        try
+                        {
+                            item = ObjectMaterializer.Create<T>(schema, values);
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // Materialization failure from partial data — root cause already reported.
+                            continue;
+                        }
+                    }
+                }
+                else
+                {
+                    item = deserializer.Deserialize<T>(secureParser);
+                }
+
                 if (options.RestrictTypes && !IsAllowed(options, item))
                 {
                     if (!options.HandleError("YAML", -1, record, options.FilePath!,
@@ -360,7 +423,7 @@ public static partial class Read
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch (YamlDotNet.Core.YamlException ex)
+            catch (Exception ex) when (ex is YamlDotNet.Core.YamlException || (useRecordPath && ex is InvalidOperationException))
             {
                 if (options.Metrics.TerminatedEarly)
                     yield break;
@@ -442,4 +505,75 @@ public static partial class Read
     }
 
 
+
+    /// <summary>
+    /// NET-006 FIX: Converts YAML dictionary values (strings) to the types expected
+    /// by the record's primary constructor parameters.
+    /// </summary>
+    private static object?[] ConvertYamlValues<T>(string[] schema, object?[] values)
+    {
+        var type = typeof(T);
+        // Find the primary constructor (most parameters)
+        var ctor = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+            .OrderByDescending(c => c.GetParameters().Length)
+            .FirstOrDefault();
+
+        if (ctor == null) return values;
+
+        var ctorParams = ctor.GetParameters();
+        // Build a case-insensitive lookup: paramName → paramType
+        var paramTypes = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in ctorParams)
+            if (p.Name != null)
+                paramTypes[p.Name] = p.ParameterType;
+
+        var converted = new object?[values.Length];
+        for (int i = 0; i < values.Length; i++)
+        {
+            var val = values[i];
+            if (i < schema.Length && paramTypes.TryGetValue(schema[i], out var targetType))
+            {
+                converted[i] = ConvertSingleValue(val, targetType);
+            }
+            else
+            {
+                converted[i] = val;
+            }
+        }
+        return converted;
+    }
+
+    private static object? ConvertSingleValue(object? value, Type targetType)
+    {
+        if (value == null) return null;
+        var actualType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (actualType.IsInstanceOfType(value)) return value;
+
+        try
+        {
+            // String → target type conversion
+            if (value is string s)
+            {
+                if (string.IsNullOrWhiteSpace(s))
+                    return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+
+                if (actualType == typeof(int))      return int.Parse(s, CultureInfo.InvariantCulture);
+                if (actualType == typeof(long))     return long.Parse(s, CultureInfo.InvariantCulture);
+                if (actualType == typeof(double))   return double.Parse(s, CultureInfo.InvariantCulture);
+                if (actualType == typeof(decimal))  return decimal.Parse(s, CultureInfo.InvariantCulture);
+                if (actualType == typeof(bool))     return bool.Parse(s);
+                if (actualType == typeof(DateTime)) return DateTime.Parse(s, CultureInfo.InvariantCulture);
+                if (actualType == typeof(Guid))     return Guid.Parse(s);
+                if (actualType.IsEnum)              return Enum.Parse(actualType, s, ignoreCase: true);
+            }
+
+            return Convert.ChangeType(value, actualType, CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            // Lenient: return default for value types, null for reference types
+            return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+        }
+    }
 }
+

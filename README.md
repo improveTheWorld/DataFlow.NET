@@ -18,7 +18,7 @@ Let IntelliSense and the compiler do the work.
 
 ```bash
 # Install via NuGet
-dotnet add package DataFlow.Net --version 1.2.0
+dotnet add package DataFlow.Net --version 1.2.1
 ```
 
 ---

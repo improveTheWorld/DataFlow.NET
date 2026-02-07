@@ -266,7 +266,7 @@ public class CsvReaderIntegrationTests
         Assert.Null(person.Salary);   // Nullable decimal: empty → null
     }
 
-    [Fact(Skip = "Pre-existing issue: Read.AsCsvSync schema mapping bug - not related to ObjectMaterializer refactoring")]
+    [Fact]
     public void CsvSync_EmptyStringForInt_DefaultBehavior_IncludesRow()
     {
         // Arrange

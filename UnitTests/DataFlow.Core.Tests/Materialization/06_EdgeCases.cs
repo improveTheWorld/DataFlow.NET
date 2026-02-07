@@ -21,7 +21,7 @@ public class EdgeCaseTests
         Assert.Equal(75000m, person.Salary);
     }
 
-    [Fact(Skip = "Schema dictionary is case-insensitive by design (StringComparer.OrdinalIgnoreCase) - Name/name/NAME map to same key")]
+    [Fact] // BUG: NET-005 - Schema dictionary case-insensitive, cannot map case-variant properties
     public void Create_WithCaseSensitiveModel_ShouldMapCorrectly()
     {
         // Arrange

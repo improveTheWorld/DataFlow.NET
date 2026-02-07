@@ -66,17 +66,19 @@ The categorization pattern for conditional branching in streaming pipelines.
 
 | Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery | Notes |
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|-------|
-| `MergeOrdered<T>` | ✅ | ✅ | ❌ | ❌ | Sequential merge only |
+| `MergeOrdered<T>(other, comparer)` | ✅ | ✅ | ❌ | ❌ | Comparer `Func<T,T,bool>` is required |
 | `Take(start, count)` | ✅ | ✅ | ✅ | ❌ | Convenience wrapper for Skip+Take |
 
 ### Conditional Termination
 
+> **Inclusive semantics:** All `Until` overloads are **inclusive** — the element that satisfies the stop condition is yielded *before* enumeration stops. For `Until(int lastIdx)`, the element at `lastIdx` is included in the output.
+
 | Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery | Notes |
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|-------|
-| `Until(Func<bool>)` | ✅ | ✅ | ❌ | ❌ | Conflicts with parallel semantics |
-| `Until(Func<T,bool>)` | ✅ | ✅ | ❌ | ❌ | Conflicts with parallel semantics |
-| `Until(Func<T,int,bool>)` | ✅ | ✅ | ❌ | ❌ | Conflicts with parallel semantics |
-| `Until(int lastIdx)` | ✅ | ✅ | ❌ | ❌ | Conflicts with parallel semantics |
+| `Until(Func<bool>)` | ✅ | ✅ | ❌ | ❌ | Inclusive; conflicts with parallel semantics |
+| `Until(Func<T,bool>)` | ✅ | ✅ | ❌ | ❌ | Inclusive; conflicts with parallel semantics |
+| `Until(Func<T,int,bool>)` | ✅ | ✅ | ❌ | ❌ | Inclusive; conflicts with parallel semantics |
+| `Until(int lastIdx)` | ✅ | ✅ | ❌ | ❌ | Inclusive; conflicts with parallel semantics |
 
 ### Side-Effect Pipeline
 
@@ -122,7 +124,10 @@ The categorization pattern for conditional branching in streaming pipelines.
 | Method | IEnumerable | IAsyncEnumerable | ParallelQuery | ParallelAsyncQuery |
 |--------|:-----------:|:----------------:|:-------------:|:------------------:|
 | `Spy(tag)` | ✅ | ✅ | ✅ | ✅ |
-| `Spy(tag, customFormatter)` | ✅ | ✅ | ✅ | ✅ |
+| `Spy<T>(tag, customFormatter)` | ✅ | ✅ | ✅ | ✅ |
+
+> **Note**: `Spy(tag)` is a convenience overload for `IEnumerable<string>` / `IAsyncEnumerable<string>` that uses `ToString()` automatically. For non-string streams, use `Spy<T>(tag, item => item.ToString())` where you provide the display logic via `Func<T, string>`.
+
 | `Display(tag)` | ✅ | ✅ | ✅ | ✅ |
 | `ToLines(separator)` | ✅ | ✅ | ❌ | ❌ |
 

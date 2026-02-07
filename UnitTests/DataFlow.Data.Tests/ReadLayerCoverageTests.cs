@@ -115,6 +115,60 @@ public class ReadLayerCoverageTests
     }
 
     [Fact]
+    public async Task Csv_OnErrorProperty_SkipsAndCollectsErrors()
+    {
+        // Arrange — use the new simplified OnError property syntax (FEAT-001)
+        var csv = "Id,Name\nINVALID,Bad\n2,Good\nALSO_BAD,Nope\n3,AlsoGood\n";
+        using var ms = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        var errors = new List<Exception>();
+
+        var opts = new CsvReadOptions
+        {
+            HasHeader = true,
+            OnError = ex => errors.Add(ex) // ← new simplified syntax
+        };
+
+        // Act
+        var items = new List<TestRecord>();
+        await foreach (var item in Read.Csv<TestRecord>(ms, opts))
+        {
+            items.Add(item);
+        }
+
+        // Assert
+        Assert.Equal(2, items.Count);      // Only valid rows
+        Assert.Equal(2, errors.Count);     // Both errors captured
+        Assert.Equal("Good", items[0].Name);
+        Assert.Equal("AlsoGood", items[1].Name);
+    }
+
+    [Fact]
+    public async Task Json_OnErrorProperty_SkipsAndCollectsErrors()
+    {
+        // Arrange — same OnError syntax on JSON
+        var json = """[{"Id":1,"Name":"Valid"},{"Id":"notanint","Name":"Bad"},{"Id":2,"Name":"Valid2"}]""";
+        using var ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        var errors = new List<Exception>();
+
+        var opts = new JsonReadOptions<TestRecord>
+        {
+            RequireArrayRoot = true,
+            OnError = ex => errors.Add(ex)
+        };
+
+        // Act
+        var items = new List<TestRecord>();
+        await foreach (var item in Read.Json<TestRecord>(ms, opts))
+        {
+            items.Add(item);
+        }
+
+        // Assert
+        Assert.True(items.Count >= 1, "Should have at least one valid item");
+        Assert.True(errors.Count >= 1, "Should have captured at least one error");
+    }
+
+    [Fact]
     public void CsvSync_LargeFile_HandlesBuffering()
     {
         var sb = new StringBuilder();

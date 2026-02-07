@@ -104,18 +104,23 @@ await liveLogStream
 
 ### Until
 
-Stop enumeration when a condition is met:
+Stop enumeration when a condition is met. **`Until` is inclusive** — the item that triggers the stop condition is included in the output (like `do-while` vs `while`). This differs from LINQ's `TakeWhile`, which is exclusive.
 
 ```csharp
-// Stop when condition is true
+// Stop when condition is true — the matching item IS included
 var beforeEnd = lines.Until(line => line.StartsWith("END"));
+// → includes the "END..." line itself
 
-// Take only first N items
+// Take items up to and including index 9 (= first 10 items)
 var first10 = items.Until(9);
 
 // Index-based condition
 var result = items.Until((item, index) => index >= 10 || item.Contains("STOP"));
 ```
+
+> **`Until` vs `TakeWhile`:**  
+> `items.TakeWhile(x => x < 5)` → `[1, 2, 3, 4]` (exclusive, stops before 5)  
+> `items.Until(x => x >= 5)` → `[1, 2, 3, 4, 5]` (inclusive, includes the 5)
 
 ### ForEach
 

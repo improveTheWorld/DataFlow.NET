@@ -24,6 +24,11 @@ public sealed record TextParsingOptions
     public bool EnableDateTime { get; init; } = true;
     public bool EnableGuid { get; init; } = true;
 
+    // Smart decimal detection: auto-detects dot vs comma decimal separators
+    // When true, "1234,56" and "1.234,56" are correctly parsed without requiring culture config.
+    // Disable to rely solely on FormatProvider for decimal/double parsing.
+    public bool SmartDecimalParsing { get; init; } = true;
+
     // DateTime parsing
     public IFormatProvider FormatProvider { get; init; } = CultureInfo.InvariantCulture;
     public DateTimeStyles DateTimeStyles { get; init; } = DateTimeStyles.AdjustToUniversal | DateTimeStyles.AllowWhiteSpaces;
@@ -83,18 +88,28 @@ internal static class TextParser
             return Finish(s, b, options);
 
         // Integers
-        if (options.EnableInt32 && int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i32))
+        if (options.EnableInt32 && int.TryParse(s, NumberStyles.Integer, options.FormatProvider, out var i32))
             return Finish(s, i32, options);
 
-        if (options.EnableInt64 && long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i64))
+        if (options.EnableInt64 && long.TryParse(s, NumberStyles.Integer, options.FormatProvider, out var i64))
             return Finish(s, i64, options);
 
         // Decimal first to avoid FP rounding surprises
-        if (options.EnableDecimal && decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var dec))
-            return Finish(s, dec, options);
+        if (options.EnableDecimal)
+        {
+            if (options.SmartDecimalParsing && TrySmartParseDecimal(s, out var smartDec))
+                return Finish(s, smartDec, options);
+            if (decimal.TryParse(s, NumberStyles.Number, options.FormatProvider, out var dec))
+                return Finish(s, dec, options);
+        }
 
-        if (options.EnableDouble && double.TryParse(s, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var dbl))
-            return Finish(s, dbl, options);
+        if (options.EnableDouble)
+        {
+            if (options.SmartDecimalParsing && TrySmartParseDouble(s, out var smartDbl))
+                return Finish(s, smartDbl, options);
+            if (double.TryParse(s, NumberStyles.Float | NumberStyles.AllowThousands, options.FormatProvider, out var dbl))
+                return Finish(s, dbl, options);
+        }
 
         // DateTime
         if (options.EnableDateTime && DateTime.TryParse(s, options.FormatProvider, options.DateTimeStyles, out var dt))
@@ -141,15 +156,23 @@ internal static class TextParser
         var input = s is null ? string.Empty : (opts.TrimWhitespace ? s.Trim() : s);
 
         value = null;
-        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var fp = opts.FormatProvider;
 
         if (t == typeof(string)) { value = input; return true; }
         if (t == typeof(bool) && bool.TryParse(input, out var b)) { value = b; return true; }
-        if (t == typeof(int) && int.TryParse(input, System.Globalization.NumberStyles.Integer, inv, out var i)) { value = i; return true; }
-        if (t == typeof(long) && long.TryParse(input, System.Globalization.NumberStyles.Integer, inv, out var l)) { value = l; return true; }
-        if (t == typeof(decimal) && decimal.TryParse(input, System.Globalization.NumberStyles.Number, inv, out var dec)) { value = dec; return true; }
-        if (t == typeof(double) && double.TryParse(input, System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands, inv, out var dbl)) { value = dbl; return true; }
-        if (t == typeof(DateTime) && DateTime.TryParse(input, opts.FormatProvider, opts.DateTimeStyles, out var dt)) { value = dt; return true; }
+        if (t == typeof(int) && int.TryParse(input, System.Globalization.NumberStyles.Integer, fp, out var i)) { value = i; return true; }
+        if (t == typeof(long) && long.TryParse(input, System.Globalization.NumberStyles.Integer, fp, out var l)) { value = l; return true; }
+        if (t == typeof(decimal))
+        {
+            if (opts.SmartDecimalParsing && TrySmartParseDecimal(input, out var smartDec)) { value = smartDec; return true; }
+            if (decimal.TryParse(input, System.Globalization.NumberStyles.Number, fp, out var dec)) { value = dec; return true; }
+        }
+        if (t == typeof(double))
+        {
+            if (opts.SmartDecimalParsing && TrySmartParseDouble(input, out var smartDbl)) { value = smartDbl; return true; }
+            if (double.TryParse(input, System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands, fp, out var dbl)) { value = dbl; return true; }
+        }
+        if (t == typeof(DateTime) && DateTime.TryParse(input, fp, opts.DateTimeStyles, out var dt)) { value = dt; return true; }
         if (t == typeof(Guid) && Guid.TryParse(input, out var g)) { value = g; return true; }
         return false;
     }
@@ -174,7 +197,143 @@ internal static class TextParser
         return span.Length > 0;
     }
 
+    // =========================================================
+    // SMART DECIMAL AUTO-DETECTION
+    // Handles all common international decimal formats:
+    //   "1234.56"     → 1234.56  (US/UK — dot decimal)
+    //   "1234,56"     → 1234.56  (FR/DE — comma decimal)
+    //   "1.234,56"    → 1234.56  (DE — dot thousands, comma decimal)
+    //   "1,234.56"    → 1234.56  (US — comma thousands, dot decimal)
+    //   "1 234,56"    → 1234.56  (FR — space thousands, comma decimal)
+    //   "1 234.56"    → 1234.56  (UK — space thousands, dot decimal)
+    //   "1.234.567,89"→ 1234567.89  (repeating dots = thousands)
+    //   "1,234,567.89"→ 1234567.89  (repeating commas = thousands)
+    //
+    // AMBIGUOUS (returns false — caller falls back to FormatProvider):
+    //   "1,234" — could be 1234 (thousands) or 1.234 (decimal)
+    //   "1.234" — could be 1234 (thousands) or 1.234 (decimal)
+    // =========================================================
 
+    /// <summary>
+    /// Attempts to parse a numeric string by auto-detecting the decimal separator.
+    /// Returns false only for genuinely ambiguous formats (single separator + exactly 3 trailing digits).
+    /// </summary>
+    internal static bool TrySmartParseDecimal(string s, out decimal result)
+    {
+        result = 0m;
+        var normalized = NormalizeDecimalString(s);
+        if (normalized is null) return false;
+        return decimal.TryParse(normalized, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture, out result);
+    }
+
+    /// <summary>
+    /// Attempts to parse a numeric string by auto-detecting the decimal separator (double variant).
+    /// Returns false only for genuinely ambiguous formats.
+    /// </summary>
+    internal static bool TrySmartParseDouble(string s, out double result)
+    {
+        result = 0d;
+        var normalized = NormalizeDecimalString(s);
+        if (normalized is null) return false;
+        return double.TryParse(normalized, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent,
+            CultureInfo.InvariantCulture, out result);
+    }
+
+    /// <summary>
+    /// Analyzes a numeric string's separators to auto-detect the decimal format
+    /// and normalizes it to InvariantCulture (dot-decimal, no thousands) for parsing.
+    /// Returns null if the format is genuinely ambiguous or not numeric.
+    /// </summary>
+    internal static string? NormalizeDecimalString(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+
+        // Strip leading/trailing whitespace
+        s = s.Trim();
+
+        // Handle optional leading sign
+        var start = 0;
+        if (s.Length > 0 && (s[0] == '-' || s[0] == '+'))
+            start = 1;
+
+        // Remove spaces and non-breaking spaces (thousands separator in fr-FR, etc.)
+        // We do this AFTER sign detection
+        var body = s.Substring(start).Replace(" ", "").Replace("\u00A0", "");
+        var sign = start > 0 ? s[0].ToString() : "";
+
+        // Quick check: body must be digits + at most dots and commas
+        int dotCount = 0, commaCount = 0;
+        int lastDot = -1, lastComma = -1;
+        for (int i = 0; i < body.Length; i++)
+        {
+            var c = body[i];
+            if (c == '.') { dotCount++; lastDot = i; }
+            else if (c == ',') { commaCount++; lastComma = i; }
+            else if ((uint)(c - '0') > 9) return null; // non-numeric character
+        }
+
+        // No separators — pure integer with optional sign, let caller handle
+        if (dotCount == 0 && commaCount == 0) return null;
+
+        // ─── Case 1: Both dot AND comma present ─────────────────────
+        // The LAST separator is the decimal; earlier ones are thousands.
+        if (dotCount > 0 && commaCount > 0)
+        {
+            if (lastComma > lastDot)
+            {
+                // Comma is decimal: "1.234,56" or "1.234.567,89"
+                return sign + body.Replace(".", "").Replace(',', '.');
+            }
+            else
+            {
+                // Dot is decimal: "1,234.56" or "1,234,567.89"
+                return sign + body.Replace(",", "");
+            }
+        }
+
+        // ─── Case 2: Only dots ──────────────────────────────────────
+        if (dotCount > 0)
+        {
+            // Multiple dots → they're all thousands separators: "1.234.567"
+            if (dotCount > 1)
+                return sign + body.Replace(".", "");
+
+            // Single dot: check digits after it
+            var afterDot = body.Length - lastDot - 1;
+
+            if (afterDot != 3)
+            {
+                // Not 3 digits → dot is decimal: "1234.56", "1234.5", "1234.5678"
+                return sign + body; // Already in InvariantCulture format
+            }
+
+            // Single dot + exactly 3 digits → AMBIGUOUS ("1.234")
+            return null;
+        }
+
+        // ─── Case 3: Only commas ─────────────────────────────────────
+        if (commaCount > 0)
+        {
+            // Multiple commas → they're all thousands separators: "1,234,567"
+            if (commaCount > 1)
+                return sign + body.Replace(",", "");
+
+            // Single comma: check digits after it
+            var afterComma = body.Length - lastComma - 1;
+
+            if (afterComma != 3)
+            {
+                // Not 3 digits → comma is decimal: "1234,56", "1234,5", "0,99"
+                return sign + body.Replace(',', '.');
+            }
+
+            // Single comma + exactly 3 digits → AMBIGUOUS ("1,234")
+            return null;
+        }
+
+        return null;
+    }
 
     // ==========================================
     // CSV from string (SYNC - with Sync suffix)

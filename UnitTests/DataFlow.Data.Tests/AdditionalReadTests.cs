@@ -89,7 +89,7 @@ public class AdditionalReadTests
 
     #region YAML Tests
 
-    [Fact(Skip = "YAML format needs investigation")]
+    [Fact] // NET-006 FIXED: YAML record deserialization via ObjectMaterializer
     public async Task Yaml_BasicList_ReadsAllItems()
     {
         var yaml = "- Id: 1\n  Name: First\n- Id: 2\n  Name: Second\n";
@@ -105,7 +105,7 @@ public class AdditionalReadTests
         Assert.Equal(2, items.Count);
     }
 
-    [Fact(Skip = "YAML format needs investigation")]
+    [Fact] // NET-006 FIXED: YAML record deserialization via ObjectMaterializer
     public void YamlSync_BasicList_ReadsAllItems()
     {
         var yaml = "- Id: 10\n  Name: Ten\n- Id: 20\n  Name: Twenty\n";

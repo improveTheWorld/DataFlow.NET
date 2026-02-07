@@ -133,6 +133,8 @@ Comprehensive extension methods for `IEnumerable<T>` manipulation.
 
 #### Control Flow Extensions
 
+> **Note:** All `Until` overloads use **inclusive** stop semantics — the item that triggers the condition is **included** in the output. This is the opposite of LINQ's `TakeWhile` (which is exclusive).
+
 ```csharp
 public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<bool> stopCondition)
 ```
@@ -140,12 +142,12 @@ public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<bool> stop
 **Parameters:**
 - `items`: Source enumerable
 - `stopCondition`: Function that returns true when processing should stop  
-**Returns:** `IEnumerable<T>` - Items processed before the condition was met  
+**Returns:** `IEnumerable<T>` - Items up to and including the one where the condition became true  
 
 ```csharp
 public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, bool> stopCondition)
 ```
-**Description:** Processes items until an item-specific condition is met  
+**Description:** Processes items until an item-specific condition is met (inclusive)  
 **Parameters:**
 - `items`: Source enumerable
 - `stopCondition`: Function that evaluates each item  
@@ -153,7 +155,7 @@ public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, bool> s
 ```csharp
 public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, int, bool> stopCondition)
 ```
-**Description:** Processes items until a condition involving the item and its index is met  
+**Description:** Processes items until a condition involving the item and its index is met (inclusive)  
 **Parameters:**
 - `items`: Source enumerable
 - `stopCondition`: Function that evaluates each item and its index  
@@ -161,7 +163,7 @@ public static IEnumerable<T> Until<T>(this IEnumerable<T> items, Func<T, int, bo
 ```csharp
 public static IEnumerable<T> Until<T>(this IEnumerable<T> items, int lastItemIdx)
 ```
-**Description:** Processes items up to a specific index  
+**Description:** Processes items up to and including a specific index  
 **Parameters:**
 - `items`: Source enumerable
 - `lastItemIdx`: Last index to process (inclusive)  

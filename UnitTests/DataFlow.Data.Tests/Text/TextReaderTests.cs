@@ -228,7 +228,7 @@ public sealed class Read_Text_Tests : IDisposable
         Assert.Equal(new[] { "A", "B", "C" }, l3);
     }
 
-    [Fact(Skip = "Flaky timing-dependent test")]
+    [Fact]
     public async Task Progress_TimeGated_FiresEvenWithLargeIntervalsOfRecords()
     {
         var content = string.Join('\n', Enumerable.Range(0, 5000)) + "\n";

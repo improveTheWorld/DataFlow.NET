@@ -56,7 +56,7 @@ public class AsyncLinqOperatorsAdditionalTests
         Assert.Empty(result);
     }
 
-    [Fact(Skip = "Take(start, count) overload has different behavior than expected")]
+    [Fact]
     public async Task Take_StartAndCount_ReturnsSlice()
     {
         // Arrange

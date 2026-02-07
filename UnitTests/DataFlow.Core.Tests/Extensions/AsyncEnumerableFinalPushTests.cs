@@ -133,20 +133,21 @@ public class AsyncEnumerableFinalPushTests
 
     #region Until additional tests
 
-    [Fact(Skip = "Until behavior is different than expected")]
-    public async Task Until_ImmediateStop_ReturnsEmpty()
+    [Fact]
+    public async Task Until_ImmediateStop_IncludesFirstItem()
     {
         // Arrange
         var items = ToAsync(new[] { 1, 2, 3 });
 
-        // Act
+        // Act - Until is inclusive: yields the item that triggers the stop
         var result = await CollectAsync(items.Until(_ => true));
 
-        // Assert
-        Assert.Empty(result);
+        // Assert - First item included (inclusive semantics, like do-while)
+        Assert.Single(result);
+        Assert.Equal(1, result[0]);
     }
 
-    [Fact(Skip = "Until behavior is different than expected")]
+    [Fact]
     public async Task Until_NeverStop_ReturnsAll()
     {
         // Arrange

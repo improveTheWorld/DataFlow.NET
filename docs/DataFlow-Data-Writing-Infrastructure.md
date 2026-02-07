@@ -1,6 +1,6 @@
 # DataFlow.Data.Write - Writing Infrastructure
 
-> **Version:** V1.0  
+> **Version:** V1.2.1  
 > **Status:** Production Ready  
 > **Coverage:** 87.3%
 
@@ -30,14 +30,26 @@ await items.WriteYaml("output.yaml", new YamlWriteOptions { BatchSize = 1000 });
 
 ---
 
-## Supported Formats
+## Unified Write API
 
-| Format | Sync | Async IEnumerable | Async IAsyncEnumerable | Stream |
-|--------|------|-------------------|------------------------|--------|
-| **CSV** | ✅ | ✅ | ✅ | ✅ |
-| **JSON** | ✅ | ✅ | ✅ | ✅ |
-| **YAML** | ✅ | ✅ | ✅ | ✅ |
-| **Text** | ✅ | ✅ | ✅ | ✅ |
+Every format follows the **same 6-overload pattern** — no surprises, no format-specific gaps:
+
+| # | Source | Target | Mode | Example |
+|---|--------|--------|------|---------|
+| 1 | `IEnumerable<T>` | file path | sync | `data.WriteCsvSync("out.csv")` |
+| 2 | `IEnumerable<T>` | file path | async | `await data.WriteCsv("out.csv")` |
+| 3 | `IAsyncEnumerable<T>` | file path | async | `await stream.WriteCsv("out.csv")` |
+| 4 | `IEnumerable<T>` | stream | sync | `data.WriteCsvSync(memoryStream)` |
+| 5 | `IEnumerable<T>` | stream | async | `await data.WriteCsv(memoryStream)` |
+| 6 | `IAsyncEnumerable<T>` | stream | async | `await stream.WriteCsv(memoryStream)` |
+
+**Design Principles:**
+
+- **All formats support sync and async writes** — `WriteXxxSync` for blocking, `WriteXxx` for async.
+- **All writers accept an optional `XxxWriteOptions?` parameter** for encoding, append mode, metrics, and format-specific settings.
+- **All async overloads accept an optional `CancellationToken`** — pass it directly or via `Options.CancellationToken`.
+
+> **4 formats × 6 overloads = 24 write methods**, all consistent.
 
 ---
 
@@ -93,59 +105,30 @@ public record YamlWriteOptions : WriteOptions
 
 ## API Reference
 
-### CSV Writer
+All four formats follow the same pattern. Here's a representative example using CSV:
 
 ```csharp
-// File path - simple
-await records.WriteCsv("file.csv");
-await records.WriteCsv("file.csv", withHeader: false, separator: ";");
-records.WriteCsvSync("file.csv");
+// Zero config — just works
+records.WriteCsvSync("output.csv");
+await records.WriteCsv("output.csv");
+await asyncRecords.WriteCsv("output.csv");
 
-// File path - with options
-await asyncRecords.WriteCsv("file.csv", options);
+// Same methods, with options when needed
+await records.WriteCsv("output.csv", new CsvWriteOptions
+{
+    Separator = ";",
+    WriteHeader = false,
+    Encoding = Encoding.Latin1,
+    Append = true
+});
 
-// Stream
-await records.WriteCsv(stream, options);
-await asyncRecords.WriteCsv(stream, options);
+// Stream target — same pattern
+records.WriteCsvSync(memoryStream);
+await records.WriteCsv(memoryStream);
+await asyncRecords.WriteCsv(memoryStream, new CsvWriteOptions { Separator = "\t" });
 ```
 
-### JSON Writer
-
-```csharp
-// File path
-await items.WriteJson("file.json");
-await asyncItems.WriteJson("file.json");
-items.WriteJsonSync("file.json");
-
-// Stream
-await items.WriteJson(stream, options);
-await asyncItems.WriteJson(stream, options);
-```
-
-### YAML Writer
-
-```csharp
-// File path - single document
-await items.WriteYaml("file.yaml");
-items.WriteYamlSync("file.yaml");
-
-// File path - multi-document batching
-await asyncItems.WriteYamlBatched("file.yaml", batchSize: 1000);
-
-// Stream
-await asyncItems.WriteYaml(stream, options);
-```
-
-### Text Writer
-
-```csharp
-// File path
-await lines.WriteText("file.txt");
-lines.WriteTextSync("file.txt");
-
-// Stream
-await lines.WriteText(stream, options);
-```
+Replace `Csv` with `Json`, `Yaml`, or `Text` — the pattern is identical.
 
 ---
 
