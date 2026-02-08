@@ -243,7 +243,7 @@ Your C# lambda expressions are decompiled at runtime and translated into **nativ
 
 **Via NuGet (Recommended):**
 ```bash
-dotnet add package DataFlow.Net --version 1.1.0
+dotnet add package DataFlow.Net --version 1.2.1
 ```
 
 **Or clone the repository:**
