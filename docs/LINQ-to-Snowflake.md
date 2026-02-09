@@ -82,6 +82,12 @@ graph TD
 
 ## Usage Guide
 
+### Required Namespace
+
+```csharp
+using DataFlow.SnowflakeQuery;
+```
+
 ### Connecting with the Context API (Recommended)
 
 ```csharp
@@ -271,7 +277,7 @@ orders.Where(o => o.Items.Any(i => i.Price > 100))
 - ✅ Property comparisons: `i.Price > 100`, `i.Status == "OK"`
 - ✅ Logical operators: `&&`, `||`, `!`
 - ✅ Arithmetic: `+`, `-`, `*`, `/`
-- ❌ Method calls: `i.Name.Contains("test")` (not supported in lambda)
+- ✅ Method calls: `i.Name.Contains("test")`, `i.Name.StartsWith("A")` (supported since v1.2.1)
 
 ---
 
@@ -400,25 +406,69 @@ await context.Read.Table<Order>("ORDERS")
     query.Where(...).Spy("AfterFilter").OrderBy(...)
     ```
 
-5.  **Server-Client Hybrid Processing with `Pull()`**: Use `.Pull()` to explicitly switch from server-side SQL to client-side streaming while maintaining lazy row-by-row evaluation.
+5.  **Auto-UDF Decomposition — Custom Methods in Where/Select**:
+
+     Custom methods (static, instance, lambda, or entity-parameter) in `Where()` and `Select()` are auto-translated to UDF function calls — no `Pull()` needed:
+     ```csharp
+     // Static method — auto-translated
+     .Where(o => o.IsActive && Helpers.IsHighValue(o.Amount))
+     // SQL: WHERE is_active AND auto_helpers_ishighvalue(amount)
+
+     // Entity-parameter method — auto-decomposed
+     static bool CustomValidator(Order o) => o.Amount > 1000 && o.Status == "Active";
+     .Where(o => CustomValidator(o))
+     // SQL: WHERE auto_class_customvalidator(amount, status)
+     // Properties accessed inside the method become individual UDF parameters
+
+     // Instance method — also supported
+     var validator = new OrderValidator();
+     .Where(o => validator.IsValid(o.Amount))
+     // SQL: WHERE auto_ordervalidator_isvalid(amount)
+
+     // Lambda / Func<> — also supported
+     Func<decimal, bool> isPremium = x => x > 2000;
+     .Where(o => isPremium(o.Amount))
+     // SQL: WHERE auto_lambda_ispremium(amount)
+
+     // Mixed expressions decompose naturally
+     .Where(o => o.IsActive && IsHighValue(o.Amount))
+     // SQL: WHERE is_active AND auto_helpers_ishighvalue(amount)
+     // ↑ SQL part ↑ translated natively    ↑ UDF part auto-generated
+     ```
+     > ⚠️ **Performance**: UDFs in `Where()` prevent Snowflake predicate pushdown. The Roslyn analyzer (DFSN004) warns at build time.
+
+6.  **Pull() — Escape Hatch (Rarely Needed)**:
+
+    Since custom methods now auto-translate to UDFs, `Pull()` is only needed for edge cases like accessing LINQ operators not on `SnowflakeQuery<T>` (e.g., `Zip`, `Chunk`):
     ```csharp
     await foreach (var order in context.Read.Table<Order>("ORDERS")
         .Where(o => o.Amount > 100)     // ✅ Server-side (SQL WHERE)
         .Take(1000)                      // ✅ Server-side (SQL LIMIT)
-        .Pull()                          // ← Switch to local
-        .Where(o => MyComplexLogic(o))  // ✅ Client-side (C# code)
-        .Select(o => Transform(o)))     // ✅ Client-side
+        .Pull()                          // ← Switch to local (rarely needed)
+        .Chunk(100))                     // Client-side batching
     {
-        // Still streaming row-by-row, not buffered
+        // Streaming row-by-row, not buffered
     }
     ```
 
-6.  **ForEach Requires Explicit `Pull()`**: To prevent accidental client-side execution, `ForEach()` and other `IAsyncEnumerable` extensions do not resolve directly on `SnowflakeQuery`. Use `Pull()` first:
+7.  **ForEach — Server-Side and Client-Side**:
+
+     **Server-Side (Deferred):** Use `ForEach()` to deploy server-side logic to Snowflake. Execution is deferred until materialization (`Count()`, `ToList()`, `ToArray()`):
+     ```csharp
+     // Static fields are auto-synced back from Snowflake after execution
+     static long _count = 0;
+     static double _total = 0.0;
+     static void Accumulate(long id, double amount) { _count++; _total += amount; }
+
+     var count = await context.Read.Table<Order>("ORDERS")
+         .ForEach((Action<long, double>)Accumulate)   // Deferred — nothing runs yet
+         .Count();                                     // Triggers execution + sync
+
+     Console.WriteLine($"Processed {_count} rows, total: {_total}");
+    ```
+
+    **Client-Side (Pull):** For complex C# logic, use `Pull()` to switch to client-side streaming:
     ```csharp
-    // ❌ Won't compile - ForEach hidden on SnowflakeQuery
-    // query.ForEach(x => Log(x));  
-    
-    // ✅ Correct - explicit Pull() makes boundary clear
     await query.Pull().ForEach(x => Log(x)).Do();
     ```
 

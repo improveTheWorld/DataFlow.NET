@@ -110,7 +110,9 @@ The following operations are translated directly to Snowflake SQL and executed s
 - **Async Streaming**: `IAsyncEnumerable<T>` support via `GetAsyncEnumerator` (efficient memory usage).
 - **Materialization**: `ToList()`, `ToArray()`, `First()`, `FirstOrDefault()`, `Count()`, `Any()`.
 - **Single Element**: `Single()`, `SingleOrDefault()` (verify exactly 1 result).
-- **Server-to-Client Transition**: `Pull()` switches to client-side streaming while maintaining lazy row-by-row evaluation.
+- **Auto-UDF**: Custom C# methods in `Where()`/`Select()` auto-translate to Snowflake UDF calls — static, instance, lambda, and entity-parameter patterns all supported.
+- **ForEach (Deferred)**: `ForEach(action)` deploys server-side logic to Snowflake. Execution deferred until `Count()`/`ToList()`/`ToArray()`. Static fields auto-synced back after execution.
+- **Pull() (Escape Hatch)**: `Pull()` switches to client-side streaming for edge cases where server-side execution is not desired (e.g., accessing LINQ operators not available on `SnowflakeQuery<T>`).
 
 ### 9. Cases Pattern (Multi-Destination Routing)
 | Method | Description |
@@ -136,14 +138,21 @@ These features are **not currently supported**:
     - `o.Items.Select(i => i.Price * 2)` → `TRANSFORM(items, i -> i:price * 2)`
 *   ❌ **Correlated Subqueries**: `.Where(o => otherQuery.Any(x => x.Id == o.Id))` (Requires `EXISTS`).
 
-### 2. Distributed Operations (Spark-Specific)
-*   ⚡ **Cache/Persist**: Snowflake handles caching internally—not user-controlled.
-*   ⚡ **Repartition/Coalesce**: Not applicable—Snowflake manages distribution.
+### 3. Expression Translation (Advanced)
+*   ✅ **Custom Method Calls (Auto-UDF)**: Static methods, instance methods, lambda/`Func<>` delegates, and entity-parameter methods in `Where()` and `Select()` are auto-translated to UDF function calls.
+    - `.Where(o => IsHighValue(o.Amount))` → `WHERE auto_helpers_ishighvalue(amount)`
+    - `.Where(o => o.IsActive && IsHighValue(o.Amount))` → `WHERE is_active AND auto_helpers_ishighvalue(amount)` — mixed expressions decompose naturally
+    - `.Where(o => CustomValidator(o))` → `WHERE auto_class_customvalidator(amount, status)` — entity parameters auto-decomposed into individual columns
+    - Instance: `.Where(o => validator.IsValid(o.Amount))` → `WHERE auto_ordervalidator_isvalid(amount)`
+    - Lambda: `Func<decimal, bool> f = x => x > 1000;` `.Where(o => f(o.Amount))` → `WHERE auto_lambda_f(amount)`
+    - ⚠️ UDFs prevent Snowflake predicate pushdown — the Roslyn analyzer (DFSN004) warns at build time
 
-### 3. Expression Limitations
-*   ❌ **Custom Method Calls**: `.Where(o => MyHelper.Validate(o))` (Cannot translate C# methods to SQL).
-
----
+### 4. Roslyn Analyzer Diagnostics
+| Rule | Severity | Description |
+|------|----------|---------|
+| **DFSN004** | ⚠️ Warning | Custom method in `Where()` — prevents predicate pushdown |
+| **DFSN005** | ⚠️ Warning | Instance method — supported, but carries closure overhead |
+| **DFSN006** | ⚠️ Warning | Multiple UDFs in same `Where` — compounding performance impact |
 
 ## Summary
 
@@ -154,6 +163,7 @@ DataFlow.NET's Snowflake provider is a **production-ready Analytical Query Build
 *   **Write operations**: 
     - `query.WriteTable("TABLE")` — Server-side write (no context needed, inherited from query)
     - `data.WriteTable(context, "TABLE")` — Client-to-server push (context required)
+*   **Full C# support**: Custom methods auto-translate to UDFs — no `Pull()` needed.
 *   **95%+** coverage of common analytics scenarios.
 
 > **Note:** Snowflake is an analytics data warehouse, not a transactional database. EF Core does not support Snowflake. If your application needs complex entity relationships, change tracking, and migrations, use a traditional OLTP database (SQL Server, PostgreSQL) with Entity Framework Core. For Snowflake analytics workloads, DataFlow.Snowflake is the only LINQ solution available.
