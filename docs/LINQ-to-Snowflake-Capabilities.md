@@ -83,8 +83,8 @@ The following operations are translated directly to Snowflake SQL and executed s
 ### 5. Window Functions
 | Method | SQL Translation |
 |--------|-----------------|
-| `WithRowNumber(o => o.Id)` | `ROW_NUMBER() OVER (ORDER BY id)` |
-| `WithRank(o => o.Dept, o => o.Salary)` | `RANK() OVER (PARTITION BY dept ORDER BY salary)` |
+| `WithRowNumber(partitionBy, orderBy)` | `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)` |
+| `WithRank(partitionBy, orderBy)` | `RANK() OVER (PARTITION BY ... ORDER BY ...)` |
 | `w.Lag("col", 1)` | `LAG(col, 1) OVER (...)` |
 | `w.Lead("col", 1)` | `LEAD(col, 1) OVER (...)` |
 | `w.Sum("col")` | `SUM(col) OVER (...)` |
@@ -101,7 +101,7 @@ The following operations are translated directly to Snowflake SQL and executed s
 | Method | Description |
 |--------|-------------|
 | `Show(n)` | Display first N rows to console |
-| `Explain(extended)` | Print SQL query plan |
+| `Explain()` | Print SQL query plan (synchronous — do not `await`) |
 | `PrintSchema()` | Print result type schema |
 | `Spy(label)` | Display and continue chaining |
 | `ToSql()` | Get generated SQL string |
@@ -110,6 +110,7 @@ The following operations are translated directly to Snowflake SQL and executed s
 - **Async Streaming**: `IAsyncEnumerable<T>` support via `GetAsyncEnumerator` (efficient memory usage).
 - **Materialization**: `ToList()`, `ToArray()`, `First()`, `FirstOrDefault()`, `Count()`, `Any()`.
 - **Single Element**: `Single()`, `SingleOrDefault()` (verify exactly 1 result).
+- **Aggregate pattern**: For filtered aggregates, use `.Where(pred).Count()` rather than `.Count(pred)` — the chained pattern avoids overload ambiguity.
 - **Auto-UDF**: Custom C# methods in `Where()`/`Select()` auto-translate to Snowflake UDF calls — static, instance, lambda, and entity-parameter patterns all supported.
 - **ForEach (Deferred)**: `ForEach(action)` deploys server-side logic to Snowflake. Execution deferred until `Count()`/`ToList()`/`ToArray()`. Static fields auto-synced back after execution.
 - **Pull() (Escape Hatch)**: `Pull()` switches to client-side streaming for edge cases where server-side execution is not desired (e.g., accessing LINQ operators not available on `SnowflakeQuery<T>`).
@@ -146,6 +147,21 @@ These features are **not currently supported**:
     - Instance: `.Where(o => validator.IsValid(o.Amount))` → `WHERE auto_ordervalidator_isvalid(amount)`
     - Lambda: `Func<decimal, bool> f = x => x > 1000;` `.Where(o => f(o.Amount))` → `WHERE auto_lambda_f(amount)`
     - ⚠️ UDFs prevent Snowflake predicate pushdown — the Roslyn analyzer (DFSN004) warns at build time
+    - ❌ **UDF result alias not queryable after Select**: Projecting a UDF result as a named field in `.Select()` and then referencing that alias in **any subsequent chained operator** (`.Where()`, `.OrderBy()`, `.GroupBy()`, etc.) is **not supported**. SQL cannot reference a column alias defined in the same query level — it requires wrapping in a subquery first.
+      ```csharp
+      // ❌ NOT SUPPORTED — any chaining on the alias produces invalid SQL
+      orders
+          .Select(o => new { IsSmall = IsSmallOrder(o.Amount) })
+          .Where(x => x.IsSmall);       // ERROR: invalid identifier 'IS_SMALL'
+          // .OrderBy(x => x.IsSmall)    // Same error
+          // .GroupBy(x => x.IsSmall)    // Same error
+
+      // ✅ WORKAROUND — use Pull() to switch to client-side
+      orders
+          .Select(o => new { o.Id, IsSmall = IsSmallOrder(o.Amount) })
+          .Pull()                    // switch to client-side
+          .Where(x => x.IsSmall);   // filtered in memory
+      ```
 
 ### 4. Roslyn Analyzer Diagnostics
 | Rule | Severity | Description |
@@ -161,9 +177,9 @@ DataFlow.NET's Snowflake provider is a **production-ready Analytical Query Build
 *   Projecting flat results for analysis.
 *   Streaming data efficiently to your application.
 *   **Write operations**: 
-    - `query.WriteTable("TABLE")` — Server-side write (no context needed, inherited from query)
-    - `data.WriteTable(context, "TABLE")` — Client-to-server push (context required)
-*   **Full C# support**: Custom methods auto-translate to UDFs — no `Pull()` needed.
+    - `query.WriteTable("TABLE").CreateIfMissing().Overwrite()` — Server-side write
+    - `data.WriteTable(context, "TABLE").CreateIfMissing().Overwrite()` — Client-to-server push
+*   **Full C# support**: Custom methods auto-translate to server-side function calls — no `Pull()` needed.
 *   **95%+** coverage of common analytics scenarios.
 
 > **Note:** Snowflake is an analytics data warehouse, not a transactional database. EF Core does not support Snowflake. If your application needs complex entity relationships, change tracking, and migrations, use a traditional OLTP database (SQL Server, PostgreSQL) with Entity Framework Core. For Snowflake analytics workloads, DataFlow.Snowflake is the only LINQ solution available.
