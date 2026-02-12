@@ -8,7 +8,7 @@
 |---------|--------|-----------|
 | **DataFlow.Net** | v1.2.1 | [v1.2.1](DataFlow.Net_1.2.1.md), [v1.2.0](DataFlow.Net_1.2.0.md), [v1.1.0](DataFlow.Net_1.1.0.md), [v1.0.2](DataFlow.Net_1.0.2.md) |
 | **DataFlow.Spark** | v1.2.1 | [v1.2.1](DataFlow.Spark_1.2.1.md), [v1.2.0](DataFlow.Spark_1.2.0.md) |
-| **DataFlow.Snowflake** | v1.2.1 | [v1.2.1](DataFlow.Snowflake_1.2.1.md) |
+| **DataFlow.Snowflake** | v1.3.0 | [v1.3.0](DataFlow.Snowflake_1.3.0.md), [v1.2.1](DataFlow.Snowflake_1.2.1.md) |
 
 ## Naming Convention
 
@@ -27,4 +27,5 @@ Files follow: `{PackageName}_{Version}.md`
 - **v1.2.0** — Auto-UDF, Assembly Distribution
 
 ### DataFlow.Snowflake (Enterprise)
+- **v1.3.0** — ROCK Edition: Auto-UDF, ForEach, 418 integration tests
 - **v1.2.1** — SQL generation improvements
